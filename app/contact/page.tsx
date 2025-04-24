@@ -44,7 +44,7 @@ export default function Contact() {
               </p>
               <div className="flex justify-center">
                 <Link
-                  href="https://discord.gg/your-discord-server"
+                  href="https://discord.gg/PR75T8xMWS"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="bg-[#5865F2] hover:bg-[#4752C4] text-white px-6 py-3 rounded-md transition-colors inline-flex items-center"
