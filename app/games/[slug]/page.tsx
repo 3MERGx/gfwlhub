@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { games } from "@/data/games";
 import { FaArrowLeft, FaDiscord, FaReddit, FaDownload } from "react-icons/fa";
 import { GamePageParams } from "@/types/routes";
+import VirusTotalWidget from "@/components/VirusTotalWidget";
+import Image from "next/image";
 
 // Get feature flags from .env.local or check if it's enabled in the game data
 const getFeatureFlag = (slug: string): boolean => {
@@ -79,36 +81,119 @@ export default async function GamePage({
             </div>
           </div>
 
-          <h1 className="text-3xl font-bold mb-2 text-white">{game.title}</h1>
+          <div className="flex flex-col md:flex-row gap-6 mb-6">
+            {/* Game Image - Only show if imageUrl exists */}
+            {game.imageUrl && (
+              <div className="md:w-1/3">
+                <div className="relative w-full aspect-[3/4] rounded-lg overflow-hidden">
+                  <Image
+                    src={game.imageUrl}
+                    alt={`${game.title} cover`}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                  />
+                </div>
+              </div>
+            )}
 
-          <div className="flex flex-wrap gap-3 mb-6">
-            <span
-              className={`px-3 py-1 rounded-full text-sm font-medium ${
-                game.activationType === "Legacy (5x5)"
-                  ? "bg-green-500 text-white"
-                  : game.activationType === "Legacy (Per-Title)"
-                  ? "bg-yellow-500 text-black"
-                  : "bg-red-500 text-white"
-              }`}
-            >
-              {game.activationType}
-            </span>
-            <span
-              className={`px-3 py-1 rounded-full text-sm font-medium ${
-                game.status === "supported"
-                  ? "bg-green-500 text-white"
-                  : game.status === "testing"
-                  ? "bg-yellow-500 text-black"
-                  : "bg-red-500 text-white"
-              }`}
-            >
-              {game.status.charAt(0).toUpperCase() + game.status.slice(1)}
-            </span>
+            {/* Game Details */}
+            <div className={game.imageUrl ? "md:w-2/3" : "w-full"}>
+              <h1 className="text-3xl font-bold mb-2 text-white">
+                {game.title}
+              </h1>
+
+              <div className="flex flex-wrap gap-3 mb-4">
+                <span
+                  className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    game.activationType === "Legacy (5x5)"
+                      ? "bg-green-500 text-white"
+                      : game.activationType === "Legacy (Per-Title)"
+                      ? "bg-yellow-500 text-black"
+                      : "bg-red-500 text-white"
+                  }`}
+                >
+                  {game.activationType}
+                </span>
+                <span
+                  className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    game.status === "supported"
+                      ? "bg-green-500 text-white"
+                      : game.status === "testing"
+                      ? "bg-yellow-500 text-black"
+                      : "bg-red-500 text-white"
+                  }`}
+                >
+                  {game.status.charAt(0).toUpperCase() + game.status.slice(1)}
+                </span>
+              </div>
+
+              {game.description && (
+                <p className="text-gray-300 mb-4">{game.description}</p>
+              )}
+
+              {/* Game Metadata */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm mb-4">
+                {game.releaseDate && (
+                  <div className="flex">
+                    <span className="text-gray-400 w-24">Released:</span>
+                    <span className="text-white">{game.releaseDate}</span>
+                  </div>
+                )}
+
+                {game.developer && (
+                  <div className="flex">
+                    <span className="text-gray-400 w-24">Developer:</span>
+                    <span className="text-white">{game.developer}</span>
+                  </div>
+                )}
+
+                {game.publisher && (
+                  <div className="flex">
+                    <span className="text-gray-400 w-24">Publisher:</span>
+                    <span className="text-white">{game.publisher}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Genres and Platforms */}
+              {(game.genres.length > 0 || game.platforms.length > 0) && (
+                <div className="mb-4">
+                  {game.genres.length > 0 && (
+                    <div className="mb-2">
+                      <span className="text-gray-400 text-sm">Genres: </span>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {game.genres.map((genre, index) => (
+                          <span
+                            key={index}
+                            className="bg-[#2d2d2d] px-2 py-1 rounded text-xs text-white"
+                          >
+                            {genre}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {game.platforms.length > 0 && (
+                    <div>
+                      <span className="text-gray-400 text-sm">Platforms: </span>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {game.platforms.map((platform, index) => (
+                          <span
+                            key={index}
+                            className="bg-[#2d2d2d] px-2 py-1 rounded text-xs text-white"
+                          >
+                            {platform}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-
-          {game.description && (
-            <p className="text-gray-300 mb-6">{game.description}</p>
-          )}
 
           {isFeatureEnabled ? (
             <div className="space-y-6">
@@ -130,6 +215,14 @@ export default async function GamePage({
                     </div>
                   </div>
                 </>
+              )}
+
+              {/* VirusTotal Widget - only show if both downloadLink and virusTotalHash exist */}
+              {game.downloadLink && game.virusTotalHash && (
+                <div className="mt-8">
+                  <h3 className="text-xl font-semibold mb-2">Security Scan</h3>
+                  <VirusTotalWidget fileHash={game.virusTotalHash} />
+                </div>
               )}
 
               {/* Known Issues Section - Only show if knownIssues exists and has items */}

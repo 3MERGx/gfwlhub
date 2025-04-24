@@ -92,7 +92,7 @@ export default function Download() {
 
           {/* VirusTotal Widget */}
           <div className="mt-6">
-            <VirusTotalWidget scanId="" fileName="GFWLHub-Installer.exe" />
+            <VirusTotalWidget fileHash="" fileName="GFWLHub-Installer.exe" />
           </div>
         </div>
       </div>
