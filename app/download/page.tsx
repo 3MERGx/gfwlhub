@@ -13,7 +13,7 @@ export default function Download() {
       <div className="max-w-4xl mx-auto">
         <div className="bg-[#202020] p-8 rounded-lg shadow-xl mb-8">
           <h1 className="text-3xl font-bold mb-6 text-center text-white">
-            Download GFWL Hub
+            Download GFWL Fix
           </h1>
 
           <div className="bg-[#2d2d2d] p-6 rounded-lg mb-8">
