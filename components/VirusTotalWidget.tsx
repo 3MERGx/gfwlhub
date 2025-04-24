@@ -1,69 +1,41 @@
 import React from "react";
-import { FaShieldAlt, FaExternalLinkAlt } from "react-icons/fa";
+import Link from "next/link";
+import { FaShieldAlt } from "react-icons/fa";
 
-interface VirusTotalWidgetProps {
-  scanId: string;
-  fileName: string;
-  detectionRatio?: string;
-  scanDate?: string;
+export interface VirusTotalWidgetProps {
+  fileHash: string;
+  fileName?: string;
 }
 
 const VirusTotalWidget: React.FC<VirusTotalWidgetProps> = ({
-  scanId,
+  fileHash,
   fileName,
-  detectionRatio = "0/70",
-  scanDate = "Not yet scanned",
 }) => {
-  const vtUrl = scanId
-    ? `https://www.virustotal.com/gui/file/${scanId}/detection`
-    : "https://www.virustotal.com";
+  if (!fileHash) return null;
+
+  const virusTotalUrl = `https://www.virustotal.com/gui/file/${fileHash}/detection`;
 
   return (
-    <div className="bg-[#2d2d2d] p-6 rounded-lg border border-gray-700">
-      <div className="flex items-center mb-4">
-        <FaShieldAlt className="text-[#107c10] mr-3 text-xl" />
-        <h3 className="text-xl font-bold text-white">
-          VirusTotal Scan Results
-        </h3>
+    <div className="bg-[#2d2d2d] p-4 rounded-lg">
+      <div className="flex items-center mb-3">
+        <FaShieldAlt className="text-green-500 mr-2" size={20} />
+        <span className="text-gray-300">File Security Information</span>
       </div>
-
-      {scanId ? (
-        <div className="space-y-3">
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            <div className="text-gray-400">File:</div>
-            <div className="text-white font-medium">{fileName}</div>
-          </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            <div className="text-gray-400">Detection:</div>
-            <div className="text-white font-medium">{detectionRatio}</div>
-          </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            <div className="text-gray-400">Last Scanned:</div>
-            <div className="text-white font-medium">{scanDate}</div>
-          </div>
-          <div className="mt-4">
-            <a
-              href={vtUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center bg-[#107c10] hover:bg-[#0e6b0e] text-white px-4 py-2 rounded-md transition-colors"
-            >
-              View Full Report <FaExternalLinkAlt className="ml-2" size={14} />
-            </a>
-          </div>
-        </div>
-      ) : (
-        <div className="text-gray-300">
-          <p>
-            VirusTotal scan results will be available once the GFWL Hub tool is
-            released.
-          </p>
-          <p className="mt-2 text-sm">
-            We&apos;ll submit our tool to VirusTotal to ensure transparency and
-            security.
-          </p>
-        </div>
+      {fileName && (
+        <p className="text-sm text-gray-300 mb-2">File: {fileName}</p>
       )}
+      <p className="text-sm text-gray-400 mb-3">
+        We recommend checking the security scan results before downloading any
+        files.
+      </p>
+      <Link
+        href={virusTotalUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-sm transition-colors"
+      >
+        View VirusTotal Report
+      </Link>
     </div>
   );
 };
