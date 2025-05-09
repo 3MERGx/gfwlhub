@@ -18,6 +18,7 @@ export interface Game {
   redditLink?: string;
   featureEnabled?: boolean;
   downloadLink?: string;
+  fileName?: string;
   virusTotalHash?: string;
   knownIssues?: string[];
   communityTips?: string[];
@@ -39,12 +40,14 @@ export const games: Game[] = [
     platforms: ["Windows"],
     // imageUrl:
     //   "https://thumbnails.pcgamingwiki.com/c/c2/Shadowrun_cover.jpg/300px-Shadowrun_cover.jpg",
-    discordLink: "https://discord.gg/ShadowrunFPS",
-    redditLink: "https://reddit.com/r/ShadowrunFPS",
+    discordLink: "https://discord.gg/shadowrun",
+    redditLink: "https://www.reddit.com/r/shadowrunfps/",
     featureEnabled: true,
     downloadLink:
-      "https://mega.nz/file/5LdjgJQY#XMIClDPN0j0p7FrjNTGL3518OU3nrJl-xCA5W5jZZcg",
-    virusTotalHash: "",
+      "http://157.245.214.234/releases/Shadowrun%20FPS%20Launcher.exe",
+    fileName: "Shadowrun Launcher",
+    virusTotalHash:
+      "87adfa7b167930934a738bfa2ee53e9d110dc51d6cb072063f6c86708fdabb58",
     knownIssues: [
       "Some users may experience sign-in issues on the first attempt",
       "Achievements may not sync properly in some cases",
