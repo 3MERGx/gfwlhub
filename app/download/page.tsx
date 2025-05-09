@@ -2,6 +2,7 @@
 
 import { FaDownload, FaInfoCircle } from "react-icons/fa";
 import Link from "next/link";
+import VirusTotalWidget from "@/components/VirusTotalWidget";
 
 export default function Download() {
   // Download link for GFWL Keygen
@@ -75,22 +76,7 @@ export default function Download() {
             <h3 className="text-lg md:text-xl font-semibold mb-2 text-white">
               Security Scan
             </h3>
-            <div className="bg-[#2d2d2d] p-4 rounded-lg">
-              <p className="text-gray-300 mb-4 text-sm md:text-base">
-                You can verify the safety of our download by checking the
-                VirusTotal scan results:
-              </p>
-              <div className="flex justify-center">
-                <a
-                  href={`https://www.virustotal.com/gui/url/${virusTotalUrl}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center bg-[#4a4a4a] hover:bg-[#5a5a5a] text-white w-full md:w-auto px-4 py-2 rounded-md transition-colors justify-center text-sm md:text-base"
-                >
-                  View VirusTotal Report
-                </a>
-              </div>
-            </div>
+            <VirusTotalWidget fileHash={virusTotalUrl} />
           </div>
         </div>
       </div>
