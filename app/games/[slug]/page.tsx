@@ -210,7 +210,7 @@ export default async function GamePage({
                         className="inline-flex items-center bg-[#107c10] hover:bg-[#0e6b0e] text-white px-4 py-2 rounded-md transition-colors"
                       >
                         <FaDownload className="mr-2" />
-                        Download Game Files
+                        Download {game.fileName || "Game Files"}
                       </Link>
                     </div>
                   </div>
