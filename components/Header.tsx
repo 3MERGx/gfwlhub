@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { FaBars, FaTimes } from "react-icons/fa";
+import { FaBars, FaTimes, FaDownload } from "react-icons/fa";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -59,8 +59,16 @@ export default function Header() {
             </ul>
           </nav>
 
-          {/* Empty div to balance the layout */}
-          <div className="hidden md:block w-[100px]"></div>
+          {/* Download button for desktop */}
+          <div className="hidden md:block">
+            <Link
+              href="/download"
+              className="bg-white text-[#107c10] hover:bg-gray-100 px-4 py-2 rounded-md font-medium flex items-center transition-colors"
+            >
+              <FaDownload className="mr-2" />
+              Download Fix
+            </Link>
+          </div>
         </div>
       </div>
 
