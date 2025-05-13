@@ -825,7 +825,6 @@ export const games: Game[] = [
     genres: [],
     platforms: [],
     imageUrl: "",
-    discordLink: "https://discord.gg/KwrKM36jAp",
   },
   {
     id: "star-wars-the-clone-wars-republic-heroes",
