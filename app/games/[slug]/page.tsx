@@ -217,11 +217,11 @@ export default async function GamePage({
                 </>
               )}
 
-              {/* VirusTotal Widget - only show if both downloadLink and virusTotalHash exist */}
-              {game.downloadLink && game.virusTotalHash && (
+              {/* VirusTotal Widget - show if either virusTotalHash or virusTotalUrl exists */}
+              {game.downloadLink && game.virusTotalUrl && (
                 <div className="mt-8">
                   <h3 className="text-xl font-semibold mb-2">Security Scan</h3>
-                  <VirusTotalWidget fileHash={game.virusTotalHash} />
+                  <VirusTotalWidget virusTotalUrl={game.virusTotalUrl} />
                 </div>
               )}
 
