@@ -810,6 +810,7 @@ export const games: Game[] = [
     genres: [],
     platforms: [],
     imageUrl: "",
+    discordLink: "https://discord.gg/KwrKM36jAp",
   },
   {
     id: "section-8-prejudice",
@@ -974,6 +975,7 @@ export const games: Game[] = [
     genres: [],
     platforms: [],
     imageUrl: "",
+    discordLink: "https://discord.gg/bCyw3cPvq8",
   },
   {
     id: "vancouver-2010",
