@@ -9,9 +9,9 @@ export default function Download() {
   const downloadLink =
     "https://cdn.discordapp.com/attachments/1065348198094352524/1363973667683307590/GFWL_Keygen_Beta_0.5.7z?ex=681f0d37&is=681dbbb7&hm=638e3cae8c799fcab96ec888f430e9f3db92977249e52210f78863065b6a2196&";
 
-  // VirusTotal hash/URL for the file
+  // VirusTotal URL for the file
   const virusTotalUrl =
-    "6cb4c0d7ce2d2e51cff381c74c7ac79e5ed03bcbfa14f448bd1d4d6e59d0553e";
+    "https://www.virustotal.com/gui/url/6cb4c0d7ce2d2e51cff381c74c7ac79e5ed03bcbfa14f448bd1d4d6e59d0553e";
 
   return (
     <div className="container mx-auto px-4 py-6 md:py-8">
@@ -76,7 +76,7 @@ export default function Download() {
             <h3 className="text-lg md:text-xl font-semibold mb-2 text-white">
               Security Scan
             </h3>
-            <VirusTotalWidget fileHash={virusTotalUrl} />
+            <VirusTotalWidget virusTotalUrl={virusTotalUrl} />
           </div>
         </div>
       </div>

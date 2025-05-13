@@ -1,43 +1,48 @@
-import React from "react";
-import Link from "next/link";
-import { FaShieldAlt } from "react-icons/fa";
+"use client";
 
-export interface VirusTotalWidgetProps {
-  fileHash: string;
-  fileName?: string;
+import { FaExternalLinkAlt, FaShieldAlt } from "react-icons/fa";
+
+interface VirusTotalWidgetProps {
+  fileHash?: string;
+  virusTotalUrl?: string;
 }
 
-const VirusTotalWidget: React.FC<VirusTotalWidgetProps> = ({
+export default function VirusTotalWidget({
   fileHash,
-  fileName,
-}) => {
-  if (!fileHash) return null;
+  virusTotalUrl,
+}: VirusTotalWidgetProps) {
+  // Use the provided URL if available, otherwise construct one from the hash
+  const vtUrl =
+    virusTotalUrl ||
+    (fileHash
+      ? `https://www.virustotal.com/gui/file/${fileHash}/detection`
+      : "");
 
-  const virusTotalUrl = `https://www.virustotal.com/gui/file/${fileHash}/detection`;
+  if (!vtUrl) {
+    return null;
+  }
 
   return (
     <div className="bg-[#2d2d2d] p-4 rounded-lg">
       <div className="flex items-center mb-3">
         <FaShieldAlt className="text-green-500 mr-2" size={20} />
-        <span className="text-gray-300">File Security Information</span>
+        <h4 className="text-white font-medium">VirusTotal Security Check</h4>
       </div>
-      {fileName && (
-        <p className="text-sm text-gray-300 mb-2">File: {fileName}</p>
-      )}
-      <p className="text-sm text-gray-400 mb-3">
-        We recommend checking the security scan results before downloading any
-        files.
+
+      <p className="text-gray-300 text-sm mb-4">
+        This file has been scanned with VirusTotal&apos;s multi-engine antivirus
+        scanner. Check the results to ensure the file is safe before
+        downloading.
       </p>
-      <Link
-        href={virusTotalUrl}
+
+      <a
+        href={vtUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-sm transition-colors"
+        className="inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors text-sm"
       >
-        View VirusTotal Report
-      </Link>
+        View VirusTotal Report <FaExternalLinkAlt className="ml-2" size={14} />
+      </a>
     </div>
   );
-};
-
-export default VirusTotalWidget;
+}

@@ -19,7 +19,8 @@ export interface Game {
   featureEnabled?: boolean;
   downloadLink?: string;
   fileName?: string;
-  virusTotalHash?: string;
+
+  virusTotalUrl?: string;
   knownIssues?: string[];
   communityTips?: string[];
 }
@@ -46,8 +47,9 @@ export const games: Game[] = [
     downloadLink:
       "http://157.245.214.234/releases/Shadowrun%20FPS%20Launcher.exe",
     fileName: "Shadowrun Launcher",
-    virusTotalHash:
-      "87adfa7b167930934a738bfa2ee53e9d110dc51d6cb072063f6c86708fdabb58",
+
+    virusTotalUrl:
+      "https://www.virustotal.com/gui/file/87adfa7b167930934a738bfa2ee53e9d110dc51d6cb072063f6c86708fdabb58/detection",
     knownIssues: [
       "Some users may experience sign-in issues on the first attempt",
       "Achievements may not sync properly in some cases",
@@ -71,6 +73,7 @@ export const games: Game[] = [
     genres: [],
     platforms: [],
     imageUrl: "",
+
     knownIssues: [
       "Some users may experience sign-in issues on the first attempt",
       "Achievements may not sync properly in some cases",
@@ -510,7 +513,7 @@ export const games: Game[] = [
     discordLink: "https://discord.gg/yJk32PapSx",
     redditLink: "",
     downloadLink: "",
-    virusTotalHash: "",
+
     knownIssues: [
       "Some users may experience sign-in issues on the first attempt",
       "Achievements may not sync properly in some cases",
@@ -967,6 +970,7 @@ export const games: Game[] = [
     slug: "universe-at-war-earth-assault",
     activationType: "Legacy (5x5)",
     status: "supported",
+    featureEnabled: true,
     description:
       "Real-time strategy game featuring three unique alien factions battling on Earth.",
     releaseDate: "",
@@ -975,6 +979,11 @@ export const games: Game[] = [
     genres: [],
     platforms: [],
     imageUrl: "",
+    downloadLink:
+      "https://drive.google.com/drive/folders/167UET84ZWXrMd9zpxEYiQWTQZexCGZfT?usp=sharing",
+    fileName: "Universe at War Launcher",
+    virusTotalUrl:
+      "https://www.virustotal.com/gui/url/b980531267df244a5fc5ac802ff867cf3845449404272b42804c8ef30aa3c164/details",
     discordLink: "https://discord.gg/bCyw3cPvq8",
   },
   {
