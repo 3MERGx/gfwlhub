@@ -19,6 +19,7 @@ export interface Game {
   featureEnabled?: boolean;
   downloadLink?: string;
   fileName?: string;
+  purchaseLink?: string;
 
   virusTotalUrl?: string;
   knownIssues?: string[];
@@ -39,15 +40,14 @@ export const games: Game[] = [
     publisher: "Microsoft Studios",
     genres: ["Action", "Adventure", "First-Person Shooter"],
     platforms: ["Windows"],
-    // imageUrl:
-    //   "https://thumbnails.pcgamingwiki.com/c/c2/Shadowrun_cover.jpg/300px-Shadowrun_cover.jpg",
+    imageUrl: "/games/shadowrun_art.jpg",
     discordLink: "https://discord.gg/shadowrun",
     redditLink: "https://www.reddit.com/r/shadowrunfps/",
     featureEnabled: true,
     downloadLink:
       "http://157.245.214.234/releases/Shadowrun%20FPS%20Launcher.exe",
     fileName: "Shadowrun Launcher",
-
+    // purchaseLink: "https://www.gog.com/en/game/shadowrun_returns",
     virusTotalUrl:
       "https://www.virustotal.com/gui/file/87adfa7b167930934a738bfa2ee53e9d110dc51d6cb072063f6c86708fdabb58/detection",
     knownIssues: [
@@ -932,8 +932,13 @@ export const games: Game[] = [
     publisher: "",
     genres: [],
     platforms: [],
-    imageUrl: "",
+    imageUrl: "/games/the_club_art.jpg",
+    featureEnabled: true,
     discordLink: "https://discord.gg/rpBXqdDf6m",
+    downloadLink: "https://archive.org/details/the-club-repack-tn",
+    virusTotalUrl:
+      "https://www.virustotal.com/gui/url/dffe0adee00b1989054cddbd9aaa4a598849ecc248c7241733b90f3c95bfad17/details",
+    purchaseLink: "https://store.steampowered.com/app/10460/The_Club/",
   },
   {
     id: "toy-soldiers",
@@ -978,13 +983,15 @@ export const games: Game[] = [
     publisher: "",
     genres: [],
     platforms: [],
-    imageUrl: "",
+    imageUrl: "/games/universe_at_war.jpg",
     downloadLink:
       "https://drive.google.com/drive/folders/167UET84ZWXrMd9zpxEYiQWTQZexCGZfT?usp=sharing",
     fileName: "Universe at War Launcher",
     virusTotalUrl:
       "https://www.virustotal.com/gui/url/b980531267df244a5fc5ac802ff867cf3845449404272b42804c8ef30aa3c164/details",
     discordLink: "https://discord.gg/bCyw3cPvq8",
+    purchaseLink:
+      "https://store.steampowered.com/app/10260/Universe_at_War_Earth_Assault/",
   },
   {
     id: "vancouver-2010",

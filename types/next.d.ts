@@ -1,8 +1,15 @@
 // Add proper type definitions for Next.js metadata
 declare module "next/types" {
   export interface Metadata {
-    title?: string;
+    title?:
+      | string
+      | {
+          default: string;
+          template?: string;
+          absolute?: string;
+        };
     description?: string;
+    metadataBase?: URL;
     [key: string]: any;
   }
 }

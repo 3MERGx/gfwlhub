@@ -4,7 +4,9 @@ import { games } from "@/data/games";
 import { FaArrowLeft, FaDiscord, FaReddit, FaDownload } from "react-icons/fa";
 import { GamePageParams } from "@/types/routes";
 import VirusTotalWidget from "@/components/VirusTotalWidget";
+import StoreButton from "@/components/StoreButton";
 import Image from "next/image";
+import { Metadata } from "next";
 
 // Get feature flags from .env.local or check if it's enabled in the game data
 const getFeatureFlag = (slug: string): boolean => {
@@ -23,6 +25,52 @@ export async function generateStaticParams() {
   return games.map((game) => ({
     slug: game.slug,
   }));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<GamePageParams>;
+}): Promise<Metadata> {
+  // Await the params
+  const resolvedParams = await params;
+  const slug = resolvedParams.slug;
+  const game = games.find((g) => g.slug === slug);
+
+  if (!game) {
+    return {
+      title: "Game Not Found - GFWL Hub",
+      description: "The requested game could not be found.",
+    };
+  }
+
+  // Base metadata
+  const metadata: Metadata = {
+    title: `${game.title} | GFWL Hub`,
+    description: game.description,
+    openGraph: {
+      title: `${game.title} | GFWL Hub`,
+      description: game.description,
+      type: "article",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${game.title} | GFWL Hub`,
+      description: game.description,
+    },
+  };
+
+  // Only add image metadata if the game has an imageUrl
+  if (game.imageUrl) {
+    if (metadata.openGraph) {
+      metadata.openGraph.images = [game.imageUrl];
+    }
+    if (metadata.twitter) {
+      metadata.twitter.images = [game.imageUrl];
+    }
+  }
+
+  return metadata;
 }
 
 export default async function GamePage({
@@ -54,7 +102,7 @@ export default async function GamePage({
               Back to Supported Games
             </Link>
 
-            {/* Community Links */}
+            {/* Community Links - keep just Discord and Reddit here */}
             <div className="flex gap-3">
               {game.discordLink && (
                 <Link
@@ -195,85 +243,72 @@ export default async function GamePage({
             </div>
           </div>
 
-          {isFeatureEnabled ? (
-            <div className="space-y-6">
-              {/* Game Download Section - Only show if downloadLink exists */}
-              {game.downloadLink && (
-                <>
-                  <h2 className="text-xl font-bold mb-3 text-white">
-                    Game Download
-                  </h2>
-                  <div>
-                    <div className="mt-4">
-                      <Link
-                        href={game.downloadLink}
-                        className="inline-flex items-center bg-[#107c10] hover:bg-[#0e6b0e] text-white px-4 py-2 rounded-md transition-colors"
-                      >
-                        <FaDownload className="mr-2" />
-                        Download {game.fileName || "Game Files"}
-                      </Link>
-                    </div>
-                  </div>
-                </>
-              )}
+          {/* Game Download section with purchase button */}
+          {isFeatureEnabled && (
+            <div className="mt-8">
+              <h2 className="text-2xl font-bold mb-4 text-white">
+                Game Download
+              </h2>
 
-              {/* VirusTotal Widget - show if either virusTotalHash or virusTotalUrl exists */}
+              <div className="flex flex-wrap gap-3 mb-6">
+                {game.downloadLink && (
+                  <Link
+                    href={game.downloadLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md transition-colors"
+                  >
+                    <FaDownload className="mr-2" />
+                    Download {game.fileName || game.title}
+                  </Link>
+                )}
+
+                {/* Store purchase button positioned next to the download button */}
+                {game.purchaseLink && (
+                  <StoreButton purchaseLink={game.purchaseLink} />
+                )}
+              </div>
+
+              {/* VirusTotal Widget */}
               {game.downloadLink && game.virusTotalUrl && (
-                <div className="mt-8">
+                <div className="mt-4">
                   <h3 className="text-xl font-semibold mb-2">Security Scan</h3>
                   <VirusTotalWidget virusTotalUrl={game.virusTotalUrl} />
                 </div>
               )}
-
-              {/* Known Issues Section - Only show if knownIssues exists and has items */}
-              {game.knownIssues && game.knownIssues.length > 0 && (
-                <>
-                  <h2 className="text-xl font-bold mb-3 text-white">
-                    Known Issues
-                  </h2>
-                  <div className="bg-[#2d2d2d] p-4 rounded-lg">
-                    <ul className="list-disc list-inside space-y-3 text-gray-300">
-                      {game.knownIssues.map((issue, index) => (
-                        <li key={index}>{issue}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </>
-              )}
-
-              {/* Community Tips Section - Only show if communityTips exists and has items */}
-              {game.communityTips && game.communityTips.length > 0 && (
-                <>
-                  <h2 className="text-xl font-bold mb-3 text-white">
-                    Community Tips
-                  </h2>
-                  <div className="bg-[#2d2d2d] p-4 rounded-lg">
-                    <ul className="list-disc list-inside space-y-3 text-gray-300">
-                      {game.communityTips.map((tip, index) => (
-                        <li key={index}>{tip}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </>
-              )}
             </div>
-          ) : (
-            <div className="bg-[#2d2d2d] p-6 rounded-lg text-center">
-              <h2 className="text-xl font-bold mb-4 text-white">
-                Page Under Construction
+          )}
+
+          {/* Known Issues Section - Only show if knownIssues exists and has items */}
+          {game.knownIssues && game.knownIssues.length > 0 && (
+            <>
+              <h2 className="text-xl font-bold mb-3 text-white">
+                Known Issues
               </h2>
-              <p className="text-gray-300 mb-4">
-                We&apos;re still working on the dedicated page for {game.title}.
-                Check back soon for installation guides, troubleshooting tips,
-                and more!
-              </p>
-              <Link
-                href="/contact"
-                className="inline-block bg-[#107c10] hover:bg-[#0e6b0e] text-white px-4 py-2 rounded-md transition-colors"
-              >
-                Help Us Build This Page
-              </Link>
-            </div>
+              <div className="bg-[#2d2d2d] p-4 rounded-lg">
+                <ul className="list-disc list-inside space-y-3 text-gray-300">
+                  {game.knownIssues.map((issue, index) => (
+                    <li key={index}>{issue}</li>
+                  ))}
+                </ul>
+              </div>
+            </>
+          )}
+
+          {/* Community Tips Section - Only show if communityTips exists and has items */}
+          {game.communityTips && game.communityTips.length > 0 && (
+            <>
+              <h2 className="text-xl font-bold mb-3 text-white">
+                Community Tips
+              </h2>
+              <div className="bg-[#2d2d2d] p-4 rounded-lg">
+                <ul className="list-disc list-inside space-y-3 text-gray-300">
+                  {game.communityTips.map((tip, index) => (
+                    <li key={index}>{tip}</li>
+                  ))}
+                </ul>
+              </div>
+            </>
           )}
         </div>
       </div>
