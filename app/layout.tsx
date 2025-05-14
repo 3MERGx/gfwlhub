@@ -1,8 +1,8 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
+import { Metadata } from "next";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { Inter } from "next/font/google";
 import { ToastProvider } from "@/components/ui/toast-context";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -10,24 +10,24 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "GFWL Hub - Games for Windows LIVE Community & Support",
+  title: {
+    default: "GFWL Hub - Games for Windows LIVE Community",
+    template: "%s | GFWL Hub",
+  },
   description:
-    "Community hub for Games for Windows LIVE (GFWL) games. Find patches, fixes, and resources for Microsoft's discontinued service.",
+    "Community hub for Games for Windows LIVE (GFWL) games. Resources, troubleshooting guides, and tools to get your GFWL games working on modern Windows.",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL || "https://gfwl-hub.vercel.app"
+  ),
   keywords: [
     "Games for Windows LIVE",
     "GFWL",
-    "XLLN",
-    "Microsoft games",
-    "Windows games",
-    "Shadowrun",
-    "cross-platform gaming",
-    "Windows gaming",
-    "GFWL fixes",
-    "GFWL patches",
+    "Xbox on Windows",
+    "Microsoft Gaming",
+    "PC Gaming",
   ],
   authors: [{ name: "GFWL Hub Community" }],
-  creator: "GFWL Hub",
-  publisher: "GFWL Hub",
+  creator: "GFWL Hub Community",
   formatDetection: {
     email: false,
     telephone: false,
@@ -72,7 +72,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body
+        className={`min-h-screen flex flex-col bg-[#121212] text-white ${inter.className}`}
+      >
         <ToastProvider>
           <Header />
           <main className="flex-grow">{children}</main>
