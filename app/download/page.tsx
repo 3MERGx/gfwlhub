@@ -53,11 +53,23 @@ export default function Download() {
               Installation Instructions
             </h2>
             <ol className="list-decimal list-inside space-y-2 md:space-y-3 text-gray-300 text-sm md:text-base pl-1">
-              <li>Download the latest version of the GFWL Keygen tool</li>
-              <li>Extract the 7Z archive file to a location of your choice</li>
-              <li>Run the application as administrator</li>
-              <li>Follow the on-screen instructions to generate your key</li>
-              <li>Use the generated key to activate your GFWL game</li>
+              <li>
+                Download and install the{" "}
+                <Link
+                  href="https://dotnet.microsoft.com/en-us/download/dotnet/thank-you/runtime-desktop-6.0.36-windows-x86-installer"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#107c10] hover:underline"
+                >
+                  .NET 6.0 Desktop Runtime
+                </Link>
+                . This is required for the GFWL Keygen to run.
+              </li>
+              <li>Download the latest version of the GFWL Keygen tool.</li>
+              <li>Extract the 7z archive file to a location of your choice.</li>
+              <li>Run the application (GFWL_Keygen.exe) as administrator.</li>
+              <li>Follow the on-screen instructions to generate your key.</li>
+              <li>Use the generated key to activate your GFWL game.</li>
             </ol>
 
             <div className="mt-5 p-3 md:p-4 bg-[#3d3d3d] rounded-lg flex items-start">
