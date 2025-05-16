@@ -385,8 +385,8 @@ export default function SupportedGames() {
                 </div>
                 <div>
                   <strong className="text-white">SSA:</strong> These games use
-                  the newer Secure Storage Area activation method and are
-                  currently unsupported.
+                  the newer Server Side Activation method and are currently
+                  unsupported.
                 </div>
               </li>
             </ul>
