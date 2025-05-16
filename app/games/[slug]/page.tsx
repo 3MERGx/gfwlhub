@@ -290,6 +290,20 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
               )}
             </div>
           )}
+          {game.instructions && game.instructions.length > 0 && (
+            <>
+              <h2 className="text-xl font-bold mb-3 mt-4 text-white">
+                Installation Instructions
+              </h2>
+              <div className="bg-[#2d2d2d] p-4 rounded-lg">
+                <ul className="list-disc list-inside space-y-3 text-gray-300">
+                  {game.instructions.map((instruction, index) => (
+                    <li key={index}>{instruction}</li>
+                  ))}
+                </ul>
+              </div>
+            </>
+          )}
 
           {game.knownIssues && game.knownIssues.length > 0 && (
             <>
