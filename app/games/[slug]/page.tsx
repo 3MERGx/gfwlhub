@@ -290,6 +290,7 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
               )}
             </div>
           )}
+
           {game.instructions && game.instructions.length > 0 && (
             <>
               <h2 className="text-xl font-bold mb-3 mt-4 text-white">
@@ -333,6 +334,27 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                 </ul>
               </div>
             </>
+          )}
+          {/* GOG Dreamlist Section */}
+          {game.gogDreamlistLink && (
+            <div className="mt-8 pt-6 border-t border-gray-700">
+              <h2 className="text-xl font-bold mb-3 text-white">
+                GOG <span className="text-purple-500">Dreamlist</span>
+              </h2>
+              <p className="text-gray-300 mb-4 text-sm leading-relaxed">
+                Help bring this game to GOG! If you&apos;d like to see{" "}
+                {game.title} available on GOG.com, please consider voting for it
+                on their community wishlist.
+              </p>
+              <Link
+                href={game.gogDreamlistLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-pink-500 hover:bg-pink-600 text-white font-semibold py-2 px-4 rounded-lg inline-flex items-center transition-colors shadow-md focus:outline-none focus:ring-2 focus:ring-pink-400 focus:ring-opacity-75"
+              >
+                Vote for {game.title} on GOG.com
+              </Link>
+            </div>
           )}
         </div>
       </div>

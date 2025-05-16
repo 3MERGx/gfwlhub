@@ -21,6 +21,7 @@ export interface Game {
   downloadLink?: string;
   fileName?: string;
   purchaseLink?: string;
+  gogDreamlistLink?: string;
   instructions?: string[];
   virusTotalUrl?: string;
   knownIssues?: string[];
@@ -59,6 +60,7 @@ export const games: Game[] = [
       "Join our Discord server to share and find more tips from other players!",
     ],
     wikiLink: "https://www.pcgamingwiki.com/wiki/Shadowrun",
+    gogDreamlistLink: "https://www.gog.com/dreamlist/game/shadowrun-2007",
   },
   {
     id: "007-quantum-of-solace",
@@ -181,6 +183,9 @@ export const games: Game[] = [
     wikiLink: "https://www.pcgamingwiki.com/wiki/Batman:_Arkham_City",
     purchaseLink:
       "https://store.steampowered.com/app/200260/Batman_Arkham_City__Game_of_the_Year_Edition/",
+    knownIssues: [
+      "Batman Arkham City never had ZDPP, but it had SecuROM's Release Control (date check) in every version pre-Steam",
+    ],
   },
   {
     id: "battle-vs-chess",
@@ -517,6 +522,10 @@ export const games: Game[] = [
     imageUrl:
       "https://thumbnails.pcgamingwiki.com/6/61/Fable3_cover.jpg/300px-Fable3_cover.jpg",
     wikiLink: "https://www.pcgamingwiki.com/wiki/Fable_III",
+    knownIssues: [
+      "The game has a DLC check - both players must have the same (or no) DLC installed to join each other.",
+      "Also once DLC is loaded onto the save, it won't load if the DLC is gone.",
+    ],
   },
   {
     id: "fallout-3",
@@ -773,6 +782,32 @@ export const games: Game[] = [
     featureEnabled: true,
   },
   {
+    id: "juiced-2-hot-import-nights",
+    title: "Juiced 2: Hot Import Nights",
+    slug: "juiced-2-hot-import-nights",
+    activationType: "Legacy (5x5)",
+    status: "supported",
+    description:
+      "Juiced 2: Hot Import Nights is a racing game that features a variety of cars and tracks.",
+    releaseDate: "November 16, 2007",
+    developer: "Juiced Games",
+    publisher: "THQ",
+    genres: ["Racing"],
+    platforms: ["Windows"],
+    imageUrl:
+      "https://thumbnails.pcgamingwiki.com/c/c1/Juiced_2-_Hot_Import_Nights_-_Cover.jpg/300px-Juiced_2-_Hot_Import_Nights_-_Cover.jpg",
+    wikiLink: "https://www.pcgamingwiki.com/wiki/Juiced_2:_Hot_Import_Nights",
+    featureEnabled: true,
+    downloadLink:
+      "https://archive.org/download/juiced-2-hi-n-gfwl/Juiced_2_HiN_GFWL.rar",
+    fileName: "Juiced 2: Hot Import Nights GFWL",
+    virusTotalUrl:
+      "https://www.virustotal.com/gui/url/d4917e4317d98b7ab551d21532ab0ecf841aea46ff20d67fec6e7b635dc0ec13/detection",
+    knownIssues: [
+      "LIVE Career mode has never worked and it's impossible to make it work, custom LIVE races work though",
+    ],
+  },
+  {
     id: "kane-and-lynch-dead-men",
     title: "Kane & Lynch: Dead Men",
     slug: "kane-and-lynch-dead-men",
@@ -948,12 +983,26 @@ export const games: Game[] = [
     activationType: "SSA",
     status: "unsupported",
     description: "Tactical first-person shooter set in Tajikistan.",
-    releaseDate: "",
-    developer: "",
-    publisher: "",
-    genres: [],
-    platforms: [],
-    imageUrl: "",
+    releaseDate: "April 21, 2011",
+    developer: "Codemasters ",
+    publisher: "Codemasters",
+    genres: ["Action", "Adventure", "Third-Person Shooter"],
+    platforms: ["Windows"],
+    imageUrl:
+      "https://thumbnails.pcgamingwiki.com/3/3e/Operation_Flashpoint_Red_River_cover.jpg/300px-Operation_Flashpoint_Red_River_cover.jpg",
+    wikiLink:
+      "https://www.pcgamingwiki.com/wiki/Operation_Flashpoint:_Red_River",
+    featureEnabled: true,
+    discordLink: "https://discord.gg/Z88NnTgpWU",
+    downloadLink:
+      "https://archive.org/download/operation-flashpoint-red-river/Operation%20Flashpoint%20Red%20River.7z",
+    fileName: "Operation Flashpoint: Red River",
+    virusTotalUrl:
+      "https://www.virustotal.com/gui/url/c1fea79a8c0e1d56bdf6372964f88d713e542e40c180939ba5a5a02300be550b/detection",
+    knownIssues: [
+      "The game has some kind of a parity check - if the files of players don't match, someone's gonna get kicked.",
+      "If playing the campaign or the base game FTE maps, anyone can play; if playing DLC FTE maps, only people with the DLC can play",
+    ],
   },
   {
     id: "osmos",
@@ -1233,8 +1282,9 @@ export const games: Game[] = [
     virusTotalUrl:
       "https://www.virustotal.com/gui/url/b980531267df244a5fc5ac802ff867cf3845449404272b42804c8ef30aa3c164/details",
     discordLink: "https://discord.gg/bCyw3cPvq8",
-    purchaseLink:
-      "https://store.steampowered.com/app/10260/Universe_at_War_Earth_Assault/",
+    redditLink: "https://www.reddit.com/r/UniverseAtWar/",
+    gogDreamlistLink:
+      "https://www.gog.com/dreamlist/game/universe-at-war-earth-assault",
   },
   {
     id: "vancouver-2010",
