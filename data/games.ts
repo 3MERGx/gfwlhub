@@ -53,7 +53,6 @@ export const games: Game[] = [
       "https://www.virustotal.com/gui/file/87adfa7b167930934a738bfa2ee53e9d110dc51d6cb072063f6c86708fdabb58/detection",
     knownIssues: [
       "Some users may experience sign-in issues on the first attempt",
-      "Achievements may not sync properly in some cases",
       "Must install GFWL & DirectX to run.",
     ],
     communityTips: [

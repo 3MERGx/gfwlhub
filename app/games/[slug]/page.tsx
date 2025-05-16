@@ -158,30 +158,21 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                 />
               </div>
             )}
-            <div className="md:w-2/3">
-              <h1 className="text-3xl md:text-4xl font-bold mb-2 text-white">
+            <div className="md:ml-8 flex-1">
+              <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
                 {game.title}
               </h1>
-              <p className="text-gray-400 text-sm mb-1">
-                Release Date: {game.releaseDate}
-              </p>
-              <p className="text-gray-400 text-sm mb-4">
-                Developer: {game.developer} | Publisher: {game.publisher}
-              </p>
-              <p className="text-gray-300 mb-4 leading-relaxed">
-                {game.description}
-              </p>
 
-              <div className="flex flex-wrap gap-2 mb-4">
+              {/* Activation Type and Status Badges */}
+              <div className="flex items-center gap-2 mb-3">
                 <span
-                  className={`px-3 py-1 rounded-full text-xs font-semibold
-                    ${
-                      game.activationType === "Legacy (5x5)"
-                        ? "bg-blue-600 text-blue-100"
-                        : game.activationType === "Legacy (Per-Title)"
-                        ? "bg-purple-600 text-purple-100"
-                        : "bg-red-600 text-red-100"
-                    }`}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                    game.activationType === "SSA"
+                      ? "bg-purple-600 text-purple-100"
+                      : game.activationType === "Legacy (Per-Title)"
+                      ? "bg-orange-600 text-orange-100"
+                      : "bg-sky-600 text-sky-100" // Legacy (5x5)
+                  }`}
                 >
                   {game.activationType}
                 </span>
@@ -192,47 +183,78 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                         ? "bg-green-600 text-green-100"
                         : game.status === "testing"
                         ? "bg-yellow-500 text-yellow-100"
-                        : "bg-gray-500 text-gray-100"
+                        : "bg-red-600 text-red-100" // Mapped 'unsupported' to red
                     }`}
                 >
-                  Bypass Status:{" "}
-                  {game.status.charAt(0).toUpperCase() + game.status.slice(1)}
+                  {/* Display "Unsupported" if status is "unsupported", otherwise capitalize */}
+                  {game.status === "unsupported"
+                    ? "Unsupported"
+                    : game.status.charAt(0).toUpperCase() +
+                      game.status.slice(1)}
                 </span>
               </div>
 
-              {(game.genres.length > 0 || game.platforms.length > 0) && (
-                <div className="mb-4">
-                  {game.genres.length > 0 && (
-                    <div className="mb-2">
-                      <span className="text-gray-400 text-sm">Genres: </span>
-                      <div className="flex flex-wrap gap-2 mt-1">
-                        {game.genres.map((genre, index) => (
-                          <span
-                            key={index}
-                            className="bg-[#2d2d2d] px-2 py-1 rounded text-xs text-white"
-                          >
-                            {genre}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+              <p className="text-gray-300 mb-4 text-sm leading-relaxed">
+                {game.description}
+              </p>
 
-                  {game.platforms.length > 0 && (
-                    <div>
-                      <span className="text-gray-400 text-sm">Platforms: </span>
-                      <div className="flex flex-wrap gap-2 mt-1">
-                        {game.platforms.map((platform, index) => (
-                          <span
-                            key={index}
-                            className="bg-[#2d2d2d] px-2 py-1 rounded text-xs text-white"
-                          >
-                            {platform}
-                          </span>
-                        ))}
-                      </div>
+              {/* Released Date & Developer */}
+              {(game.releaseDate || game.developer) && (
+                <div className="text-sm text-gray-400 mb-1">
+                  {game.releaseDate && (
+                    <div className="mb-1">
+                      Released:{" "}
+                      <span className="text-gray-200">{game.releaseDate}</span>
                     </div>
                   )}
+                  {game.developer && (
+                    <div>
+                      Developer:{" "}
+                      <span className="text-gray-200">{game.developer}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Publisher */}
+              {game.publisher && (
+                <div className="text-sm text-gray-400 mb-4">
+                  Publisher:{" "}
+                  <span className="text-gray-200">{game.publisher}</span>
+                </div>
+              )}
+
+              {/* Genres */}
+              {game.genres && game.genres.length > 0 && (
+                <div className="mb-3">
+                  <span className="text-gray-400 text-sm">Genres: </span>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {game.genres.map((genre, index) => (
+                      <span
+                        key={index}
+                        className="bg-[#2d2d2d] px-2 py-1 rounded text-xs text-white"
+                      >
+                        {genre}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Platforms */}
+              {game.platforms && game.platforms.length > 0 && (
+                <div className="mb-3">
+                  <span className="text-gray-400 text-sm">Platforms: </span>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {game.platforms.map((platform, index) => (
+                      <span
+                        key={index}
+                        className="bg-[#2d2d2d] px-2 py-1 rounded text-xs text-white"
+                      >
+                        {platform}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
