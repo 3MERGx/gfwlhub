@@ -1,6 +1,7 @@
 # Allow all crawlers
 User-agent: *
 Allow: /
+Allow: /_next/image
 
 # Sitemap location
 Sitemap: https://gfwl-hub.vercel.app/sitemap.xml 
