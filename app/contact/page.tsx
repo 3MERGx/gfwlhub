@@ -1,29 +1,58 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { FaDiscord, FaReddit, FaSearch, FaTimes } from "react-icons/fa";
+import {
+  FaDiscord,
+  FaReddit,
+  FaSearch,
+  FaTimes,
+  FaChevronLeft,
+  FaChevronRight,
+} from "react-icons/fa";
 import Accordion from "@/components/Accordion";
 import { games } from "@/data/games";
 
 export default function Contact() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentCommunityPage, setCurrentCommunityPage] = useState(1);
+  const communitiesPerPage = 5; // Or any number you prefer
 
-  // Filter games that have either a Discord or Reddit link
+  // Filter games that have community links
   const gamesWithCommunities = games.filter(
     (game) => game.discordLink || game.redditLink
   );
 
-  // Filter based on search query
-  const filteredGames = gamesWithCommunities.filter(
+  // Filter based on search query (applied to gamesWithCommunities)
+  const searchedGames = gamesWithCommunities.filter(
     (game) =>
       game.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      game.description?.toLowerCase().includes(searchQuery.toLowerCase())
+      (game.description &&
+        game.description.toLowerCase().includes(searchQuery.toLowerCase())) // Check if description exists
+  );
+
+  // Pagination logic for game communities (applied to searchedGames)
+  const indexOfLastCommunity = currentCommunityPage * communitiesPerPage;
+  const indexOfFirstCommunity = indexOfLastCommunity - communitiesPerPage;
+  // These are the games to display in the accordion for the current page
+  const currentDisplayCommunities = searchedGames.slice(
+    indexOfFirstCommunity,
+    indexOfLastCommunity
+  );
+  // Total pages should be based on the searched (filtered) games
+  const totalCommunityPages = Math.ceil(
+    searchedGames.length / communitiesPerPage
   );
 
   const clearSearch = () => {
     setSearchQuery("");
+    setCurrentCommunityPage(1); // Reset to first page when search is cleared
   };
+
+  // Reset to first page when search query changes
+  useEffect(() => {
+    setCurrentCommunityPage(1);
+  }, [searchQuery]);
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -84,9 +113,9 @@ export default function Contact() {
                 </div>
               </div>
 
-              {filteredGames.length > 0 ? (
+              {currentDisplayCommunities.length > 0 ? (
                 <div className="space-y-4">
-                  {filteredGames.map((game, index) => (
+                  {currentDisplayCommunities.map((game, index) => (
                     <Accordion
                       key={index}
                       title={game.title}
@@ -131,6 +160,67 @@ export default function Contact() {
                   <p className="text-gray-300">
                     No game communities found matching your search.
                   </p>
+                </div>
+              )}
+
+              {/* Pagination for Game Specific Communities */}
+              {searchedGames.length > communitiesPerPage && (
+                <div className="mt-6 flex flex-col md:flex-row md:items-center md:justify-between">
+                  <div className="text-gray-300 text-sm mb-2 md:mb-0">
+                    Showing {indexOfFirstCommunity + 1}-
+                    {Math.min(indexOfLastCommunity, searchedGames.length)} of{" "}
+                    {searchedGames.length} communities
+                  </div>
+                  <div className="flex justify-center items-center space-x-2">
+                    <button
+                      onClick={() =>
+                        setCurrentCommunityPage(currentCommunityPage - 1)
+                      }
+                      disabled={currentCommunityPage === 1}
+                      className={`p-2 rounded-full ${
+                        currentCommunityPage === 1
+                          ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                          : "bg-[#107c10] text-white hover:bg-[#0e6b0e]"
+                      }`}
+                      aria-label="Previous page"
+                    >
+                      <FaChevronLeft size={16} />
+                    </button>
+                    {Array.from(
+                      { length: totalCommunityPages },
+                      (_, i) => i + 1
+                    ).map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentCommunityPage(page)}
+                        className={`w-8 h-8 rounded-full text-sm ${
+                          currentCommunityPage === page
+                            ? "bg-[#107c10] text-white"
+                            : "bg-[#2d2d2d] text-gray-300 hover:bg-[#3d3d3d]"
+                        }`}
+                        aria-label={`Page ${page}`}
+                        aria-current={
+                          currentCommunityPage === page ? "page" : undefined
+                        }
+                      >
+                        {page}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() =>
+                        setCurrentCommunityPage(currentCommunityPage + 1)
+                      }
+                      disabled={currentCommunityPage === totalCommunityPages}
+                      className={`p-2 rounded-full ${
+                        currentCommunityPage === totalCommunityPages
+                          ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                          : "bg-[#107c10] text-white hover:bg-[#0e6b0e]"
+                      }`}
+                      aria-label="Next page"
+                    >
+                      <FaChevronRight size={16} />
+                    </button>
+                  </div>
                 </div>
               )}
             </section>

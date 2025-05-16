@@ -21,7 +21,7 @@ export interface Game {
   downloadLink?: string;
   fileName?: string;
   purchaseLink?: string;
-
+  instructions?: string[];
   virusTotalUrl?: string;
   knownIssues?: string[];
   communityTips?: string[];
@@ -899,7 +899,7 @@ export const games: Game[] = [
     fileName: "Microsoft Flight (2012) Installer",
     virusTotalUrl:
       "https://www.virustotal.com/gui/file/c8582a16f4647365e0be04826442a77de257b9bb26bac610fc1fb74319a2548b",
-    knownIssues: [
+    instructions: [
       "Install the GFWL Client before installing the game.",
       "When the installer 'fails' at the end, do not close it!",
       "Navigate to: *your user folder*\\AppData\\Local\\Microsoft\\GFWLive\\Downloads\\4d5308d2e0000001\\Content",
