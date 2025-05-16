@@ -1,8 +1,9 @@
 "use client";
 
-import { FaDownload, FaInfoCircle } from "react-icons/fa";
+import { FaInfoCircle } from "react-icons/fa";
 import Link from "next/link";
 import VirusTotalWidget from "@/components/VirusTotalWidget";
+import DownloadButtonWithModal from "@/components/DownloadButtonWithModal";
 
 export default function Download() {
   // Download link for GFWL Keygen
@@ -12,6 +13,15 @@ export default function Download() {
   // VirusTotal URL for the file
   const virusTotalUrl =
     "https://www.virustotal.com/gui/url/6cb4c0d7ce2d2e51cff381c74c7ac79e5ed03bcbfa14f448bd1d4d6e59d0553e";
+
+  // Define the disclaimer content (can be the same as on the game page)
+  const disclaimerModalTitle = "Important Notice Regarding Downloads";
+  const disclaimerModalContent = `You are downloading files from third-party, external sources. While GFWL Hub may scan links using tools such as VirusTotal, we do not host, control, or guarantee the safety of any files linked through our platform. GFWL Hub makes no warranties—express or implied—regarding the safety, reliability, or performance of these files.
+
+By proceeding, you acknowledge and accept that all downloads are done at your own risk. GFWL Hub is not responsible for any harm to your device, data loss, or other consequences resulting from the use of downloaded files. We strongly advise keeping your antivirus software up-to-date and exercising caution.`;
+
+  // GFWL Keygen specific details
+  const keygenFileName = "GFWL_Keygen.exe"; // Or the actual filename
 
   return (
     <div className="container mx-auto px-4 py-6 md:py-8">
@@ -35,16 +45,14 @@ export default function Download() {
             </p>
 
             <div className="flex justify-center">
-              {/* Active download button */}
-              <Link
-                href={downloadLink}
-                className="bg-[#107c10] hover:bg-[#0e6b0e] text-white w-full md:w-auto px-4 md:px-6 py-3 rounded-md transition-colors inline-flex items-center justify-center"
-              >
-                <FaDownload className="mr-2" />
-                <span className="text-sm md:text-base">
-                  Download GFWL Keygen (Beta 0.5.7)
-                </span>
-              </Link>
+              {/* GFWL Keygen Download - Using the Modal Button */}
+              <DownloadButtonWithModal
+                downloadLink={downloadLink}
+                fileName={keygenFileName}
+                buttonText="Download GFWL Keygen"
+                modalTitle={disclaimerModalTitle}
+                modalContent={disclaimerModalContent}
+              />
             </div>
           </div>
 
