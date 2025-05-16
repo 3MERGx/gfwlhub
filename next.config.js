@@ -1,17 +1,42 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Enable TypeScript type checking during build
   typescript: {
-    // We want the build to fail if there are type errors
     ignoreBuildErrors: false,
   },
   images: {
-    domains: [
-      "thumbnails.pcgamingwiki.com",
-      // Add any other domains you might need in the future
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "**.wikipedia.org",
+        port: "",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "**.wikimedia.org",
+        port: "",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "static.wikia.nocookie.net",
+        port: "",
+        pathname: "/gtawiki/images/**",
+      },
+      {
+        protocol: "https",
+        hostname: "cdn.akamai.steamstatic.com",
+        port: "",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "**.pcgamingwiki.com",
+        port: "",
+        pathname: "/**",
+      },
     ],
   },
-  // Other Next.js config options...
 };
 
 module.exports = nextConfig;

@@ -1,18 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { games } from "@/data/games";
-import { FaArrowLeft, FaDiscord, FaReddit, FaDownload } from "react-icons/fa";
+import { FaArrowLeft, FaDiscord, FaReddit, FaBookOpen } from "react-icons/fa";
 import { GamePageParams } from "@/types/routes";
 import VirusTotalWidget from "@/components/VirusTotalWidget";
 import StoreButton from "@/components/StoreButton";
 import Image from "next/image";
 import { Metadata } from "next";
+import DownloadButtonWithModal from "@/components/DownloadButtonWithModal";
 
 // Get feature flags from .env.local or check if it's enabled in the game data
 const getFeatureFlag = (slug: string): boolean => {
   // Check if the game has featureEnabled set to true in the data
-  const game = games.find((g) => g.slug === slug);
-  if (game?.featureEnabled) return true;
+  const gameData = games.find((g) => g.slug === slug);
+  if (gameData?.featureEnabled) return true;
 
   // Otherwise check environment variables
   return (
@@ -32,7 +33,6 @@ export async function generateMetadata({
 }: {
   params: Promise<GamePageParams>;
 }): Promise<Metadata> {
-  // Await the params
   const resolvedParams = await params;
   const slug = resolvedParams.slug;
   const game = games.find((g) => g.slug === slug);
@@ -44,7 +44,6 @@ export async function generateMetadata({
     };
   }
 
-  // Base metadata
   const metadata: Metadata = {
     title: `${game.title} | GFWL Hub`,
     description: game.description,
@@ -60,7 +59,6 @@ export async function generateMetadata({
     },
   };
 
-  // Only add image metadata if the game has an imageUrl
   if (game.imageUrl) {
     if (metadata.openGraph) {
       metadata.openGraph.images = [game.imageUrl];
@@ -74,13 +72,12 @@ export async function generateMetadata({
 }
 
 export default async function GamePage({
-  params,
+  params: paramsPromise,
 }: {
   params: Promise<GamePageParams>;
 }) {
-  // Access slug safely
-  const resolvedParams = await params;
-  const slug = resolvedParams.slug;
+  const params = await paramsPromise;
+  const slug = params.slug;
   const game = games.find((g) => g.slug === slug);
 
   if (!game) {
@@ -88,6 +85,11 @@ export default async function GamePage({
   }
 
   const isFeatureEnabled = getFeatureFlag(slug);
+
+  const disclaimerModalTitle = "Important Notice Regarding Downloads";
+  const disclaimerModalContent = `You are downloading files from third-party, external sources. While GFWL Hub may scan links using tools such as VirusTotal, we do not host, control, or guarantee the safety of any files linked through our platform. GFWL Hub makes no warranties—express or implied—regarding the safety, reliability, or performance of these files.
+
+By proceeding, you acknowledge and accept that all downloads are done at your own risk. GFWL Hub is not responsible for any harm to your device, data loss, or other consequences resulting from the use of downloaded files. We strongly advise keeping your antivirus software up-to-date and exercising caution.`;
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -102,8 +104,8 @@ export default async function GamePage({
               Back to Supported Games
             </Link>
 
-            {/* Community Links - keep just Discord and Reddit here */}
-            <div className="flex gap-3">
+            {/* Community Links */}
+            <div className="flex gap-3 items-center">
               {game.discordLink && (
                 <Link
                   href={game.discordLink}
@@ -111,6 +113,7 @@ export default async function GamePage({
                   rel="noopener noreferrer"
                   className="text-white hover:text-[#5865F2] transition-colors"
                   aria-label={`${game.title} Discord`}
+                  title="Discord"
                 >
                   <FaDiscord size={24} />
                 </Link>
@@ -122,89 +125,81 @@ export default async function GamePage({
                   rel="noopener noreferrer"
                   className="text-white hover:text-[#FF4500] transition-colors"
                   aria-label={`${game.title} Reddit`}
+                  title="Reddit"
                 >
                   <FaReddit size={24} />
+                </Link>
+              )}
+              {game.wikiLink && (
+                <Link
+                  href={game.wikiLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-white hover:text-yellow-400 transition-colors"
+                  aria-label={`${game.title} Wiki`}
+                  title="View Wiki"
+                >
+                  <FaBookOpen size={22} />
                 </Link>
               )}
             </div>
           </div>
 
           <div className="flex flex-col md:flex-row gap-6 mb-6">
-            {/* Game Image - Only show if imageUrl exists */}
             {game.imageUrl && (
-              <div className="md:w-1/3">
-                <div className="relative w-full aspect-[3/4] rounded-lg overflow-hidden">
-                  <Image
-                    src={game.imageUrl}
-                    alt={`${game.title} cover`}
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 768px) 100vw, 33vw"
-                  />
-                </div>
+              <div className="md:w-1/3 flex-shrink-0">
+                <Image
+                  src={game.imageUrl}
+                  alt={`${game.title} cover art`}
+                  width={300}
+                  height={400}
+                  className="rounded-lg object-cover w-full h-auto shadow-lg"
+                  priority
+                />
               </div>
             )}
-
-            {/* Game Details */}
-            <div className={game.imageUrl ? "md:w-2/3" : "w-full"}>
-              <h1 className="text-3xl font-bold mb-2 text-white">
+            <div className="md:w-2/3">
+              <h1 className="text-3xl md:text-4xl font-bold mb-2 text-white">
                 {game.title}
               </h1>
+              <p className="text-gray-400 text-sm mb-1">
+                Release Date: {game.releaseDate}
+              </p>
+              <p className="text-gray-400 text-sm mb-4">
+                Developer: {game.developer} | Publisher: {game.publisher}
+              </p>
+              <p className="text-gray-300 mb-4 leading-relaxed">
+                {game.description}
+              </p>
 
-              <div className="flex flex-wrap gap-3 mb-4">
+              <div className="flex flex-wrap gap-2 mb-4">
                 <span
-                  className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    game.activationType === "Legacy (5x5)"
-                      ? "bg-green-500 text-white"
-                      : game.activationType === "Legacy (Per-Title)"
-                      ? "bg-yellow-500 text-black"
-                      : "bg-red-500 text-white"
-                  }`}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold
+                    ${
+                      game.activationType === "Legacy (5x5)"
+                        ? "bg-blue-600 text-blue-100"
+                        : game.activationType === "Legacy (Per-Title)"
+                        ? "bg-purple-600 text-purple-100"
+                        : "bg-red-600 text-red-100"
+                    }`}
                 >
                   {game.activationType}
                 </span>
                 <span
-                  className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    game.status === "supported"
-                      ? "bg-green-500 text-white"
-                      : game.status === "testing"
-                      ? "bg-yellow-500 text-black"
-                      : "bg-red-500 text-white"
-                  }`}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold
+                    ${
+                      game.status === "supported"
+                        ? "bg-green-600 text-green-100"
+                        : game.status === "testing"
+                        ? "bg-yellow-500 text-yellow-100"
+                        : "bg-gray-500 text-gray-100"
+                    }`}
                 >
+                  Bypass Status:{" "}
                   {game.status.charAt(0).toUpperCase() + game.status.slice(1)}
                 </span>
               </div>
 
-              {game.description && (
-                <p className="text-gray-300 mb-4">{game.description}</p>
-              )}
-
-              {/* Game Metadata */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm mb-4">
-                {game.releaseDate && (
-                  <div className="flex">
-                    <span className="text-gray-400 w-24">Released:</span>
-                    <span className="text-white">{game.releaseDate}</span>
-                  </div>
-                )}
-
-                {game.developer && (
-                  <div className="flex">
-                    <span className="text-gray-400 w-24">Developer:</span>
-                    <span className="text-white">{game.developer}</span>
-                  </div>
-                )}
-
-                {game.publisher && (
-                  <div className="flex">
-                    <span className="text-gray-400 w-24">Publisher:</span>
-                    <span className="text-white">{game.publisher}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Genres and Platforms */}
               {(game.genres.length > 0 || game.platforms.length > 0) && (
                 <div className="mb-4">
                   {game.genres.length > 0 && (
@@ -243,8 +238,7 @@ export default async function GamePage({
             </div>
           </div>
 
-          {/* Game Download section with purchase button */}
-          {isFeatureEnabled && (
+          {isFeatureEnabled && game.downloadLink && (
             <div className="mt-8">
               <h2 className="text-2xl font-bold mb-4 text-white">
                 Game Download
@@ -252,24 +246,20 @@ export default async function GamePage({
 
               <div className="flex flex-wrap gap-3 mb-6">
                 {game.downloadLink && (
-                  <Link
-                    href={game.downloadLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md transition-colors"
-                  >
-                    <FaDownload className="mr-2" />
-                    Download {game.fileName || game.title}
-                  </Link>
+                  <DownloadButtonWithModal
+                    downloadLink={game.downloadLink}
+                    fileName={game.fileName || game.title}
+                    buttonText={`Download ${game.fileName || game.title}`}
+                    modalTitle={disclaimerModalTitle}
+                    modalContent={disclaimerModalContent}
+                  />
                 )}
 
-                {/* Store purchase button positioned next to the download button */}
                 {game.purchaseLink && (
                   <StoreButton purchaseLink={game.purchaseLink} />
                 )}
               </div>
 
-              {/* VirusTotal Widget */}
               {game.downloadLink && game.virusTotalUrl && (
                 <div className="mt-4">
                   <h3 className="text-xl font-semibold mb-2">Security Scan</h3>
@@ -279,10 +269,9 @@ export default async function GamePage({
             </div>
           )}
 
-          {/* Known Issues Section - Only show if knownIssues exists and has items */}
           {game.knownIssues && game.knownIssues.length > 0 && (
             <>
-              <h2 className="text-xl font-bold mb-3 text-white">
+              <h2 className="text-xl font-bold mb-3 mt-4 text-white">
                 Known Issues
               </h2>
               <div className="bg-[#2d2d2d] p-4 rounded-lg">
@@ -295,10 +284,9 @@ export default async function GamePage({
             </>
           )}
 
-          {/* Community Tips Section - Only show if communityTips exists and has items */}
           {game.communityTips && game.communityTips.length > 0 && (
             <>
-              <h2 className="text-xl font-bold mb-3 text-white">
+              <h2 className="text-xl font-bold mb-3 mt-4 text-white">
                 Community Tips
               </h2>
               <div className="bg-[#2d2d2d] p-4 rounded-lg">
