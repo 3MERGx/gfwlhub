@@ -46,12 +46,11 @@ export const games: Game[] = [
     discordLink: "https://discord.gg/shadowrun",
     redditLink: "https://www.reddit.com/r/shadowrunfps/",
     featureEnabled: true,
-    downloadLink:
-      "http://157.245.214.234/releases/Shadowrun%20FPS%20Launcher.exe",
+    downloadLink: "http://157.245.214.234/releases/ShadowrunLauncher.zip",
     fileName: "Shadowrun Launcher",
     // purchaseLink: "https://www.gog.com/en/game/shadowrun_returns",
     virusTotalUrl:
-      "https://www.virustotal.com/gui/file/87adfa7b167930934a738bfa2ee53e9d110dc51d6cb072063f6c86708fdabb58/detection",
+      "https://www.virustotal.com/gui/url/5c3783fa496b5e468c580cf7cf30820a107451aea22ff7eaae68513a6ca00432/detection",
     knownIssues: [
       "Some users may experience sign-in issues on the first attempt",
       "Must install GFWL & DirectX to run.",
