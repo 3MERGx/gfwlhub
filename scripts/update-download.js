@@ -64,15 +64,15 @@ if (require.main === module) {
       "Usage: node scripts/update-download.js <source-file> <target-filename>"
     );
     console.log(
-      "Example: node scripts/update-download.js ./GFWL_Keygen_Beta_0.6.exe GFWL_Keygen_Beta_0.6.exe"
+      "Example: node scripts/update-download.js ./new-keygen.exe GFWL Keygen.exe"
     );
     console.log("\n📋 PR Workflow:");
-    console.log("1. Create a new branch: git checkout -b update-keygen-v0.6");
+    console.log("1. Create a new branch: git checkout -b update-keygen");
     console.log("2. Run this script to update the file");
     console.log(
-      "3. Commit: git add public/downloads/ && git commit -m 'Update keygen to v0.6'"
+      "3. Commit: git add public/downloads/ && git commit -m 'Update keygen'"
     );
-    console.log("4. Push: git push origin update-keygen-v0.6");
+    console.log("4. Push: git push origin update-keygen");
     console.log("5. Create PR on GitHub for review");
     process.exit(1);
   }
@@ -88,18 +88,11 @@ if (require.main === module) {
     console.log("\n🎉 File updated successfully!");
     console.log("\n📋 Next steps for PR workflow:");
     console.log("1. Create a new branch:");
-    console.log(
-      "   git checkout -b update-keygen-v" +
-        targetFileName.match(/\d+\.\d+/)?.[0] || "new"
-    );
+    console.log("   git checkout -b update-keygen");
     console.log("2. Add the file:");
     console.log("   git add public/downloads/" + targetFileName);
     console.log("3. Commit with descriptive message:");
-    console.log(
-      '   git commit -m "Update GFWL Keygen to ' +
-        targetFileName.replace(".exe", "") +
-        '"'
-    );
+    console.log('   git commit -m "Update GFWL Keygen"');
     console.log("4. Push the branch:");
     console.log("   git push origin HEAD");
     console.log("5. Create Pull Request on GitHub");
