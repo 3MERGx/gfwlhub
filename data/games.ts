@@ -17,6 +17,7 @@ export interface Game {
   discordLink?: string;
   redditLink?: string;
   wikiLink?: string;
+  steamDBLink?: string;
   featureEnabled?: boolean;
   downloadLink?: string;
   fileName?: string;
@@ -59,6 +60,7 @@ export const games: Game[] = [
       "Join our Discord server to share and find more tips from other players!",
     ],
     wikiLink: "https://www.pcgamingwiki.com/wiki/Shadowrun",
+
     gogDreamlistLink: "https://www.gog.com/dreamlist/game/shadowrun-2007",
   },
   {
@@ -180,6 +182,7 @@ export const games: Game[] = [
     imageUrl:
       "https://thumbnails.pcgamingwiki.com/e/e0/Batman_Arkham_City_cover.jpg/300px-Batman_Arkham_City_cover.jpg",
     wikiLink: "https://www.pcgamingwiki.com/wiki/Batman:_Arkham_City",
+    steamDBLink: "https://steamdb.info/app/57400/",
     purchaseLink:
       "https://store.steampowered.com/app/200260/Batman_Arkham_City__Game_of_the_Year_Edition/",
     knownIssues: [

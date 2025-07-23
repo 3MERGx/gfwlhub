@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { games } from "@/data/games";
-import { FaArrowLeft, FaDiscord, FaReddit, FaBookOpen } from "react-icons/fa";
+import {
+  FaArrowLeft,
+  FaDiscord,
+  FaReddit,
+  FaBookOpen,
+  FaDatabase,
+} from "react-icons/fa";
 import { GamePageParams } from "@/types/routes";
 import VirusTotalWidget from "@/components/VirusTotalWidget";
 import StoreButton from "@/components/StoreButton";
@@ -140,6 +146,18 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                   title="View Wiki"
                 >
                   <FaBookOpen size={22} />
+                </Link>
+              )}
+              {game.steamDBLink && (
+                <Link
+                  href={game.steamDBLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-white hover:text-blue-400 transition-colors"
+                  aria-label={`${game.title} SteamDB`}
+                  title="View on SteamDB"
+                >
+                  <FaDatabase size={22} />
                 </Link>
               )}
             </div>
