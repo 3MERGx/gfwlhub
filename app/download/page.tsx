@@ -60,7 +60,6 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
 
           <div className="bg-[#2d2d2d] p-4 md:p-6 rounded-lg mb-6">
             <h2 className="text-lg md:text-xl font-bold mb-4 text-white">
-            <h2 className="text-lg md:text-xl font-bold mb-4 text-white">
               Installation Instructions
             </h2>
 
