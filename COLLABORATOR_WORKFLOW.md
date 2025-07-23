@@ -53,23 +53,23 @@ git checkout -b update-keygen-v0.6
 
 ```bash
 # Use the helper script (recommended)
-node scripts/update-download.js ./your-new-file.exe GFWL_Keygen_Beta_0.6.exe
+node scripts/update-download.js ./your-new-file.exe GFWL Keygen.exe
 
 # Or manually copy the file
-cp your-new-file.exe public/downloads/GFWL_Keygen_Beta_0.6.exe
+cp your-new-file.exe public/downloads/GFWL Keygen.exe
 ```
 
 #### 4. Commit Your Changes
 
 ```bash
-git add public/downloads/GFWL_Keygen_Beta_0.6.exe
-git commit -m "Update GFWL Keygen to Beta 0.6"
+git add public/downloads/GFWL Keygen.exe
+git commit -m "Update GFWL Keygen"
 ```
 
 #### 5. Push Your Branch
 
 ```bash
-git push origin update-keygen-v0.6
+git push origin update-keygen-v1.0
 ```
 
 #### 6. Create Pull Request
@@ -80,7 +80,7 @@ git push origin update-keygen-v0.6
 4. Add description:
 
    ```
-   Update GFWL Keygen to Beta 0.6
+   Update GFWL Keygen to Current Version
 
    Changes:
    - Updated keygen to version 0.6
@@ -101,7 +101,7 @@ git push origin update-keygen-v0.6
 - **Size**: Maximum 10MB
 - **Formats**: .exe, .7z, .zip, .msi
 - **Location**: `public/downloads/` directory
-- **Naming**: Use descriptive names like `GFWL_Keygen_Beta_0.6.exe`
+- **Naming**: Use descriptive names like `GFWL Keygen.exe`
 
 ## Troubleshooting
 
