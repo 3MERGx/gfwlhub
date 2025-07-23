@@ -7,7 +7,7 @@ import DownloadButtonWithModal from "@/components/DownloadButtonWithModal";
 
 export default function Download() {
   // Download link for GFWL Keygen - direct path to static file
-  const downloadLink = "/downloads/GFWL Keygen.exe";
+  const downloadLink = "/downloads/GFWL_Keygen.exe";
 
   // VirusTotal URL for the file (update this after getting the direct link)
   const virusTotalUrl =
@@ -20,7 +20,7 @@ export default function Download() {
 By proceeding, you acknowledge and accept that all downloads are done at your own risk. GFWL Hub is not responsible for any harm to your device, data loss, or other consequences resulting from the use of downloaded files. We strongly advise keeping your antivirus software up-to-date and exercising caution.`;
 
   // GFWL Keygen specific details
-  const keygenFileName = "GFWL Keygen.exe"; // Updated filename
+  const keygenFileName = "GFWL_Keygen.exe"; // Updated filename
 
   return (
     <div className="container mx-auto px-4 py-6 md:py-8">
@@ -77,7 +77,7 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                 We recommend backing up your existing PCID before running the
                 keygen. Check
               </li>
-              <li>Run the application (GFWL Keygen.exe).</li>
+              <li>Run the application (GFWL_Keygen.exe).</li>
               <li>Follow the on-screen instructions to generate your key.</li>
               <li>Use the generated key to activate your GFWL game.</li>
             </ol>

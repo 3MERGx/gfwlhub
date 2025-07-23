@@ -4,7 +4,7 @@ This directory contains downloadable files for GFWL Hub.
 
 ## Current Files:
 
-- `GFWL Keygen.exe` - GFWL Keygen tool (executable)
+- `GFWL_Keygen.exe` - GFWL Keygen tool (executable)
 
 ## File Management:
 

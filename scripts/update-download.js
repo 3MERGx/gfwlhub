@@ -64,7 +64,7 @@ if (require.main === module) {
       "Usage: node scripts/update-download.js <source-file> <target-filename>"
     );
     console.log(
-      "Example: node scripts/update-download.js ./new-keygen.exe GFWL Keygen.exe"
+      "Example: node scripts/update-download.js ./new-keygen.exe GFWL_Keygen.exe"
     );
     console.log("\n📋 PR Workflow:");
     console.log("1. Create a new branch: git checkout -b update-keygen");
