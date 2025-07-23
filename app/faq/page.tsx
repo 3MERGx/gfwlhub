@@ -11,6 +11,26 @@ export const metadata: Metadata = {
 export default function FAQ() {
   const faqItems = [
     {
+      question: "I'm having issues with the GFWL Keygen. Where can I get help?",
+      answer: (
+        <div>
+          <p>
+            → Please join the{" "}
+            <Link
+              className="text-blue-500 hover:underline"
+              href="https://discord.gg/PR75T8xMWS"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              GFWL Hub Discord
+            </Link>{" "}
+            and ask for assistance there. We will try to help you troubleshoot
+            any issues you encounter with the keygen.
+          </p>
+        </div>
+      ),
+    },
+    {
       question: "DirectX Installation",
       answer: (
         <div>
@@ -26,30 +46,14 @@ export default function FAQ() {
         </div>
       ),
     },
-    {
-      question: "I still get 0x80151906, your program sucks",
-      answer: (
-        <div>
-          <p>→ Make sure you&apos;re running it as Administrator.</p>
-          <p>
-            → If still broken, go to regedit →
-            HKEY_CURRENT_USER\Software\Classes\Software\Microsoft\XLive
-          </p>
-          <p>
-            Check if the PCID value is correctly set to: 14120210262240770816
-            (that&apos;s c3f5106be2afbb00 in hex)
-          </p>
-          <p>If not, set it manually.</p>
-        </div>
-      ),
-    },
+
     {
       question: 'When will games marked as "Testing" work?',
       answer: (
         <div>
           <p>
-            → When kind folks share their working CD-KEY + PCID pairs. If you
-            can help — contact me below.
+            → When kind folks confirm they have working CD-KEY + PCID pairs for
+            that specific game. If you can help — contact me below.
           </p>
         </div>
       ),
