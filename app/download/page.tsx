@@ -6,11 +6,10 @@ import VirusTotalWidget from "@/components/VirusTotalWidget";
 import DownloadButtonWithModal from "@/components/DownloadButtonWithModal";
 
 export default function Download() {
-  // Download link for GFWL Keygen
-  const downloadLink =
-    "https://cdn.discordapp.com/attachments/1065348198094352524/1363973667683307590/GFWL_Keygen_Beta_0.5.7z?ex=681f0d37&is=681dbbb7&hm=638e3cae8c799fcab96ec888f430e9f3db92977249e52210f78863065b6a2196&";
+  // Download link for GFWL Keygen - direct path to static file
+  const downloadLink = "/downloads/GFWL_Keygen_Beta_0.5.exe";
 
-  // VirusTotal URL for the file
+  // VirusTotal URL for the file (update this after getting the direct link)
   const virusTotalUrl =
     "https://www.virustotal.com/gui/url/6cb4c0d7ce2d2e51cff381c74c7ac79e5ed03bcbfa14f448bd1d4d6e59d0553e";
 
@@ -21,7 +20,7 @@ export default function Download() {
 By proceeding, you acknowledge and accept that all downloads are done at your own risk. GFWL Hub is not responsible for any harm to your device, data loss, or other consequences resulting from the use of downloaded files. We strongly advise keeping your antivirus software up-to-date and exercising caution.`;
 
   // GFWL Keygen specific details
-  const keygenFileName = "GFWL_Keygen.exe"; // Or the actual filename
+  const keygenFileName = "GFWL_Keygen_Beta_0.5.exe"; // Updated filename
 
   return (
     <div className="container mx-auto px-4 py-6 md:py-8">
@@ -74,8 +73,11 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                 . This is required for the GFWL Keygen to run.
               </li>
               <li>Download the latest version of the GFWL Keygen tool.</li>
-              <li>Extract the 7z archive file to a location of your choice.</li>
-              <li>Run the application (GFWL_Keygen.exe) as administrator.</li>
+              <li>
+                We recommend backing up your existing PCID before running the
+                keygen. Check
+              </li>
+              <li>Run the application (GFWL_Keygen_Beta_0.5.exe).</li>
               <li>Follow the on-screen instructions to generate your key.</li>
               <li>Use the generated key to activate your GFWL game.</li>
             </ol>
