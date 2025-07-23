@@ -1,21 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import {
-  FaInfoCircle,
-  FaTimes,
-  FaCopy,
-  FaRegCopy,
-  FaChevronDown,
-  FaChevronRight,
-} from "react-icons/fa";
+import { FaInfoCircle, FaTimes } from "react-icons/fa";
 import Link from "next/link";
 import VirusTotalWidget from "@/components/VirusTotalWidget";
 import DownloadButtonWithModal from "@/components/DownloadButtonWithModal";
 
 export default function Download() {
   const [showRegistryModal, setShowRegistryModal] = useState(false);
-  const [showCompatibilityInfo, setShowCompatibilityInfo] = useState(false);
 
   // Download link for GFWL Keygen - direct path to static file
   const downloadLink = "/downloads/GFWL_Keygen.exe";
@@ -170,7 +162,7 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                 <div className="flex-1">
                   <p className="text-gray-300 text-sm md:text-base">
                     If activation fails, the key should be pre-filled. Simply
-                    click "Next" to proceed.
+                    click &quot;Next&quot; to proceed.
                   </p>
                 </div>
               </div>
@@ -232,9 +224,9 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                 <h4 className="text-white font-medium mb-3">Prerequisites</h4>
                 <div className="bg-[#1a1a1a] border border-[#404040] rounded-lg p-4">
                   <p className="text-gray-300 text-sm mb-2">
-                    <strong className="text-white">Note:</strong> If you've
+                    <strong className="text-white">Note:</strong> If you&apos;ve
                     never launched any GFWL game before on your current PC, you
-                    won't have a PCID to backup.
+                    won&apos;t have a PCID to backup.
                   </p>
                   <p className="text-gray-300 text-sm">
                     In this case, you can skip this step and proceed directly to
@@ -313,7 +305,8 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                         <code className="text-[#107c10] font-mono bg-[#1a1a1a] px-1 rounded">
                           PCID
                         </code>{" "}
-                        and copy the entire "Value data" string. Click Ok.
+                        and copy the entire &quot;Value data&quot; string. Click
+                        Ok.
                       </p>
                     </div>
                   </div>
@@ -365,12 +358,12 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                         <code className="text-[#107c10] font-mono bg-[#1a1a1a] px-1 rounded">
                           PCID.old
                         </code>
-                        , ensure "Base" is set to{" "}
+                        , ensure &quot;Base&quot; is set to{" "}
                         <code className="text-[#107c10] font-mono bg-[#1a1a1a] px-1 rounded">
                           Hexadecimal
                         </code>
-                        , paste your copied string into "Value data", and click
-                        OK.
+                        , paste your copied string into &quot;Value data&quot;,
+                        and click OK.
                       </p>
                     </div>
                   </div>
