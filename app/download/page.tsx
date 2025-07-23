@@ -11,7 +11,7 @@ export default function Download() {
 
   // VirusTotal URL for the file (update this after getting the direct link)
   const virusTotalUrl =
-    "https://www.virustotal.com/gui/url/6cb4c0d7ce2d2e51cff381c74c7ac79e5ed03bcbfa14f448bd1d4d6e59d0553e";
+    "https://www.virustotal.com/gui/url/43a8a467be25687021273864c669910ddce7f2d8ba7e348df2bb7e5688fe52cf/detection";
 
   // Define the disclaimer content (can be the same as on the game page)
   const disclaimerModalTitle = "Important Notice Regarding Downloads";
