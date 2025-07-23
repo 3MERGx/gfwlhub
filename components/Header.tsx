@@ -66,7 +66,7 @@ export default function Header() {
               className="bg-white text-[#107c10] hover:bg-gray-100 px-4 py-2 rounded-md font-medium flex items-center transition-colors"
             >
               <FaDownload className="mr-2" />
-              Download Fix
+              Download GFWL Fix
             </Link>
           </div>
         </div>
