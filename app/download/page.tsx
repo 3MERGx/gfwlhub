@@ -30,7 +30,7 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
             Download GFWL Keygen
           </h1>
           <p className="text-gray-300 text-center mb-4 text-sm md:text-base">
-            Latest Version: Beta 0.5.7
+            Latest Version: 1.0.0
           </p>
 
           <div className="bg-[#2d2d2d] p-4 md:p-6 rounded-lg mb-6">

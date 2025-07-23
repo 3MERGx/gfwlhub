@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, ReactNode } from "react";
+import { useState, ReactNode, useEffect } from "react";
 import { FaDownload, FaExclamationTriangle } from "react-icons/fa";
 
 interface DownloadButtonWithModalProps {
@@ -21,6 +21,11 @@ export default function DownloadButtonWithModal({
   className = "inline-flex items-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md transition-colors",
 }: DownloadButtonWithModalProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handleOpenModal = () => {
     setIsModalOpen(true);
@@ -31,15 +36,19 @@ export default function DownloadButtonWithModal({
   };
 
   const handleConfirmDownload = () => {
-    // Programmatically trigger the download
-    const link = document.createElement("a");
-    link.href = downloadLink;
-    link.setAttribute("download", fileName || "download"); // Set filename for download
-    link.setAttribute("target", "_blank"); // Optional: open in new tab if direct download isn't forced
-    link.setAttribute("rel", "noopener noreferrer");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Use a hidden anchor tag approach that's SSR-friendly
+    if (typeof window !== "undefined") {
+      const link = document.createElement("a");
+      link.href = downloadLink;
+      link.setAttribute("download", fileName || "download");
+      link.setAttribute("target", "_blank");
+      link.setAttribute("rel", "noopener noreferrer");
+      link.style.display = "none";
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
 
     handleCloseModal();
   };
@@ -51,7 +60,7 @@ export default function DownloadButtonWithModal({
         {buttonText}
       </button>
 
-      {isModalOpen && (
+      {isModalOpen && isMounted && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 transition-opacity duration-300 ease-in-out"
           aria-labelledby="modal-title"

@@ -61,7 +61,7 @@ Send them the `COLLABORATOR_WORKFLOW.md` file - it contains everything they need
 - **Location**: `public/downloads/` directory
 - **Size limit**: 10MB per file
 - **Formats**: .exe, .7z, .zip, .msi
-- **Naming**: Use descriptive names like `GFWL_Keygen_Beta_0.6.exe`
+- **Naming**: Use descriptive names like `GFWL Keygen.exe`
 
 ## Troubleshooting
 
