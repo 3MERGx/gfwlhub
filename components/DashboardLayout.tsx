@@ -2,10 +2,18 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, ReactNode } from "react";
+import { useEffect, ReactNode, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FaHome, FaUsers, FaHistory, FaClock, FaGamepad, FaPlus } from "react-icons/fa";
+import {
+  FaHome,
+  FaUsers,
+  FaHistory,
+  FaClock,
+  FaGamepad,
+  FaPlus,
+  FaUserShield,
+} from "react-icons/fa";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -19,6 +27,9 @@ export default function DashboardLayout({
   const { data: session, status } = useSession();
   const router = useRouter();
   const pathname = usePathname();
+  const [pendingCount, setPendingCount] = useState<number>(0);
+  const [pendingGameSubmissionsCount, setPendingGameSubmissionsCount] =
+    useState<number>(0);
 
   useEffect(() => {
     // Redirect to signin if not authenticated
@@ -40,6 +51,86 @@ export default function DashboardLayout({
       }
     }
   }, [status, router, session, pathname]);
+
+  // Fetch pending corrections count for reviewers and admins
+  useEffect(() => {
+    const fetchPendingCount = async () => {
+      if (status === "authenticated" && session) {
+        const userRole = session.user.role;
+        // Only fetch for reviewers and admins
+        if (userRole === "reviewer" || userRole === "admin") {
+          try {
+            const response = await fetch("/api/corrections?status=pending");
+            if (response.ok) {
+              const data = await response.json();
+              setPendingCount(data.corrections?.length || 0);
+            }
+          } catch (error) {
+            console.error("Error fetching pending corrections count:", error);
+          }
+        }
+      }
+    };
+
+    fetchPendingCount();
+    // Refresh count every 30 seconds
+    const interval = setInterval(fetchPendingCount, 30000);
+    
+    // Listen for custom event to refresh immediately after review
+    const handleCorrectionsUpdated = () => {
+      fetchPendingCount();
+    };
+    window.addEventListener("correctionsUpdated", handleCorrectionsUpdated);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("correctionsUpdated", handleCorrectionsUpdated);
+    };
+  }, [status, session]);
+
+  // Fetch pending game submissions count for reviewers and admins
+  useEffect(() => {
+    const fetchPendingGameSubmissionsCount = async () => {
+      if (status === "authenticated" && session) {
+        const userRole = session.user.role;
+        // Only fetch for reviewers and admins
+        if (userRole === "reviewer" || userRole === "admin") {
+          try {
+            const response = await fetch(
+              "/api/game-submissions?status=pending"
+            );
+            if (response.ok) {
+              const data = await response.json();
+              // API returns array directly
+              setPendingGameSubmissionsCount(
+                Array.isArray(data) ? data.length : 0
+              );
+            }
+          } catch (error) {
+            console.error(
+              "Error fetching pending game submissions count:",
+              error
+            );
+          }
+        }
+      }
+    };
+
+    fetchPendingGameSubmissionsCount();
+    // Refresh count every 30 seconds
+    const interval = setInterval(fetchPendingGameSubmissionsCount, 30000);
+    
+    // Listen for custom event to refresh immediately after review
+    const handleGameSubmissionsUpdated = () => {
+      fetchPendingGameSubmissionsCount();
+    };
+    window.addEventListener("gameSubmissionsUpdated", handleGameSubmissionsUpdated);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("gameSubmissionsUpdated", handleGameSubmissionsUpdated);
+    };
+  }, [status, session]);
 
   // Show loading state while checking auth
   if (status === "loading") {
@@ -119,6 +210,12 @@ export default function DashboardLayout({
       label: "Audit Log",
       roles: ["admin"],
     },
+    {
+      href: "/dashboard/moderation",
+      icon: FaUserShield,
+      label: "Moderation Log",
+      roles: ["admin"],
+    },
   ];
 
   const userRole = session.user.role;
@@ -129,7 +226,7 @@ export default function DashboardLayout({
   return (
     <div className="min-h-screen flex bg-[#121212]">
       {/* Sidebar - Only visible on xl screens and up */}
-      <aside className="hidden xl:block w-64 bg-[#1a1a1a] border-r border-gray-700">
+      <aside className="hidden xl:block w-72 bg-[#1a1a1a] border-r border-gray-700">
         <div className="flex flex-col h-full">
           {/* Sidebar Header */}
           <div className="p-4 border-b border-gray-700">
@@ -147,11 +244,16 @@ export default function DashboardLayout({
             {visibleNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
+              const showCorrectionsBadge =
+                item.href === "/dashboard/submissions" && pendingCount > 0;
+              const showGameSubmissionsBadge =
+                item.href === "/dashboard/game-submissions" &&
+                pendingGameSubmissionsCount > 0;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors relative ${
                     isActive
                       ? "bg-[#107c10] text-white"
                       : "text-gray-300 hover:bg-[#2d2d2d] hover:text-white"
@@ -159,6 +261,18 @@ export default function DashboardLayout({
                 >
                   <Icon size={18} />
                   <span className="font-medium">{item.label}</span>
+                  {showCorrectionsBadge && (
+                    <span className="ml-auto bg-orange-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+                      {pendingCount > 99 ? "99+" : pendingCount}
+                    </span>
+                  )}
+                  {showGameSubmissionsBadge && (
+                    <span className="ml-auto bg-orange-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+                      {pendingGameSubmissionsCount > 99
+                        ? "99+"
+                        : pendingGameSubmissionsCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}

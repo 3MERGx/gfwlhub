@@ -171,12 +171,12 @@ export default function ProfilePage({
     }
   };
 
+  // Calculate approval rate excluding pending submissions
+  // Only count approved + rejected in denominator
+  const reviewedCount = profileUser.approvedCount + profileUser.rejectedCount;
   const approvalRate =
-    profileUser.submissionsCount > 0
-      ? (
-          (profileUser.approvedCount / profileUser.submissionsCount) *
-          100
-        ).toFixed(1)
+    reviewedCount > 0
+      ? ((profileUser.approvedCount / reviewedCount) * 100).toFixed(1)
       : "0.0";
 
   return (

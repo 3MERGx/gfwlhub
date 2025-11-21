@@ -1,0 +1,87 @@
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth-config";
+import { getGFWLDatabase } from "@/lib/mongodb";
+
+interface ModerationLog {
+  id: string;
+  moderatedUser: {
+    id: string;
+    name: string;
+  };
+  moderator: {
+    id: string;
+    name: string;
+  };
+  timestamp: Date;
+  action: string;
+  reason: string;
+  previousRole?: string;
+  newRole?: string;
+  previousStatus?: string;
+  newStatus?: string;
+}
+
+export async function GET() {
+  try {
+    const session = await getServerSession(authOptions);
+
+    // Only admins can view moderation logs
+    if (!session || session.user.role !== "admin") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const db = await getGFWLDatabase();
+    const usersCollection = db.collection("users");
+
+    // Get all users with moderation history
+    const users = await usersCollection
+      .find({
+        moderationHistory: { $exists: true, $ne: [] },
+      })
+      .toArray();
+
+    // Flatten moderation history from all users into a single array
+    const allModerationLogs: ModerationLog[] = [];
+    for (const user of users) {
+      if (user.moderationHistory && Array.isArray(user.moderationHistory)) {
+        for (const log of user.moderationHistory) {
+          allModerationLogs.push({
+            id: `${user._id.toString()}-${log.timestamp?.getTime() || Date.now()}`,
+            moderatedUser: log.moderatedUser || {
+              id: user._id.toString(),
+              name: user.name || "Unknown User",
+            },
+            moderator: log.moderator || {
+              id: "unknown",
+              name: "Unknown Admin",
+            },
+            timestamp: log.timestamp || new Date(),
+            action: log.action || "Unknown action",
+            reason: log.reason || "No reason provided",
+            previousRole: log.previousRole,
+            newRole: log.newRole,
+            previousStatus: log.previousStatus,
+            newStatus: log.newStatus,
+          });
+        }
+      }
+    }
+
+    // Sort by timestamp (newest first)
+    allModerationLogs.sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime();
+      const timeB = new Date(b.timestamp).getTime();
+      return timeB - timeA;
+    });
+
+    return NextResponse.json({ logs: allModerationLogs });
+  } catch (error) {
+    console.error("Error fetching moderation logs:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch moderation logs" },
+      { status: 500 }
+    );
+  }
+}
+

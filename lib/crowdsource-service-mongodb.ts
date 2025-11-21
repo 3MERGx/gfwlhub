@@ -363,6 +363,9 @@ export async function getUserStats(userId: string): Promise<UserStats | null> {
   const rejected = corrections.filter((c) => c.status === "rejected").length;
   const modified = corrections.filter((c) => c.status === "modified").length;
   const total = corrections.length;
+  // Calculate approval rate excluding pending submissions
+  // Only count approved + rejected in denominator
+  const reviewedCount = approved + rejected;
 
   return {
     userId: user._id.toString(),
@@ -371,7 +374,7 @@ export async function getUserStats(userId: string): Promise<UserStats | null> {
     approvedSubmissions: approved,
     rejectedSubmissions: rejected,
     modifiedSubmissions: modified,
-    approvalRate: total > 0 ? (approved / total) * 100 : 0,
+    approvalRate: reviewedCount > 0 ? (approved / reviewedCount) * 100 : 0,
     lastSubmission:
       corrections.length > 0 ? corrections[0].submittedAt : undefined,
     recentSubmissions: corrections.slice(0, 10).map(toCorrection),

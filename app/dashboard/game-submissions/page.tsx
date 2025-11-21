@@ -4,21 +4,26 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { FaArrowLeft, FaCheck, FaTimes, FaEye, FaClock } from "react-icons/fa";
+import { FaArrowLeft, FaCheck, FaTimes, FaEye, FaClock, FaRocket } from "react-icons/fa";
 import { GameSubmission } from "@/types/crowdsource";
 import DashboardLayout from "@/components/DashboardLayout";
+import ConfirmPublishModal from "@/components/ConfirmPublishModal";
+import { useToast } from "@/components/ui/toast-context";
 
 function GameSubmissionsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const { showToast } = useToast();
   const [submissions, setSubmissions] = useState<GameSubmission[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("pending");
   const [gameFilter, setGameFilter] = useState<string>("");
   const [selectedSubmission, setSelectedSubmission] = useState<GameSubmission | null>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewNotes, setReviewNotes] = useState("");
   const [isReviewing, setIsReviewing] = useState(false);
+  const [showConfirmPublish, setShowConfirmPublish] = useState(false);
+  const [publishingSubmission, setPublishingSubmission] = useState<GameSubmission | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -78,7 +83,9 @@ function GameSubmissionsPage() {
         setShowReviewModal(false);
         setReviewNotes("");
         setSelectedSubmission(null);
-        fetchSubmissions();
+        await fetchSubmissions();
+        // Dispatch event to update notification counts
+        window.dispatchEvent(new CustomEvent("gameSubmissionsUpdated"));
       } else {
         alert("Failed to submit review");
       }
@@ -115,6 +122,58 @@ function GameSubmissionsPage() {
   };
 
   const isReviewer = session?.user?.role === "reviewer" || session?.user?.role === "admin";
+  const isAdmin = session?.user?.role === "admin";
+
+  // Helper function to check if game has minimum required fields
+  const hasRequiredFields = (submission: GameSubmission) => {
+    const data = submission.proposedData;
+    return !!(data.title && data.releaseDate && data.developer && data.publisher);
+  };
+
+  // Helper function to get required fields status
+  const getRequiredFields = (submission: GameSubmission) => {
+    const data = submission.proposedData;
+    return {
+      title: !!data.title,
+      releaseDate: !!data.releaseDate,
+      developer: !!data.developer,
+      publisher: !!data.publisher,
+    };
+  };
+
+  const handlePublishGame = (submission: GameSubmission) => {
+    setPublishingSubmission(submission);
+    setShowConfirmPublish(true);
+  };
+
+  const handlePublishConfirm = async () => {
+    if (!publishingSubmission) return;
+
+    setShowConfirmPublish(false);
+    try {
+      const response = await fetch(`/api/games/${publishingSubmission.gameSlug}/publish`, {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        showToast(`${publishingSubmission.gameTitle} has been published successfully!`, 5000, "success");
+        await fetchSubmissions();
+      } else {
+        const error = await response.json();
+        showToast(`Failed to publish game: ${error.error || "Unknown error"}`, 5000, "error");
+      }
+    } catch (error) {
+      console.error("Error publishing game:", error);
+      showToast("Failed to publish game", 5000, "error");
+    } finally {
+      setPublishingSubmission(null);
+    }
+  };
+
+  const handlePublishCancel = () => {
+    setShowConfirmPublish(false);
+    setPublishingSubmission(null);
+  };
 
   if (loading || status === "loading") {
     return (
@@ -227,6 +286,12 @@ function GameSubmissionsPage() {
                             {formatDate(submission.reviewedAt!)}
                           </p>
                         )}
+                        {submission.publishedByName && submission.publishedAt && (
+                          <p>
+                            Published by <span className="text-white">{submission.publishedByName}</span> on{" "}
+                            {formatDate(submission.publishedAt)}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div className="flex gap-2 mt-4 md:mt-0">
@@ -257,6 +322,19 @@ function GameSubmissionsPage() {
                             Reject
                           </button>
                         </>
+                      )}
+                      {isAdmin && 
+                       submission.status === "approved" && 
+                       hasRequiredFields(submission) && 
+                       !submission.currentGameData?.featureEnabled && (
+                        <button
+                          onClick={() => handlePublishGame(submission)}
+                          className="inline-flex items-center gap-2 bg-[#107c10] hover:bg-[#0e6b0e] text-white px-4 py-2 rounded-lg transition-colors text-sm font-semibold"
+                          title="This game has the minimum required fields and can be published"
+                        >
+                          <FaRocket />
+                          Publish Game
+                        </button>
                       )}
                     </div>
                   </div>
@@ -467,6 +545,16 @@ function GameSubmissionsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Confirm Publish Modal */}
+      {showConfirmPublish && publishingSubmission && (
+        <ConfirmPublishModal
+          gameTitle={publishingSubmission.gameTitle}
+          requiredFields={getRequiredFields(publishingSubmission)}
+          onConfirm={handlePublishConfirm}
+          onCancel={handlePublishCancel}
+        />
       )}
     </div>
   );

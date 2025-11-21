@@ -18,6 +18,10 @@ import { games as staticGames } from "@/data/games";
 import MakeCorrectionButton from "./MakeCorrectionButton";
 import DisabledGameBanner from "./DisabledGameBanner";
 import { redirect } from "next/navigation";
+import UnplayableGameBanner from "@/components/UnplayableGameBanner";
+import CommunityAlternativeCard from "@/components/CommunityAlternativeCard";
+import RemasteredVersionCard from "@/components/RemasteredVersionCard";
+import PlayabilityBadge from "@/components/PlayabilityBadge";
 
 // Get feature flags from .env.local or check if it's enabled in the game data
 const getFeatureFlag = async (slug: string): Promise<boolean> => {
@@ -42,7 +46,10 @@ export async function generateStaticParams() {
   } catch (error) {
     // Fall back to static games array if MongoDB is unavailable during build
     // This allows the build to succeed even if MongoDB connection fails
-    console.warn("MongoDB unavailable during build, using static games array:", error);
+    console.warn(
+      "MongoDB unavailable during build, using static games array:",
+      error
+    );
     return staticGames.map((game) => ({
       slug: game.slug,
     }));
@@ -65,6 +72,23 @@ export async function generateMetadata({
     };
   }
 
+  // Convert imageUrl to absolute URL if it's relative
+  const getAbsoluteImageUrl = (
+    imageUrl: string | undefined
+  ): string | undefined => {
+    if (!imageUrl) return undefined;
+    // If it's already an absolute URL (starts with http:// or https://), return as-is
+    if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+      return imageUrl;
+    }
+    // If it's a relative URL, convert to absolute
+    const baseUrl =
+      process.env.NEXT_PUBLIC_SITE_URL || "https://gfwl-hub.vercel.app";
+    return `${baseUrl}${imageUrl.startsWith("/") ? imageUrl : `/${imageUrl}`}`;
+  };
+
+  const absoluteImageUrl = getAbsoluteImageUrl(game.imageUrl);
+
   const metadata: Metadata = {
     title: `${game.title} | GFWL Hub`,
     description: game.description,
@@ -72,22 +96,28 @@ export async function generateMetadata({
       title: `${game.title} | GFWL Hub`,
       description: game.description,
       type: "article",
+      url: `${
+        process.env.NEXT_PUBLIC_SITE_URL || "https://gfwl-hub.vercel.app"
+      }/games/${slug}`,
+      siteName: "GFWL Hub",
+      ...(absoluteImageUrl && {
+        images: [
+          {
+            url: absoluteImageUrl,
+            alt: `${game.title} box art`,
+          },
+        ],
+      }),
     },
     twitter: {
       card: "summary_large_image",
       title: `${game.title} | GFWL Hub`,
       description: game.description,
+      ...(absoluteImageUrl && {
+        images: [absoluteImageUrl],
+      }),
     },
   };
-
-  if (game.imageUrl) {
-    if (metadata.openGraph) {
-      metadata.openGraph.images = [game.imageUrl];
-    }
-    if (metadata.twitter) {
-      metadata.twitter.images = [game.imageUrl];
-    }
-  }
 
   return metadata;
 }
@@ -202,7 +232,7 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
               </h1>
 
               {/* Activation Type and Status Badges */}
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
                 <span
                   className={`px-3 py-1 rounded-full text-xs font-semibold ${
                     game.activationType === "SSA"
@@ -230,11 +260,30 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                     : game.status.charAt(0).toUpperCase() +
                       game.status.slice(1)}
                 </span>
+                {/* Playability Badge */}
+                {game.playabilityStatus &&
+                  game.playabilityStatus !== "playable" && (
+                    <PlayabilityBadge status={game.playabilityStatus} />
+                  )}
               </div>
 
               <p className="text-gray-300 mb-4 text-sm leading-relaxed">
                 {game.description}
               </p>
+
+              {/* Playability Indicators */}
+              {game.isUnplayable && <UnplayableGameBanner />}
+              {game.communityAlternativeName && (
+                <CommunityAlternativeCard
+                  communityAlternativeName={game.communityAlternativeName}
+                />
+              )}
+              {game.remasteredName && (
+                <RemasteredVersionCard
+                  remasteredName={game.remasteredName}
+                  remasteredPlatform={game.remasteredPlatform}
+                />
+              )}
 
               {/* Released Date & Developer */}
               {(game.releaseDate || game.developer) && (
@@ -295,16 +344,28 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                   </div>
                 </div>
               )}
+
+              {/* Additional DRM */}
+              {game.additionalDRM && (
+                <div className="mb-3">
+                  <span className="text-gray-400 text-sm">
+                    Additional DRM:{" "}
+                  </span>
+                  <span className="text-gray-200 text-sm">
+                    {game.additionalDRM}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Show banner for disabled games */}
           {!isFeatureEnabled && <DisabledGameBanner game={game} />}
 
-          {isFeatureEnabled && game.downloadLink && (
+          {isFeatureEnabled && (game.downloadLink || game.purchaseLink) && (
             <div className="mt-8">
               <h2 className="text-2xl font-bold mb-4 text-white">
-                Game Download
+                {game.downloadLink ? "Game Download" : "Purchase Game"}
               </h2>
 
               <div className="flex flex-wrap gap-3 mb-6">
@@ -339,9 +400,11 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
               </h2>
               <div className="bg-[#2d2d2d] p-4 rounded-lg">
                 <ul className="list-disc list-inside space-y-3 text-gray-300">
-                  {game.instructions?.map((instruction: string, index: number) => (
-                    <li key={index}>{instruction}</li>
-                  ))}
+                  {game.instructions?.map(
+                    (instruction: string, index: number) => (
+                      <li key={index}>{instruction}</li>
+                    )
+                  )}
                 </ul>
               </div>
             </>
@@ -405,8 +468,8 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                 Found an Issue?
               </h2>
               <p className="text-gray-300 mb-4 text-sm leading-relaxed">
-                Help us improve the accuracy of this page by submitting a correction. 
-                All submissions are reviewed before being applied.
+                Help us improve the accuracy of this page by submitting a
+                correction. All submissions are reviewed before being applied.
               </p>
               <MakeCorrectionButton game={game} />
             </div>
