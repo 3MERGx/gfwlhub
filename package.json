@@ -10,7 +10,6 @@
     "import-games": "tsx scripts/import-games-to-mongodb.ts"
   },
   "dependencies": {
-    "@auth/mongodb-adapter": "^3.11.1",
     "@auth/prisma-adapter": "^2.11.1",
     "@heroicons/react": "^2.2.0",
     "@prisma/client": "^7.0.0",
