@@ -38,16 +38,16 @@ export default function DownloadButtonWithModal({
   const handleConfirmDownload = () => {
     // Use a hidden anchor tag approach that's SSR-friendly
     if (typeof window !== "undefined") {
-      const link = document.createElement("a");
-      link.href = downloadLink;
+    const link = document.createElement("a");
+    link.href = downloadLink;
       link.setAttribute("download", fileName || "download");
       link.setAttribute("target", "_blank");
-      link.setAttribute("rel", "noopener noreferrer");
+    link.setAttribute("rel", "noopener noreferrer");
       link.style.display = "none";
 
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
     }
 
     handleCloseModal();
