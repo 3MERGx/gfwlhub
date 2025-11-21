@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Game, games } from "@/data/games";
+import { Game } from "@/data/games";
 import { useToast } from "@/components/ui/toast-context";
+import { useSession } from "next-auth/react";
 import {
   FaSort,
   FaSortUp,
@@ -13,6 +14,8 @@ import {
   FaChevronLeft,
   FaChevronRight,
 } from "react-icons/fa";
+import DisabledGamePrompt from "@/app/games/[slug]/DisabledGamePrompt";
+import AddGameDetailsModal from "@/components/AddGameDetailsModal";
 
 // Helper function to check if a game has its feature enabled
 const isGameFeatureEnabled = (game: Game): boolean => {
@@ -24,11 +27,38 @@ type SortDirection = "asc" | "desc";
 
 export default function SupportedGames() {
   const { showToast } = useToast();
+  const { data: session } = useSession();
+  const [games, setGames] = useState<Game[]>([]);
+  const [loading, setLoading] = useState(true);
   const [sortField, setSortField] = useState<SortField>("title");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const gamesPerPage = 10;
+  const [selectedDisabledGame, setSelectedDisabledGame] = useState<Game | null>(null);
+  const [showAddDetailsModal, setShowAddDetailsModal] = useState(false);
+
+  // Fetch games from MongoDB
+  useEffect(() => {
+    async function fetchGames() {
+      try {
+        const response = await fetch("/api/games");
+        if (response.ok) {
+          const data = await response.json();
+          setGames(data);
+        } else {
+          console.error("Failed to fetch games");
+          showToast("Failed to load games. Please try again later.");
+        }
+      } catch (error) {
+        console.error("Error fetching games:", error);
+        showToast("Error loading games. Please try again later.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchGames();
+  }, [showToast]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -45,7 +75,7 @@ export default function SupportedGames() {
     setCurrentPage(1); // Reset to first page when search is cleared
   };
 
-  // Filter games based on search query
+  // Filter games based on search query (show all games, enabled and disabled)
   const filteredGames = games.filter(
     (game) =>
       game.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -78,14 +108,20 @@ export default function SupportedGames() {
   const currentGames = sortedGames.slice(indexOfFirstGame, indexOfLastGame);
   const totalPages = Math.ceil(sortedGames.length / gamesPerPage);
 
-  const handleGameClick = (e: React.MouseEvent, game: Game) => {
-    if (!isGameFeatureEnabled(game)) {
-      e.preventDefault();
-      showToast(
-        `The page for ${game.title} is still under construction. Check back soon!`
-      );
-    }
-  };
+  // Removed handleGameClick - let users navigate to disabled games
+  // They'll see a banner prompting them to help add game details
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="bg-[#202020] p-8 rounded-lg shadow-xl">
+            <div className="text-center text-white">Loading games...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -194,10 +230,13 @@ export default function SupportedGames() {
                         </Link>
                       ) : (
                         <button
-                          onClick={(e) => handleGameClick(e, game)}
+                          onClick={() => setSelectedDisabledGame(game)}
                           className="text-[#107c10] hover:text-[#0e6b0e] transition-colors text-left"
                         >
                           {game.title}
+                          <span className="ml-2 text-xs text-yellow-500">
+                            (Help Needed)
+                          </span>
                         </button>
                       )}
                     </td>
@@ -251,10 +290,13 @@ export default function SupportedGames() {
                     </Link>
                   ) : (
                     <button
-                      onClick={(e) => handleGameClick(e, game)}
+                      onClick={() => setSelectedDisabledGame(game)}
                       className="text-[#107c10] hover:text-[#0e6b0e] transition-colors text-left"
                     >
                       {game.title}
+                      <span className="ml-2 text-xs text-yellow-500">
+                        (Help Needed)
+                      </span>
                     </button>
                   )}
                 </h3>
@@ -393,6 +435,39 @@ export default function SupportedGames() {
           </div>
         </div>
       </div>
+
+      {/* Disabled Game Prompt Modal */}
+      {selectedDisabledGame && (
+        <DisabledGamePrompt
+          gameTitle={selectedDisabledGame.title}
+          gameSlug={selectedDisabledGame.slug}
+          onClose={() => setSelectedDisabledGame(null)}
+          onAddDetails={() => {
+            setShowAddDetailsModal(true);
+          }}
+        />
+      )}
+
+      {/* Add Game Details Modal */}
+      {showAddDetailsModal && selectedDisabledGame && session && (
+        <AddGameDetailsModal
+          game={selectedDisabledGame}
+          onClose={() => {
+            setShowAddDetailsModal(false);
+            setSelectedDisabledGame(null);
+          }}
+          onSubmit={() => {
+            setShowAddDetailsModal(false);
+            setSelectedDisabledGame(null);
+            showToast(
+              "Game details submitted successfully! They will be reviewed shortly.",
+              5000
+            );
+          }}
+          userId={session.user.id || ""}
+          userName={session.user.name || "Anonymous"}
+        />
+      )}
     </div>
   );
 }

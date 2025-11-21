@@ -6,6 +6,7 @@ import { Inter } from "next/font/google";
 import { ToastProvider } from "@/components/ui/toast-context";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Providers } from "@/components/Providers";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -75,13 +76,15 @@ export default function RootLayout({
       <body
         className={`min-h-screen flex flex-col bg-[#121212] text-white ${inter.className}`}
       >
-        <ToastProvider>
-          <Header />
-          <main className="flex-grow">{children}</main>
-          <Footer />
-          <SpeedInsights />
-          <Analytics />
-        </ToastProvider>
+        <Providers>
+          <ToastProvider>
+            <Header />
+            <main className="flex-grow">{children}</main>
+            <Footer />
+            <SpeedInsights />
+            <Analytics />
+          </ToastProvider>
+        </Providers>
       </body>
     </html>
   );

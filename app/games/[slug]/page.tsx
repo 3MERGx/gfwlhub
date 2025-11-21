@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { games } from "@/data/games";
 import {
   FaArrowLeft,
   FaDiscord,
@@ -14,11 +13,15 @@ import StoreButton from "@/components/StoreButton";
 import Image from "next/image";
 import { Metadata } from "next";
 import DownloadButtonWithModal from "@/components/DownloadButtonWithModal";
+import { getAllGames, getGameBySlug } from "@/lib/games-service";
+import MakeCorrectionButton from "./MakeCorrectionButton";
+import DisabledGameBanner from "./DisabledGameBanner";
+import { redirect } from "next/navigation";
 
 // Get feature flags from .env.local or check if it's enabled in the game data
-const getFeatureFlag = (slug: string): boolean => {
+const getFeatureFlag = async (slug: string): Promise<boolean> => {
   // Check if the game has featureEnabled set to true in the data
-  const gameData = games.find((g) => g.slug === slug);
+  const gameData = await getGameBySlug(slug);
   if (gameData?.featureEnabled) return true;
 
   // Otherwise check environment variables
@@ -29,6 +32,7 @@ const getFeatureFlag = (slug: string): boolean => {
 };
 
 export async function generateStaticParams() {
+  const games = await getAllGames();
   return games.map((game) => ({
     slug: game.slug,
   }));
@@ -41,7 +45,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const resolvedParams = await params;
   const slug = resolvedParams.slug;
-  const game = games.find((g) => g.slug === slug);
+  const game = await getGameBySlug(slug);
 
   if (!game) {
     return {
@@ -84,18 +88,23 @@ export default async function GamePage({
 }) {
   const params = await paramsPromise;
   const slug = params.slug;
-  const game = games.find((g) => g.slug === slug);
+  const game = await getGameBySlug(slug);
 
   if (!game) {
     notFound();
   }
 
-  const isFeatureEnabled = getFeatureFlag(slug);
+  const isFeatureEnabled = await getFeatureFlag(slug);
 
   const disclaimerModalTitle = "Important Notice Regarding Downloads";
   const disclaimerModalContent = `You are downloading files from third-party, external sources. While GFWL Hub may scan links using tools such as VirusTotal, we do not host, control, or guarantee the safety of any files linked through our platform. GFWL Hub makes no warranties—express or implied—regarding the safety, reliability, or performance of these files.
 
 By proceeding, you acknowledge and accept that all downloads are done at your own risk. GFWL Hub is not responsible for any harm to your device, data loss, or other consequences resulting from the use of downloaded files. We strongly advise keeping your antivirus software up-to-date and exercising caution.`;
+
+  // Redirect disabled games back to supported games (they should use the modal on the list page)
+  if (!isFeatureEnabled) {
+    redirect("/supported-games");
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -247,7 +256,7 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                 <div className="mb-3">
                   <span className="text-gray-400 text-sm">Genres: </span>
                   <div className="flex flex-wrap gap-2 mt-1">
-                    {game.genres.map((genre, index) => (
+                    {game.genres?.map((genre: string, index: number) => (
                       <span
                         key={index}
                         className="bg-[#2d2d2d] px-2 py-1 rounded text-xs text-white"
@@ -264,7 +273,7 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                 <div className="mb-3">
                   <span className="text-gray-400 text-sm">Platforms: </span>
                   <div className="flex flex-wrap gap-2 mt-1">
-                    {game.platforms.map((platform, index) => (
+                    {game.platforms?.map((platform: string, index: number) => (
                       <span
                         key={index}
                         className="bg-[#2d2d2d] px-2 py-1 rounded text-xs text-white"
@@ -277,6 +286,9 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
               )}
             </div>
           </div>
+
+          {/* Show banner for disabled games */}
+          {!isFeatureEnabled && <DisabledGameBanner game={game} />}
 
           {isFeatureEnabled && game.downloadLink && (
             <div className="mt-8">
@@ -316,7 +328,7 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
               </h2>
               <div className="bg-[#2d2d2d] p-4 rounded-lg">
                 <ul className="list-disc list-inside space-y-3 text-gray-300">
-                  {game.instructions.map((instruction, index) => (
+                  {game.instructions?.map((instruction: string, index: number) => (
                     <li key={index}>{instruction}</li>
                   ))}
                 </ul>
@@ -331,7 +343,7 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
               </h2>
               <div className="bg-[#2d2d2d] p-4 rounded-lg">
                 <ul className="list-disc list-inside space-y-3 text-gray-300">
-                  {game.knownIssues.map((issue, index) => (
+                  {game.knownIssues?.map((issue: string, index: number) => (
                     <li key={index}>{issue}</li>
                   ))}
                 </ul>
@@ -346,7 +358,7 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
               </h2>
               <div className="bg-[#2d2d2d] p-4 rounded-lg">
                 <ul className="list-disc list-inside space-y-3 text-gray-300">
-                  {game.communityTips.map((tip, index) => (
+                  {game.communityTips?.map((tip: string, index: number) => (
                     <li key={index}>{tip}</li>
                   ))}
                 </ul>
@@ -372,6 +384,20 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
               >
                 Vote for {game.title} on GOG.com
               </Link>
+            </div>
+          )}
+
+          {/* Make Correction Section - Only show for enabled games */}
+          {isFeatureEnabled && (
+            <div className="mt-8 pt-6 border-t border-gray-700">
+              <h2 className="text-xl font-bold mb-3 text-white">
+                Found an Issue?
+              </h2>
+              <p className="text-gray-300 mb-4 text-sm leading-relaxed">
+                Help us improve the accuracy of this page by submitting a correction. 
+                All submissions are reviewed before being applied.
+              </p>
+              <MakeCorrectionButton game={game} />
             </div>
           )}
         </div>
