@@ -14,6 +14,7 @@ import Image from "next/image";
 import { Metadata } from "next";
 import DownloadButtonWithModal from "@/components/DownloadButtonWithModal";
 import { getAllGames, getGameBySlug } from "@/lib/games-service";
+import { games as staticGames } from "@/data/games";
 import MakeCorrectionButton from "./MakeCorrectionButton";
 import DisabledGameBanner from "./DisabledGameBanner";
 import { redirect } from "next/navigation";
@@ -32,10 +33,20 @@ const getFeatureFlag = async (slug: string): Promise<boolean> => {
 };
 
 export async function generateStaticParams() {
-  const games = await getAllGames();
-  return games.map((game) => ({
-    slug: game.slug,
-  }));
+  try {
+    // Try to get games from MongoDB
+    const games = await getAllGames();
+    return games.map((game) => ({
+      slug: game.slug,
+    }));
+  } catch (error) {
+    // Fall back to static games array if MongoDB is unavailable during build
+    // This allows the build to succeed even if MongoDB connection fails
+    console.warn("MongoDB unavailable during build, using static games array:", error);
+    return staticGames.map((game) => ({
+      slug: game.slug,
+    }));
+  }
 }
 
 export async function generateMetadata({
