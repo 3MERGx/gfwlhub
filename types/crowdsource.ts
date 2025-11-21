@@ -1,7 +1,12 @@
 // User roles and permissions
 export type UserRole = "user" | "reviewer" | "admin";
 
-export type UserStatus = "active" | "suspended" | "restricted" | "blocked" | "deleted";
+export type UserStatus =
+  | "active"
+  | "suspended"
+  | "restricted"
+  | "blocked"
+  | "deleted";
 
 // User profile
 export interface User {
@@ -42,7 +47,13 @@ export type CorrectionField =
   | "wikiLink"
   | "steamDBLink"
   | "purchaseLink"
-  | "gogDreamlistLink";
+  | "gogDreamlistLink"
+  | "additionalDRM"
+  | "playabilityStatus"
+  | "isUnplayable"
+  | "communityAlternativeName"
+  | "remasteredName"
+  | "remasteredPlatform";
 
 export interface Correction {
   id: string;
@@ -165,7 +176,7 @@ export interface GameSubmission {
   reviewedByName?: string;
   reviewedAt?: Date;
   reviewNotes?: string;
-  
+
   // Submitted game data (all fields optional, user fills what they can)
   proposedData: {
     title?: string;
@@ -190,11 +201,25 @@ export interface GameSubmission {
     virusTotalUrl?: string;
     knownIssues?: string[];
     communityTips?: string[];
+    additionalDRM?: string;
+    playabilityStatus?:
+      | "playable"
+      | "unplayable"
+      | "community_alternative"
+      | "remastered_available";
+    isUnplayable?: boolean;
+    communityAlternativeName?: string;
+    remasteredName?: string;
+    remasteredPlatform?: string;
   };
-  
+
   // Notes from submitter
   submitterNotes?: string;
-  
+
   // Current game data (for comparison - only included in API responses)
   currentGameData?: any;
+
+  // Published information (only included if game is published)
+  publishedByName?: string;
+  publishedAt?: Date;
 }

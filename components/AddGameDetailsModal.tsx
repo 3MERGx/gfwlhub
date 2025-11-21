@@ -41,6 +41,12 @@ export default function AddGameDetailsModal({
     instructions: game.instructions || [],
     knownIssues: game.knownIssues || [],
     communityTips: game.communityTips || [],
+    additionalDRM: game.additionalDRM || "",
+    playabilityStatus: game.playabilityStatus || "",
+    isUnplayable: game.isUnplayable || false,
+    communityAlternativeName: game.communityAlternativeName || "",
+    remasteredName: game.remasteredName || "",
+    remasteredPlatform: game.remasteredPlatform || "",
     submitterNotes: "",
   });
 
@@ -273,6 +279,13 @@ export default function AddGameDetailsModal({
               formData.communityTips.length > 0
                 ? formData.communityTips
                 : undefined,
+            additionalDRM: formData.additionalDRM || undefined,
+            playabilityStatus: formData.playabilityStatus || undefined,
+            isUnplayable: formData.isUnplayable || undefined,
+            communityAlternativeName:
+              formData.communityAlternativeName || undefined,
+            remasteredName: formData.remasteredName || undefined,
+            remasteredPlatform: formData.remasteredPlatform || undefined,
           },
           submitterNotes: formData.submitterNotes || undefined,
         }),
@@ -592,6 +605,79 @@ export default function AddGameDetailsModal({
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* Additional DRM */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Additional DRM
+              </label>
+              <select
+                value={
+                  formData.additionalDRM &&
+                  ![
+                    "Disc (SafeDisc/SecuROM/etc)",
+                    "Date check (SecuROM/ZDPP)",
+                    "Activation (SecuROM/custom)",
+                  ].includes(formData.additionalDRM)
+                    ? "Other"
+                    : formData.additionalDRM
+                }
+                onChange={(e) => {
+                  if (e.target.value === "Other") {
+                    // Keep the current value if it's already a custom value
+                    setFormData({
+                      ...formData,
+                      additionalDRM:
+                        formData.additionalDRM &&
+                        ![
+                          "Disc (SafeDisc/SecuROM/etc)",
+                          "Date check (SecuROM/ZDPP)",
+                          "Activation (SecuROM/custom)",
+                        ].includes(formData.additionalDRM)
+                          ? formData.additionalDRM
+                          : "",
+                    });
+                  } else {
+                    setFormData({
+                      ...formData,
+                      additionalDRM: e.target.value,
+                    });
+                  }
+                }}
+                className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+              >
+                <option value="">None</option>
+                <option value="Disc (SafeDisc/SecuROM/etc)">
+                  Disc (SafeDisc/SecuROM/etc)
+                </option>
+                <option value="Date check (SecuROM/ZDPP)">
+                  Date check (SecuROM/ZDPP)
+                </option>
+                <option value="Activation (SecuROM/custom)">
+                  Activation (SecuROM/custom)
+                </option>
+                <option value="Other">Other</option>
+              </select>
+              {formData.additionalDRM &&
+                ![
+                  "Disc (SafeDisc/SecuROM/etc)",
+                  "Date check (SecuROM/ZDPP)",
+                  "Activation (SecuROM/custom)",
+                ].includes(formData.additionalDRM) && (
+                  <input
+                    type="text"
+                    value={formData.additionalDRM}
+                    onChange={(e) => {
+                      setFormData({
+                        ...formData,
+                        additionalDRM: e.target.value,
+                      });
+                    }}
+                    placeholder="Enter custom DRM..."
+                    className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 mt-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+                  />
+                )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1035,6 +1121,129 @@ export default function AddGameDetailsModal({
                 </ul>
               )}
             </div>
+          </div>
+
+          {/* Playability Status */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-white border-b border-[#2d2d2d] pb-2">
+              Playability Status
+            </h3>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Playability Status
+              </label>
+              <select
+                value={formData.playabilityStatus}
+                onChange={(e) => {
+                  const newStatus = e.target.value;
+                  setFormData({
+                    ...formData,
+                    playabilityStatus: newStatus,
+                    // Auto-check isUnplayable if status is "unplayable"
+                    // Auto-uncheck if status is "playable"
+                    isUnplayable:
+                      newStatus === "unplayable"
+                        ? true
+                        : newStatus === "playable"
+                        ? false
+                        : formData.isUnplayable,
+                  });
+                }}
+                className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+              >
+                <option value="">Select status...</option>
+                <option value="playable">Playable</option>
+                <option value="unplayable">Unplayable</option>
+                <option value="community_alternative">
+                  Community Alternative
+                </option>
+                <option value="remastered_available">
+                  Remastered Available
+                </option>
+              </select>
+            </div>
+
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="isUnplayable"
+                checked={formData.isUnplayable}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    isUnplayable: e.target.checked,
+                  })
+                }
+                className="w-4 h-4 text-[#107c10] bg-[#2d2d2d] border-gray-600 rounded focus:ring-[#107c10] focus:ring-2"
+              />
+              <label
+                htmlFor="isUnplayable"
+                className="ml-2 text-sm font-medium text-gray-300"
+              >
+                Original game is unplayable
+              </label>
+            </div>
+
+            {formData.playabilityStatus === "community_alternative" && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Community Alternative Name
+                </label>
+                <input
+                  type="text"
+                  value={formData.communityAlternativeName}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      communityAlternativeName: e.target.value,
+                    })
+                  }
+                  placeholder="e.g., Project Name"
+                  className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+                />
+              </div>
+            )}
+
+            {formData.playabilityStatus === "remastered_available" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Remastered Name
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.remasteredName}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        remasteredName: e.target.value,
+                      })
+                    }
+                    placeholder="e.g., Remastered Name"
+                    className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Remastered Platform
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.remasteredPlatform}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        remasteredPlatform: e.target.value,
+                      })
+                    }
+                    placeholder="e.g., Platform Name"
+                    className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Submitter Notes */}

@@ -73,6 +73,8 @@ export default function UsersPage() {
   const [suspendDays, setSuspendDays] = useState<number>(7);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [userToRestore, setUserToRestore] = useState<User | null>(null);
+  const [suspendReason, setSuspendReason] = useState<string>("");
+  const [roleChangeReason, setRoleChangeReason] = useState<string>("");
 
   // Fetch users from API
   useEffect(() => {
@@ -357,13 +359,28 @@ export default function UsersPage() {
   const handleRoleChange = async (newRole: string) => {
     if (!selectedUser) return;
 
+    // Check if demoting (user < reviewer < admin)
+    const roleHierarchy = { user: 0, reviewer: 1, admin: 2 };
+    const currentRoleLevel = roleHierarchy[selectedUser.role as keyof typeof roleHierarchy] ?? 0;
+    const newRoleLevel = roleHierarchy[newRole as keyof typeof roleHierarchy] ?? 0;
+    const isDemoting = newRoleLevel < currentRoleLevel;
+
+    // Require reason if demoting
+    if (isDemoting && !roleChangeReason.trim()) {
+      alert("Please provide a reason for demoting this user.");
+      return;
+    }
+
     try {
       const response = await fetch(`/api/users/${selectedUser.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ role: newRole }),
+        body: JSON.stringify({ 
+          role: newRole,
+          moderationReason: roleChangeReason.trim() || undefined,
+        }),
       });
 
       if (!response.ok) {
@@ -388,6 +405,7 @@ export default function UsersPage() {
 
       setShowRoleModal(false);
       setSelectedUser(null);
+      setRoleChangeReason("");
     } catch (error) {
       console.error("Error updating user role:", error);
       alert(
@@ -399,6 +417,12 @@ export default function UsersPage() {
   const handleSuspend = async (days: number | null) => {
     if (!selectedUser) return;
 
+    // Require reason for all moderation actions except restore
+    if (days !== -1 && !suspendReason.trim()) {
+      alert("Please provide a reason for this moderation action.");
+      return;
+    }
+
     try {
       // Handle restore to active
       if (days === -1) {
@@ -409,6 +433,7 @@ export default function UsersPage() {
           },
           body: JSON.stringify({
             status: "active",
+            moderationReason: suspendReason.trim() || undefined,
           }),
         });
 
@@ -427,6 +452,7 @@ export default function UsersPage() {
         setShowSuspendModal(false);
         setSelectedUser(null);
         setSuspendDays(7);
+        setSuspendReason("");
 
         setSuccessMessage(
           `${selectedUser.name} has been restored to active status.`
@@ -445,6 +471,7 @@ export default function UsersPage() {
           body: JSON.stringify({
             status: "restricted",
             role: "user", // Downgrade to regular user for permanent restrictions
+            moderationReason: suspendReason.trim(),
           }),
         });
 
@@ -463,6 +490,7 @@ export default function UsersPage() {
         setShowSuspendModal(false);
         setSelectedUser(null);
         setSuspendDays(7);
+        setSuspendReason("");
 
         setSuccessMessage(
           `${selectedUser.name} has been permanently restricted from submissions and their role has been set to User.`
@@ -482,8 +510,10 @@ export default function UsersPage() {
         status: string;
         suspendedUntil?: string;
         role?: string;
+        moderationReason: string;
       } = {
         status: newStatus,
+        moderationReason: suspendReason.trim(),
       };
 
       if (suspendedUntil) {
@@ -517,7 +547,8 @@ export default function UsersPage() {
 
       setShowSuspendModal(false);
       setSelectedUser(null);
-      setSuspendDays(7); // Reset to default
+      setSuspendDays(7);
+      setSuspendReason(""); // Reset to default
 
       if (days === null) {
         setSuccessMessage(
@@ -765,12 +796,12 @@ export default function UsersPage() {
                 </div>
               ) : (
                 paginatedUsers.map((user) => {
+                  // Calculate approval rate excluding pending submissions
+                  // Only count approved + rejected in denominator
+                  const reviewedCount = user.approvedCount + user.rejectedCount;
                   const approvalRate =
-                    user.submissionsCount > 0
-                      ? (
-                          (user.approvedCount / user.submissionsCount) *
-                          100
-                        ).toFixed(1)
+                    reviewedCount > 0
+                      ? ((user.approvedCount / reviewedCount) * 100).toFixed(1)
                       : "0.0";
 
                   return (
@@ -843,9 +874,9 @@ export default function UsersPage() {
                       </div>
 
                       {/* Provider ID */}
-                      <div className="col-span-2 flex items-center text-sm">
+                      <div className="col-span-2 flex items-center text-sm group/provider-id">
                         <div className="flex items-center gap-2">
-                          <span className="truncate font-mono text-xs text-gray-400">
+                          <span className="truncate font-mono text-xs text-gray-400 transition-all duration-200 blur-[3px] group-hover/provider-id:blur-none cursor-default" title={user.providerInfo?.providerAccountId || user.id}>
                             {user.providerInfo?.providerAccountId || user.id}
                           </span>
                           <button
@@ -1064,12 +1095,12 @@ export default function UsersPage() {
               </div>
             ) : (
               paginatedUsers.map((user) => {
+                // Calculate approval rate excluding pending submissions
+                // Only count approved + rejected in denominator
+                const reviewedCount = user.approvedCount + user.rejectedCount;
                 const approvalRate =
-                  user.submissionsCount > 0
-                    ? (
-                        (user.approvedCount / user.submissionsCount) *
-                        100
-                      ).toFixed(1)
+                  reviewedCount > 0
+                    ? ((user.approvedCount / reviewedCount) * 100).toFixed(1)
                     : "0.0";
 
                 return (
@@ -1142,8 +1173,8 @@ export default function UsersPage() {
                               </div>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="truncate font-mono text-xs text-gray-400">
+                          <div className="flex items-center gap-2 text-sm group/provider-id">
+                            <span className="truncate font-mono text-xs text-gray-400 transition-all duration-200 blur-[3px] group-hover/provider-id:blur-none cursor-default" title={user.providerInfo?.providerAccountId || user.id}>
                               {user.providerInfo?.providerAccountId || user.id}
                             </span>
                             <button
@@ -1387,6 +1418,7 @@ export default function UsersPage() {
                 onClick={() => {
                   setShowRoleModal(false);
                   setSelectedUser(null);
+                  setRoleChangeReason("");
                 }}
                 className="text-gray-400 hover:text-white p-1 touch-manipulation"
                 aria-label="Close"
@@ -1441,11 +1473,42 @@ export default function UsersPage() {
                 );
               })}
             </div>
+            
+            {/* Reason Field - Only required when demoting */}
+            {(() => {
+              const roleHierarchy = { user: 0, reviewer: 1, admin: 2 };
+              const currentRoleLevel = roleHierarchy[selectedUser.role as keyof typeof roleHierarchy] ?? 0;
+              const selectedRoleLevel = roleHierarchy[selectedUser.role as keyof typeof roleHierarchy] ?? 0;
+              const isDemoting = selectedRoleLevel < currentRoleLevel;
+              
+              return (
+                <div className="mb-4 sm:mb-6">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Reason {isDemoting && <span className="text-red-400">*</span>}
+                  </label>
+                  <textarea
+                    value={roleChangeReason}
+                    onChange={(e) => setRoleChangeReason(e.target.value)}
+                    placeholder={isDemoting ? "Enter reason for demoting this user..." : "Optional reason for role change..."}
+                    rows={3}
+                    className="w-full px-4 py-2 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none resize-none"
+                    required={isDemoting}
+                  />
+                  {isDemoting && (
+                    <p className="text-xs text-red-400 mt-1">
+                      A reason is required when demoting a user.
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
+            
             <div className="flex gap-3">
               <button
                 onClick={() => {
                   setShowRoleModal(false);
                   setSelectedUser(null);
+                  setRoleChangeReason("");
                 }}
                 className="flex-1 px-4 py-2.5 sm:py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm sm:text-base touch-manipulation"
               >
@@ -1490,6 +1553,7 @@ export default function UsersPage() {
                     setShowSuspendModal(false);
                     setSelectedUser(null);
                     setSuspendDays(7);
+                    setSuspendReason("");
                   }}
                   className="text-gray-400 hover:text-white transition-colors"
                 >
@@ -1614,6 +1678,24 @@ export default function UsersPage() {
                 </label>
               </div>
 
+              {/* Reason Field */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Reason <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  value={suspendReason}
+                  onChange={(e) => setSuspendReason(e.target.value)}
+                  placeholder="Enter reason for this moderation action..."
+                  rows={3}
+                  className="w-full px-4 py-2 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none resize-none"
+                  required
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  A reason is required for all moderation actions.
+                </p>
+              </div>
+
               {/* Info Box */}
               <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
                 <p className="text-sm text-blue-300">
@@ -1651,6 +1733,7 @@ export default function UsersPage() {
                   setShowSuspendModal(false);
                   setSelectedUser(null);
                   setSuspendDays(7);
+                  setSuspendReason("");
                 }}
                 className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium"
               >

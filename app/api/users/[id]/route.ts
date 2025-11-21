@@ -67,7 +67,7 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { role, status, suspendedUntil } = body;
+    const { role, status, suspendedUntil, moderationReason } = body;
 
     // Validate that at least one field is being updated
     if (!role && !status) {
@@ -83,11 +83,11 @@ export async function PATCH(
     }
 
     // Validate status if provided
-    if (status && !["active", "suspended", "restricted", "blocked"].includes(status)) {
-      return NextResponse.json(
-        { error: "Invalid status" },
-        { status: 400 }
-      );
+    if (
+      status &&
+      !["active", "suspended", "restricted", "blocked"].includes(status)
+    ) {
+      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
 
     const db = await getGFWLDatabase();
@@ -162,6 +162,45 @@ export async function PATCH(
       { _id: new ObjectId(id) },
       { $set: updateData }
     );
+
+    // Create moderation log entry if status or role changed
+    if (status || role) {
+      const moderationAction = {
+        moderatedUser: {
+          id: id,
+          name: user.name || "Unknown User",
+        },
+        moderator: {
+          id: session.user.id,
+          name: session.user.name || "Unknown Admin",
+        },
+        timestamp: new Date(),
+        action: role
+          ? `Role changed to ${role}`
+          : status
+          ? `Status changed to ${status}`
+          : "User updated",
+        reason: moderationReason || "No reason provided",
+        previousRole: role ? user.role : undefined,
+        newRole: role || undefined,
+        previousStatus: status ? user.status : undefined,
+        newStatus: status || undefined,
+      };
+
+      // Add moderation action to user's moderationHistory array
+      await usersCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $push: {
+            moderationHistory: {
+              $each: [moderationAction],
+              $position: 0,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any,
+          },
+        }
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

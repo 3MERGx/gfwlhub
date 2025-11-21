@@ -48,11 +48,22 @@ export async function GET(request: NextRequest) {
       .sort({ submittedAt: -1 })
       .toArray();
 
+    const usersCollection = db.collection("users");
+
     // Transform submissions and include current game data for comparison
     const transformedSubmissions = await Promise.all(
       submissions.map(async (doc) => {
         // Get current game data to compare
         const currentGame = await getGameBySlug(doc.gameSlug);
+        
+        // Get published by user name if game is published
+        let publishedByName = null;
+        if (currentGame?.publishedBy && ObjectId.isValid(currentGame.publishedBy)) {
+          const publisher = await usersCollection.findOne({
+            _id: new ObjectId(currentGame.publishedBy),
+          });
+          publishedByName = publisher?.name || null;
+        }
         
         return {
           id: doc._id.toString(),
@@ -69,6 +80,8 @@ export async function GET(request: NextRequest) {
           proposedData: doc.proposedData,
           submitterNotes: doc.submitterNotes,
           currentGameData: currentGame || null, // Include current game for comparison
+          publishedByName: publishedByName,
+          publishedAt: currentGame?.publishedAt || null,
         };
       })
     );

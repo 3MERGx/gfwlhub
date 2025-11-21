@@ -11,6 +11,9 @@ import {
   FaUserCheck,
   FaUser,
   FaGamepad,
+  FaSort,
+  FaSortDown,
+  FaSortUp,
 } from "react-icons/fa";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -33,30 +36,18 @@ interface AuditLog {
   submittedByName?: string;
 }
 
-interface User {
-  id: string;
-  name: string;
-  email: string;
-}
-
 export default function AuditPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [filteredLogs, setFilteredLogs] = useState<AuditLog[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [fieldFilter, setFieldFilter] = useState<string>("all");
-  const [submitterFilter, setSubmitterFilter] = useState<string>("");
-  const [reviewerFilter, setReviewerFilter] = useState<string>("");
+  const [sortBy, setSortBy] = useState<string>("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [showFilters, setShowFilters] = useState(false);
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
-  
-  // User search state
-  const [users, setUsers] = useState<User[]>([]);
-  const [submitterSearchQuery, setSubmitterSearchQuery] = useState("");
-  const [reviewerSearchQuery, setReviewerSearchQuery] = useState("");
-  const [showSubmitterDropdown, setShowSubmitterDropdown] = useState(false);
-  const [showReviewerDropdown, setShowReviewerDropdown] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
 
   // Fetch real audit logs from API
   useEffect(() => {
@@ -76,23 +67,6 @@ export default function AuditPage() {
     fetchLogs();
   }, []);
 
-  // Fetch users for search
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const response = await fetch("/api/users");
-        if (response.ok) {
-          const data = await response.json();
-          setUsers(data);
-        }
-      } catch (error) {
-        console.error("Error fetching users:", error);
-      }
-    };
-
-    fetchUsers();
-  }, []);
-
   // Filter and sort logs
   useEffect(() => {
     let filtered = [...logs];
@@ -103,7 +77,10 @@ export default function AuditPage() {
         (log) =>
           log.gameTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
           log.changedByName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (log.submittedByName && log.submittedByName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (log.submittedByName &&
+            log.submittedByName
+              .toLowerCase()
+              .includes(searchQuery.toLowerCase())) ||
           log.field.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
@@ -118,29 +95,46 @@ export default function AuditPage() {
       filtered = filtered.filter((log) => log.field === fieldFilter);
     }
 
-    // Submitter filter
-    if (submitterFilter) {
-      filtered = filtered.filter((log) => 
-        log.submittedByName && log.submittedByName.toLowerCase().includes(submitterFilter.toLowerCase())
-      );
-    }
-
-    // Reviewer filter
-    if (reviewerFilter) {
-      filtered = filtered.filter((log) => 
-        log.changedByName && log.changedByName.toLowerCase().includes(reviewerFilter.toLowerCase())
-      );
-    }
-
-    // Sort by date
+    // Sort by selected column
     filtered.sort((a, b) => {
-      const comparison =
-        new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime();
+      let comparison = 0;
+
+      switch (sortBy) {
+        case "game":
+          comparison = a.gameTitle.localeCompare(b.gameTitle);
+          break;
+        case "field":
+          comparison = a.field.localeCompare(b.field);
+          break;
+        case "submittedBy":
+          const submittedA = a.submittedByName || "";
+          const submittedB = b.submittedByName || "";
+          comparison = submittedA.localeCompare(submittedB);
+          break;
+        case "approvedBy":
+          comparison = a.changedByName.localeCompare(b.changedByName);
+          break;
+        case "date":
+        default:
+          const timeA = new Date(a.changedAt).getTime();
+          const timeB = new Date(b.changedAt).getTime();
+          comparison = timeB - timeA; // Default to newest first
+          break;
+      }
+
       return sortOrder === "asc" ? -comparison : comparison;
     });
 
     setFilteredLogs(filtered);
-  }, [logs, searchQuery, roleFilter, fieldFilter, submitterFilter, reviewerFilter, sortOrder]);
+    // Reset to page 1 when filters change
+    setCurrentPage(1);
+  }, [logs, searchQuery, roleFilter, fieldFilter, sortBy, sortOrder]);
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedLogs = filteredLogs.slice(startIndex, endIndex);
 
   const getRoleIcon = (role: string) => {
     switch (role) {
@@ -154,10 +148,17 @@ export default function AuditPage() {
   };
 
   const getFieldDisplayName = (field: string) => {
-    return field
-      .replace(/([A-Z])/g, " $1")
-      .replace(/^./, (str) => str.toUpperCase())
+    // Handle special cases for acronyms
+    // First, add space after acronyms before following words (e.g., "DBLink" -> "DB Link")
+    const result = field
+      .replace(/(DB)([A-Z][a-z])/g, "$1 $2") // "DBLink" -> "DB Link"
+      .replace(/(DRM)([A-Z][a-z])/g, "$1 $2") // "DRMLink" -> "DRM Link"
+      .replace(/([a-z])(DB)([A-Z])/gi, "$1$2 $3") // "steamDBLink" -> "steamDB Link" (after above)
+      .replace(/([a-z])(DRM)([A-Z])/gi, "$1$2 $3") // "additionalDRMLink" -> "additionalDRM Link"
+      .replace(/([a-z])([A-Z])/g, "$1 $2") // Add space between other camelCase words
+      .replace(/^./, (str) => str.toUpperCase()) // Capitalize first letter
       .trim();
+    return result;
   };
 
   const formatValue = (value: string | number | boolean | string[] | null) => {
@@ -183,323 +184,492 @@ export default function AuditPage() {
 
   return (
     <DashboardLayout requireRole="admin">
-    <div className="container mx-auto px-4 py-6 md:py-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <Link
-            href="/dashboard"
-            className="text-[#107c10] hover:underline text-sm mb-2 inline-block"
-          >
-            ← Back to Dashboard
-          </Link>
-          <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
-            Audit Log
-          </h1>
-          <p className="text-gray-400 text-sm md:text-base">
-            Complete history of all changes made to game information
-          </p>
-        </div>
-
-        {/* Search and Controls */}
-        <div className="bg-[#2d2d2d] rounded-lg p-4 mb-6">
-          {/* Search Bar */}
-          <div className="relative mb-4">
-            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" />
-            <input
-              type="text"
-              placeholder="Search by game, user, or field..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
-            />
+      <div className="container mx-auto px-4 py-6 md:py-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="mb-6">
+            <Link
+              href="/dashboard"
+              className="text-[#107c10] hover:underline text-sm mb-2 inline-block"
+            >
+              ← Back to Dashboard
+            </Link>
+            <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
+              Audit Log
+            </h1>
+            <p className="text-gray-400 text-sm md:text-base">
+              Complete history of all changes made to game information
+            </p>
           </div>
 
-          {/* Filter Toggle (Mobile) */}
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="md:hidden w-full flex items-center justify-center gap-2 bg-[#1a1a1a] text-white py-2 rounded-lg border border-gray-700 mb-4"
-          >
-            <FaFilter size={14} />
-            <span>Filters & Sort</span>
-          </button>
-
-          {/* Filters and Sort */}
-          <div
-            className={`${
-              showFilters ? "block" : "hidden"
-            } md:block space-y-3 md:space-y-0 md:flex md:gap-3 md:items-center md:flex-wrap`}
-          >
-            {/* Role Filter */}
-            <select
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="w-full md:w-auto px-4 py-2 pr-10 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
-              style={{ paddingRight: '2.75rem' }}
-            >
-              <option value="all">All Roles</option>
-              <option value="user">Users</option>
-              <option value="reviewer">Reviewers</option>
-              <option value="admin">Admins</option>
-            </select>
-
-            {/* Field Filter */}
-            <select
-              value={fieldFilter}
-              onChange={(e) => setFieldFilter(e.target.value)}
-              className="w-full md:w-auto px-4 py-2 pr-10 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
-              style={{ paddingRight: '2.75rem' }}
-            >
-              <option value="all">All Fields</option>
-              <option value="title">Title</option>
-              <option value="description">Description</option>
-              <option value="developer">Developer</option>
-              <option value="publisher">Publisher</option>
-              <option value="releaseDate">Release Date</option>
-              <option value="activationType">Activation Type</option>
-              <option value="status">Status</option>
-            </select>
-
-            {/* Submitter Search */}
-            <div className="relative w-full md:w-auto">
-              <input
-                type="text"
-                placeholder="Filter by submitter..."
-                value={submitterSearchQuery}
-                onChange={(e) => {
-                  setSubmitterSearchQuery(e.target.value);
-                  setShowSubmitterDropdown(true);
+          {/* Search and Controls */}
+          <div className="bg-[#2d2d2d] rounded-lg p-4 mb-6">
+            {/* Search Bar and Clear Filters - Large Screens */}
+            <div className="hidden lg:flex gap-3 mb-4">
+              <div className="relative flex-1">
+                <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" />
+                <input
+                  type="text"
+                  placeholder="Search by game, user, or field..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                />
+              </div>
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setRoleFilter("all");
+                  setFieldFilter("all");
                 }}
-                onFocus={() => setShowSubmitterDropdown(true)}
-                onBlur={() => setTimeout(() => setShowSubmitterDropdown(false), 200)}
-                className="w-full md:w-48 px-4 py-2 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
-              />
-              {submitterFilter && (
-                <button
-                  onClick={() => {
-                    setSubmitterFilter("");
-                    setSubmitterSearchQuery("");
-                  }}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-white"
-                >
-                  ×
-                </button>
-              )}
-              {showSubmitterDropdown && submitterSearchQuery && (
-                <div className="absolute z-10 w-full mt-1 bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                  {users
-                    .filter(user => 
-                      user.name.toLowerCase().includes(submitterSearchQuery.toLowerCase()) ||
-                      user.email.toLowerCase().includes(submitterSearchQuery.toLowerCase())
-                    )
-                    .slice(0, 10)
-                    .map(user => (
-                      <button
-                        key={user.id}
-                        onClick={() => {
-                          setSubmitterFilter(user.name);
-                          setSubmitterSearchQuery(user.name);
-                          setShowSubmitterDropdown(false);
-                        }}
-                        className="w-full px-4 py-2 text-left text-white hover:bg-[#2d2d2d] transition-colors"
-                      >
-                        <div className="text-sm">{user.name}</div>
-                        <div className="text-xs text-gray-500">{user.email}</div>
-                      </button>
-                    ))}
-                  {users.filter(user => 
-                    user.name.toLowerCase().includes(submitterSearchQuery.toLowerCase()) ||
-                    user.email.toLowerCase().includes(submitterSearchQuery.toLowerCase())
-                  ).length === 0 && (
-                    <div className="px-4 py-2 text-gray-500 text-sm">No users found</div>
-                  )}
-                </div>
-              )}
+                className="px-4 py-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 hover:border-[#107c10] transition-colors whitespace-nowrap"
+              >
+                Clear Filters
+              </button>
             </div>
 
-            {/* Reviewer Search */}
-            <div className="relative w-full md:w-auto">
+            {/* Search Bar - Mobile/Tablet */}
+            <div className="lg:hidden relative mb-4">
+              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" />
               <input
                 type="text"
-                placeholder="Filter by reviewer..."
-                value={reviewerSearchQuery}
-                onChange={(e) => {
-                  setReviewerSearchQuery(e.target.value);
-                  setShowReviewerDropdown(true);
-                }}
-                onFocus={() => setShowReviewerDropdown(true)}
-                onBlur={() => setTimeout(() => setShowReviewerDropdown(false), 200)}
-                className="w-full md:w-48 px-4 py-2 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                placeholder="Search by game, user, or field..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
               />
-              {reviewerFilter && (
-                <button
-                  onClick={() => {
-                    setReviewerFilter("");
-                    setReviewerSearchQuery("");
-                  }}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-white"
-                >
-                  ×
-                </button>
-              )}
-              {showReviewerDropdown && reviewerSearchQuery && (
-                <div className="absolute z-10 w-full mt-1 bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                  {users
-                    .filter(user => 
-                      user.name.toLowerCase().includes(reviewerSearchQuery.toLowerCase()) ||
-                      user.email.toLowerCase().includes(reviewerSearchQuery.toLowerCase())
-                    )
-                    .slice(0, 10)
-                    .map(user => (
-                      <button
-                        key={user.id}
-                        onClick={() => {
-                          setReviewerFilter(user.name);
-                          setReviewerSearchQuery(user.name);
-                          setShowReviewerDropdown(false);
-                        }}
-                        className="w-full px-4 py-2 text-left text-white hover:bg-[#2d2d2d] transition-colors"
-                      >
-                        <div className="text-sm">{user.name}</div>
-                        <div className="text-xs text-gray-500">{user.email}</div>
-                      </button>
-                    ))}
-                  {users.filter(user => 
-                    user.name.toLowerCase().includes(reviewerSearchQuery.toLowerCase()) ||
-                    user.email.toLowerCase().includes(reviewerSearchQuery.toLowerCase())
-                  ).length === 0 && (
-                    <div className="px-4 py-2 text-gray-500 text-sm">No users found</div>
-                  )}
-                </div>
-              )}
             </div>
 
-            {/* Sort Order */}
+            {/* Filter Toggle (Mobile) */}
             <button
-              onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-              className="w-full md:w-auto px-4 py-2 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 hover:border-[#107c10] transition-colors flex items-center justify-center gap-2"
+              onClick={() => setShowFilters(!showFilters)}
+              className="md:hidden w-full flex items-center justify-center gap-2 bg-[#1a1a1a] text-white py-2 rounded-lg border border-gray-700 mb-4"
             >
-              {sortOrder === "desc" ? (
-                <>
-                  <FaSortAmountDown size={14} />
-                  <span className="text-sm">Newest First</span>
-                </>
-              ) : (
-                <>
-                  <FaSortAmountUp size={14} />
-                  <span className="text-sm">Oldest First</span>
-                </>
-              )}
+              <FaFilter size={14} />
+              <span>Filters & Sort</span>
             </button>
+
+            {/* Filters and Sort */}
+            <div className={`${showFilters ? "block" : "hidden"} md:block`}>
+              {/* Filters Row - Large Screens */}
+              <div className="hidden lg:flex items-center gap-3 mb-3">
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  className="px-4 py-2 pr-10 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                  style={{ paddingRight: "2.75rem" }}
+                >
+                  <option value="all">All Roles</option>
+                  <option value="user">Users</option>
+                  <option value="reviewer">Reviewers</option>
+                  <option value="admin">Admins</option>
+                </select>
+
+                <select
+                  value={fieldFilter}
+                  onChange={(e) => setFieldFilter(e.target.value)}
+                  className="px-4 py-2 pr-10 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                  style={{ paddingRight: "2.75rem" }}
+                >
+                  <option value="all">All Fields</option>
+                  <option value="title">Title</option>
+                  <option value="description">Description</option>
+                  <option value="developer">Developer</option>
+                  <option value="publisher">Publisher</option>
+                  <option value="releaseDate">Release Date</option>
+                  <option value="activationType">Activation Type</option>
+                  <option value="status">Status</option>
+                </select>
+
+                <button
+                  onClick={() =>
+                    setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                  }
+                  className="ml-auto px-4 py-2 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 hover:border-[#107c10] transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
+                >
+                  {sortOrder === "desc" ? (
+                    <>
+                      <FaSortAmountDown size={14} />
+                      <span className="text-sm">Newest First</span>
+                    </>
+                  ) : (
+                    <>
+                      <FaSortAmountUp size={14} />
+                      <span className="text-sm">Oldest First</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Filters - Mobile/Tablet */}
+              <div className="lg:hidden space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <select
+                    value={roleFilter}
+                    onChange={(e) => setRoleFilter(e.target.value)}
+                    className="w-full px-4 py-2 pr-10 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                    style={{ paddingRight: "2.75rem" }}
+                  >
+                    <option value="all">All Roles</option>
+                    <option value="user">Users</option>
+                    <option value="reviewer">Reviewers</option>
+                    <option value="admin">Admins</option>
+                  </select>
+
+                  <select
+                    value={fieldFilter}
+                    onChange={(e) => setFieldFilter(e.target.value)}
+                    className="w-full px-4 py-2 pr-10 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                    style={{ paddingRight: "2.75rem" }}
+                  >
+                    <option value="all">All Fields</option>
+                    <option value="title">Title</option>
+                    <option value="description">Description</option>
+                    <option value="developer">Developer</option>
+                    <option value="publisher">Publisher</option>
+                    <option value="releaseDate">Release Date</option>
+                    <option value="activationType">Activation Type</option>
+                    <option value="status">Status</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button
+                    onClick={() =>
+                      setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                    }
+                    className="w-full sm:flex-1 px-4 py-2 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 hover:border-[#107c10] transition-colors flex items-center justify-center gap-2"
+                  >
+                    {sortOrder === "desc" ? (
+                      <>
+                        <FaSortAmountDown size={14} />
+                        <span className="text-sm">Newest First</span>
+                      </>
+                    ) : (
+                      <>
+                        <FaSortAmountUp size={14} />
+                        <span className="text-sm">Oldest First</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSearchQuery("");
+                      setRoleFilter("all");
+                      setFieldFilter("all");
+                    }}
+                    className="w-full sm:flex-1 px-4 py-2 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 hover:border-[#107c10] transition-colors"
+                  >
+                    Clear Filters
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Results Count */}
-        <div className="text-gray-400 text-sm mb-4">
-          Showing {filteredLogs.length} of {logs.length} changes
-        </div>
+          {/* Results Count */}
+          <div className="text-gray-400 text-sm mb-4">
+            Showing {startIndex + 1}-{Math.min(endIndex, filteredLogs.length)}{" "}
+            of {filteredLogs.length} changes
+            {filteredLogs.length !== logs.length &&
+              ` (filtered from ${logs.length} total)`}
+          </div>
 
-        {/* Audit Log Table - Desktop */}
-        <div className="hidden lg:block bg-[#2d2d2d] rounded-lg border border-gray-700 overflow-hidden">
-          {filteredLogs.length === 0 ? (
-            <div className="p-8 text-center">
-              <FaHistory className="mx-auto text-gray-600 mb-4" size={48} />
-              <p className="text-gray-400">No audit logs found</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gradient-to-r from-[#1a1a1a] to-[#151515] text-gray-300 text-xs uppercase">
-                  <tr>
-                    <th className="px-4 py-3 text-left">Game</th>
-                    <th className="px-4 py-3 text-left">Field</th>
-                    <th className="px-4 py-3 text-left">Change</th>
-                    <th className="px-4 py-3 text-left">Submitted By</th>
-                    <th className="px-4 py-3 text-left">Approved By</th>
-                    <th className="px-4 py-3 text-left">Date</th>
-                    <th className="px-4 py-3 text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-700">
-                  {filteredLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-[#252525] transition-colors">
-                      <td className="px-4 py-3">
+          {/* Audit Log Table - Desktop */}
+          <div className="hidden lg:block bg-[#2d2d2d] rounded-lg border border-gray-700 overflow-hidden">
+            {paginatedLogs.length === 0 ? (
+              <div className="p-8 text-center">
+                <FaHistory className="mx-auto text-gray-600 mb-4" size={48} />
+                <p className="text-gray-400">No audit logs found</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gradient-to-r from-[#1a1a1a] to-[#151515] text-gray-300 text-xs uppercase">
+                    <tr>
+                      <th
+                        className="px-4 py-3 text-left cursor-pointer hover:bg-[#252525] transition-colors select-none"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (sortBy === "game") {
+                            setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+                          } else {
+                            setSortBy("game");
+                            setSortOrder("asc");
+                          }
+                        }}
+                      >
                         <div className="flex items-center gap-2">
-                          <FaGamepad className="text-[#107c10] flex-shrink-0" size={12} />
-                          <span className="text-white text-sm truncate max-w-[150px]">{log.gameTitle}</span>
+                          Game
+                          {sortBy === "game" ? (
+                            sortOrder === "asc" ? (
+                              <FaSortUp size={12} />
+                            ) : (
+                              <FaSortDown size={12} />
+                            )
+                          ) : (
+                            <FaSort size={12} className="opacity-50" />
+                          )}
                         </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="px-2 py-1 rounded text-xs bg-blue-900/30 text-blue-400 border border-blue-500/30">
-                          {getFieldDisplayName(log.field)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5 text-xs">
-                          <span className="text-gray-500 truncate max-w-[100px]">{formatValue(log.oldValue)}</span>
-                          <span className="text-gray-600">→</span>
-                          <span className="text-[#107c10] truncate max-w-[100px]">{formatValue(log.newValue)}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-gray-300 text-sm">{log.submittedByName || "—"}</span>
-                      </td>
-                      <td className="px-4 py-3">
+                      </th>
+                      <th
+                        className="px-4 py-3 text-left cursor-pointer hover:bg-[#252525] transition-colors select-none"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (sortBy === "field") {
+                            setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+                          } else {
+                            setSortBy("field");
+                            setSortOrder("asc");
+                          }
+                        }}
+                      >
                         <div className="flex items-center gap-2">
-                          {getRoleIcon(log.changedByRole)}
-                          <span className="text-white text-sm">{log.changedByName}</span>
+                          Field
+                          {sortBy === "field" ? (
+                            sortOrder === "asc" ? (
+                              <FaSortUp size={12} />
+                            ) : (
+                              <FaSortDown size={12} />
+                            )
+                          ) : (
+                            <FaSort size={12} className="opacity-50" />
+                          )}
                         </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-gray-400 text-xs whitespace-nowrap">{formatDate(log.changedAt)}</span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={() => setSelectedLog(log)}
-                          className="text-[#107c10] hover:text-[#0d6b0d] text-xs"
-                        >
-                          Details
-                        </button>
-                      </td>
+                      </th>
+                      <th className="px-4 py-3 text-left">Change</th>
+                      <th
+                        className="px-4 py-3 text-left cursor-pointer hover:bg-[#252525] transition-colors select-none"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (sortBy === "submittedBy") {
+                            setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+                          } else {
+                            setSortBy("submittedBy");
+                            setSortOrder("asc");
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          Submitted By
+                          {sortBy === "submittedBy" ? (
+                            sortOrder === "asc" ? (
+                              <FaSortUp size={12} />
+                            ) : (
+                              <FaSortDown size={12} />
+                            )
+                          ) : (
+                            <FaSort size={12} className="opacity-50" />
+                          )}
+                        </div>
+                      </th>
+                      <th
+                        className="px-4 py-3 text-left cursor-pointer hover:bg-[#252525] transition-colors select-none"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (sortBy === "approvedBy") {
+                            setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+                          } else {
+                            setSortBy("approvedBy");
+                            setSortOrder("asc");
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          Approved By
+                          {sortBy === "approvedBy" ? (
+                            sortOrder === "asc" ? (
+                              <FaSortUp size={12} />
+                            ) : (
+                              <FaSortDown size={12} />
+                            )
+                          ) : (
+                            <FaSort size={12} className="opacity-50" />
+                          )}
+                        </div>
+                      </th>
+                      <th
+                        className="px-4 py-3 text-left cursor-pointer hover:bg-[#252525] transition-colors select-none"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (sortBy === "date") {
+                            setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+                          } else {
+                            setSortBy("date");
+                            setSortOrder("desc");
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          Date
+                          {sortBy === "date" ? (
+                            sortOrder === "asc" ? (
+                              <FaSortUp size={12} />
+                            ) : (
+                              <FaSortDown size={12} />
+                            )
+                          ) : (
+                            <FaSort size={12} className="opacity-50" />
+                          )}
+                        </div>
+                      </th>
+                      <th className="px-4 py-3 text-center">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-700">
+                    {paginatedLogs.map((log) => (
+                      <tr
+                        key={log.id}
+                        className="hover:bg-[#252525] transition-colors"
+                      >
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <FaGamepad
+                              className="text-[#107c10] flex-shrink-0"
+                              size={12}
+                            />
+                            <span className="text-white text-sm truncate max-w-[150px]">
+                              {log.gameTitle}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="px-2 py-1 rounded text-xs bg-blue-900/30 text-blue-400 border border-blue-500/30">
+                            {getFieldDisplayName(log.field)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <span className="text-gray-500 truncate max-w-[100px]">
+                              {formatValue(log.oldValue)}
+                            </span>
+                            <span className="text-gray-600">→</span>
+                            <span className="text-[#107c10] truncate max-w-[100px]">
+                              {formatValue(log.newValue)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-gray-300 text-sm">
+                            {log.submittedByName || "—"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            {getRoleIcon(log.changedByRole)}
+                            <span className="text-white text-sm">
+                              {log.changedByName}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-gray-400 text-xs whitespace-nowrap">
+                            {formatDate(log.changedAt)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => setSelectedLog(log)}
+                            className="text-[#107c10] hover:text-[#0d6b0d] text-xs"
+                          >
+                            Details
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Audit Log List - Mobile/Tablet */}
+          <div className="lg:hidden space-y-3 mb-6">
+            {paginatedLogs.length === 0 ? (
+              <div className="bg-[#2d2d2d] rounded-lg p-8 text-center">
+                <FaHistory className="mx-auto text-gray-600 mb-4" size={48} />
+                <p className="text-gray-400">No audit logs found</p>
+              </div>
+            ) : (
+              paginatedLogs.map((log) => (
+                <AuditLogCard
+                  key={log.id}
+                  log={log}
+                  getRoleIcon={getRoleIcon}
+                  getFieldDisplayName={getFieldDisplayName}
+                  onViewDetails={() => setSelectedLog(log)}
+                />
+              ))
+            )}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
+              <div className="text-sm text-gray-400">
+                Page {currentPage} of {totalPages}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.max(1, prev - 1))
+                  }
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 hover:border-[#107c10] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum: number;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`px-3 py-2 rounded-lg border transition-colors ${
+                          currentPage === pageNum
+                            ? "bg-[#107c10] text-white border-[#107c10]"
+                            : "bg-[#1a1a1a] text-white border-gray-700 hover:border-[#107c10]"
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                  }
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 hover:border-[#107c10] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
-        </div>
 
-        {/* Audit Log List - Mobile/Tablet */}
-        <div className="lg:hidden space-y-3">
-          {filteredLogs.length === 0 ? (
-            <div className="bg-[#2d2d2d] rounded-lg p-8 text-center">
-              <FaHistory className="mx-auto text-gray-600 mb-4" size={48} />
-              <p className="text-gray-400">No audit logs found</p>
-            </div>
-          ) : (
-            filteredLogs.map((log) => (
-              <AuditLogCard
-                key={log.id}
-                log={log}
-                getRoleIcon={getRoleIcon}
-                getFieldDisplayName={getFieldDisplayName}
-                onViewDetails={() => setSelectedLog(log)}
-              />
-            ))
+          {/* Detail Modal */}
+          {selectedLog && (
+            <AuditDetailModal
+              log={selectedLog}
+              onClose={() => setSelectedLog(null)}
+              getRoleIcon={getRoleIcon}
+              getFieldDisplayName={getFieldDisplayName}
+            />
           )}
         </div>
-
-        {/* Detail Modal */}
-        {selectedLog && (
-          <AuditDetailModal
-            log={selectedLog}
-            onClose={() => setSelectedLog(null)}
-            getRoleIcon={getRoleIcon}
-            getFieldDisplayName={getFieldDisplayName}
-          />
-        )}
       </div>
-    </div>
     </DashboardLayout>
   );
 }
@@ -547,30 +717,44 @@ function AuditLogCard({
           {/* Game + Field */}
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
             <FaGamepad className="text-[#107c10] flex-shrink-0" size={12} />
-            <span className="text-white font-medium truncate">{log.gameTitle}</span>
+            <span className="text-white font-medium truncate">
+              {log.gameTitle}
+            </span>
             <span className="text-gray-600 hidden sm:inline">·</span>
-            <span className="text-blue-400 truncate hidden sm:inline">{getFieldDisplayName(log.field)}</span>
+            <span className="text-blue-400 truncate hidden sm:inline">
+              {getFieldDisplayName(log.field)}
+            </span>
           </div>
-          
+
           {/* Value change - desktop */}
           <div className="hidden md:flex items-center gap-1.5 text-xs min-w-0 flex-shrink">
-            <span className="text-gray-500 truncate max-w-[120px]">{formatValue(log.oldValue)}</span>
+            <span className="text-gray-500 truncate max-w-[120px]">
+              {formatValue(log.oldValue)}
+            </span>
             <span className="text-gray-600">→</span>
-            <span className="text-[#107c10] truncate max-w-[120px]">{formatValue(log.newValue)}</span>
+            <span className="text-[#107c10] truncate max-w-[120px]">
+              {formatValue(log.newValue)}
+            </span>
           </div>
 
           {/* User + Time */}
           <div className="flex items-center gap-1.5 text-gray-500 whitespace-nowrap text-xs">
             {log.submittedByName && (
               <>
-                <span className="hidden lg:inline truncate max-w-[80px]" title={`Submitted by ${log.submittedByName}`}>
+                <span
+                  className="hidden lg:inline truncate max-w-[80px]"
+                  title={`Submitted by ${log.submittedByName}`}
+                >
                   {log.submittedByName}
                 </span>
                 <span className="hidden lg:inline">→</span>
               </>
             )}
             {getRoleIcon(log.changedByRole)}
-            <span className="hidden lg:inline truncate max-w-[80px]" title={`Approved by ${log.changedByName}`}>
+            <span
+              className="hidden lg:inline truncate max-w-[80px]"
+              title={`Approved by ${log.changedByName}`}
+            >
               {log.changedByName}
             </span>
             <span className="hidden sm:inline">·</span>
@@ -589,10 +773,16 @@ function AuditLogCard({
         {/* Mobile: Field and value change */}
         <div className="sm:hidden mt-1.5 space-y-1">
           <div className="flex items-center gap-1.5 text-xs">
-            <span className="text-blue-400">{getFieldDisplayName(log.field)}:</span>
-            <span className="text-gray-500 truncate">{formatValue(log.oldValue)}</span>
+            <span className="text-blue-400">
+              {getFieldDisplayName(log.field)}:
+            </span>
+            <span className="text-gray-500 truncate">
+              {formatValue(log.oldValue)}
+            </span>
             <span className="text-gray-600">→</span>
-            <span className="text-[#107c10] truncate">{formatValue(log.newValue)}</span>
+            <span className="text-[#107c10] truncate">
+              {formatValue(log.newValue)}
+            </span>
           </div>
           {log.submittedByName && (
             <div className="flex items-center gap-1.5 text-xs text-gray-500">
@@ -730,7 +920,9 @@ function AuditDetailModal({
             <div>
               <h3 className="text-sm text-gray-500 mb-2">Correction ID</h3>
               <div className="bg-[#1a1a1a] rounded-lg p-3">
-                <code className="text-gray-400 text-sm">{log.correctionId}</code>
+                <code className="text-gray-400 text-sm">
+                  {log.correctionId}
+                </code>
               </div>
             </div>
           )}
@@ -749,4 +941,3 @@ function AuditDetailModal({
     </div>
   );
 }
-

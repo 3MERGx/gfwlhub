@@ -85,6 +85,21 @@ export async function PATCH(
         }
       });
 
+      // Check if game has minimum required fields to be published
+      // Get existing game data
+      const existingGame = await gamesCollection.findOne({ slug: submission.gameSlug });
+      const mergedData = { ...existingGame, ...updateData };
+      const hasRequiredFields = 
+        mergedData.title && 
+        mergedData.releaseDate && 
+        mergedData.developer && 
+        mergedData.publisher;
+      
+      // Set readyToPublish flag if game has minimum required fields
+      if (hasRequiredFields) {
+        updateData.readyToPublish = true;
+      }
+
       if (Object.keys(updateData).length > 0) {
         // Generate update ID (timestamp-based)
         const updateId = `${Date.now()}-${id}`;

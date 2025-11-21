@@ -11,12 +11,34 @@ import {
   FaChevronRight,
 } from "react-icons/fa";
 import Accordion from "@/components/Accordion";
-import { games } from "@/data/games";
+import { Game } from "@/data/games";
 
 export default function Contact() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentCommunityPage, setCurrentCommunityPage] = useState(1);
+  const [games, setGames] = useState<Game[]>([]);
+  const [loading, setLoading] = useState(true);
   const communitiesPerPage = 5; // Or any number you prefer
+
+  // Fetch games from MongoDB
+  useEffect(() => {
+    async function fetchGames() {
+      try {
+        const response = await fetch("/api/games");
+        if (response.ok) {
+          const data = await response.json();
+          setGames(data);
+        } else {
+          console.error("Failed to fetch games");
+        }
+      } catch (error) {
+        console.error("Error fetching games:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchGames();
+  }, []);
 
   // Filter games that have community links
   const gamesWithCommunities = games.filter(
@@ -53,6 +75,18 @@ export default function Contact() {
   useEffect(() => {
     setCurrentCommunityPage(1);
   }, [searchQuery]);
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-[#202020] p-8 rounded-lg shadow-xl">
+            <div className="text-center text-white">Loading...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
