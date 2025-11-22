@@ -41,6 +41,7 @@ export async function GET(
       approvedCount: user.approvedCount || 0,
       rejectedCount: user.rejectedCount || 0,
       createdAt: user.createdAt || new Date(),
+      lastLoginAt: user.lastLoginAt || undefined,
       providerInfo: user.providerInfo,
     });
   } catch (error) {
