@@ -30,7 +30,7 @@ export const Toast = ({ message, duration = 3000, type = "success", onClose }: T
   const Icon = isError ? FaExclamationCircle : FaCheckCircle;
 
   return (
-    <div className={`fixed bottom-4 right-4 z-50 flex items-center bg-[#202020] text-white px-4 py-3 rounded-lg shadow-lg border-l-4 ${borderColor} max-w-md`}>
+    <div className={`fixed bottom-24 right-4 z-50 flex items-center bg-[#202020] text-white px-4 py-3 rounded-lg shadow-lg border-l-4 ${borderColor} max-w-md`}>
       <Icon className={`${iconColor} mr-3`} />
       <p className="flex-1">{message}</p>
       <button

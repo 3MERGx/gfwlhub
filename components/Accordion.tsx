@@ -6,9 +6,10 @@ import { FaChevronDown, FaChevronUp } from "react-icons/fa";
 interface AccordionProps {
   title: string;
   content: React.ReactNode;
+  footer?: React.ReactNode; // Additional content to show at the bottom of expanded content
 }
 
-const Accordion = ({ title, content }: AccordionProps) => {
+const Accordion = ({ title, content, footer }: AccordionProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -21,7 +22,16 @@ const Accordion = ({ title, content }: AccordionProps) => {
         {isOpen ? <FaChevronUp /> : <FaChevronDown />}
       </button>
 
-      {isOpen && <div className="p-4 bg-[#202020] text-white">{content}</div>}
+      {isOpen && (
+        <div className="bg-[#202020] text-white">
+          <div className="p-4">{content}</div>
+          {footer && (
+            <div className="px-4 pb-4 pt-2 border-t border-gray-700">
+              {footer}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

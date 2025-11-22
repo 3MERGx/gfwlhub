@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useSession } from "next-auth/react";
 import {
   FaSearch,
   FaFilter,
@@ -109,12 +110,15 @@ function ImagePreview({ imageUrl, label }: ImagePreviewProps) {
         <Image
           src={proxyUrl}
           alt={label || "Image preview"}
+          width={96}
+          height={96}
           className={`w-full h-full object-cover transition-all duration-300 ${
             isRevealed ? "blur-none" : "blur-md"
           } ${imageLoaded ? "opacity-100" : "opacity-0"}`}
           onError={() => setImageError(true)}
           onLoad={() => setImageLoaded(true)}
           draggable={false}
+          unoptimized
         />
         {!imageLoaded && !imageError && (
           <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a]">
@@ -157,6 +161,7 @@ interface Correction {
 }
 
 export default function SubmissionsPage() {
+  const { data: session } = useSession();
   const [corrections, setCorrections] = useState<Correction[]>([]);
   const [filteredCorrections, setFilteredCorrections] = useState<Correction[]>(
     []
@@ -428,15 +433,24 @@ export default function SubmissionsPage() {
                 <p className="text-gray-400">No submissions found</p>
               </div>
             ) : (
-              paginatedCorrections.map((correction) => (
-                <CorrectionCard
-                  key={correction.id}
-                  correction={correction}
-                  getFieldDisplayName={getFieldDisplayName}
-                  getStatusBadgeColor={getStatusBadgeColor}
-                  onViewDetails={() => setSelectedCorrection(correction)}
-                />
-              ))
+              paginatedCorrections.map((correction) => {
+                interface SessionUser {
+                  isDeveloper?: boolean;
+                }
+                const isDeveloper =
+                  (session?.user as SessionUser)?.isDeveloper === true;
+                return (
+                  <CorrectionCard
+                    key={correction.id}
+                    correction={correction}
+                    getFieldDisplayName={getFieldDisplayName}
+                    getStatusBadgeColor={getStatusBadgeColor}
+                    onViewDetails={() => setSelectedCorrection(correction)}
+                    currentUserId={session?.user?.id}
+                    isDeveloper={isDeveloper}
+                  />
+                );
+              })
             )}
           </div>
 
@@ -524,6 +538,8 @@ interface CorrectionCardProps {
   getFieldDisplayName: (field: string) => string;
   getStatusBadgeColor: (status: string) => string;
   onViewDetails: () => void;
+  currentUserId?: string;
+  isDeveloper?: boolean;
 }
 
 function CorrectionCard({
@@ -531,7 +547,11 @@ function CorrectionCard({
   getFieldDisplayName,
   getStatusBadgeColor,
   onViewDetails,
+  currentUserId,
+  isDeveloper = false,
 }: CorrectionCardProps) {
+  const isOwnSubmission =
+    correction.submittedBy === currentUserId && !isDeveloper;
   const formatValue = (
     value: string | number | boolean | string[] | null,
     isNewValue = false
@@ -563,12 +583,23 @@ function CorrectionCard({
           </Link>
         </div>
         {correction.status === "pending" && (
-          <button
-            onClick={onViewDetails}
-            className="px-3 py-1 bg-[#107c10] hover:bg-[#0d6b0d] text-white text-sm rounded-lg transition-colors whitespace-nowrap ml-2"
-          >
-            Review
-          </button>
+          <>
+            {isOwnSubmission ? (
+              <div
+                className="px-3 py-1 bg-gray-700 text-gray-400 text-sm rounded-lg whitespace-nowrap ml-2 cursor-not-allowed"
+                title="You cannot review your own submissions"
+              >
+                Your Submission
+              </div>
+            ) : (
+              <button
+                onClick={onViewDetails}
+                className="px-3 py-1 bg-[#107c10] hover:bg-[#0d6b0d] text-white text-sm rounded-lg transition-colors whitespace-nowrap ml-2"
+              >
+                Review
+              </button>
+            )}
+          </>
         )}
         {correction.status !== "pending" && (
           <button
