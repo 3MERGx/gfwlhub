@@ -11,10 +11,10 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if user is admin (feature flag)
-    if (session.user.role !== "admin") {
+    // Check if user is reviewer or admin (feature flag)
+    if (session.user.role !== "admin" && session.user.role !== "reviewer") {
       return NextResponse.json(
-        { error: "Access denied. Admin only." },
+        { error: "Access denied. Reviewers and admins only." },
         { status: 403 }
       );
     }

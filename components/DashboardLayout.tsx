@@ -229,7 +229,7 @@ export default function DashboardLayout({
       href: "/leaderboard",
       icon: FaTrophy,
       label: "Leaderboard",
-      roles: ["admin"],
+      roles: ["reviewer", "admin"],
       section: "experimental",
     },
   ];

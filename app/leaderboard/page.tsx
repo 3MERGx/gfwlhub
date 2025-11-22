@@ -81,7 +81,7 @@ export default function LeaderboardPage() {
           setUsers(rankedData);
           setFilteredUsers(rankedData);
         } else if (response.status === 403) {
-          // Not admin - will be handled by DashboardLayout
+          // Not reviewer or admin - will be handled by DashboardLayout
           console.error("Access denied");
         }
       } catch (error) {
@@ -236,7 +236,7 @@ export default function LeaderboardPage() {
   }
 
   return (
-    <DashboardLayout requireRole="admin">
+    <DashboardLayout requireRole="reviewer">
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8">
         <div className="max-w-7xl mx-auto">
           {/* Admin Testing Banner */}
@@ -249,10 +249,10 @@ export default function LeaderboardPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-yellow-400 font-semibold text-sm sm:text-base mb-1">
-                  Testing Mode - Admin Only
+                  Testing Mode - Reviewers & Admins Only
                 </h3>
                 <p className="text-yellow-200/80 text-xs sm:text-sm">
-                  This leaderboard is currently in testing and only visible to administrators. 
+                  This leaderboard is currently in testing and only visible to reviewers and administrators. 
                   Regular users cannot access this page.
                 </p>
               </div>

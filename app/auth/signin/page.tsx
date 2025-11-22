@@ -1,20 +1,55 @@
 "use client";
 
-import { signIn } from "next-auth/react";
-import { FaGoogle, FaGithub, FaDiscord, FaShieldAlt, FaUsers, FaEdit, FaClock } from "react-icons/fa";
+import { signIn, useSession } from "next-auth/react";
+import {
+  FaGoogle,
+  FaGithub,
+  FaDiscord,
+  FaShieldAlt,
+  FaUsers,
+  FaEdit,
+  FaClock,
+  FaCheckCircle,
+  FaInfoCircle,
+} from "react-icons/fa";
 import { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
 function SignInContent() {
   const [isLoading, setIsLoading] = useState<string | null>(null);
   const [lastUsedProvider, setLastUsedProvider] = useState<string | null>(null);
+  const [redirectCountdown, setRedirectCountdown] = useState(3);
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const searchParams = useSearchParams();
-  
+
   // Get the callback URL from query params, or default to homepage
   // If callbackUrl is a dashboard route, redirect to homepage instead (regular users can't access dashboard)
-  const rawCallbackUrl = searchParams.get("callbackUrl") || searchParams.get("from") || "/";
-  const callbackUrl = rawCallbackUrl.startsWith("/dashboard") ? "/" : rawCallbackUrl;
+  const rawCallbackUrl =
+    searchParams.get("callbackUrl") || searchParams.get("from") || "/";
+  const callbackUrl = rawCallbackUrl.startsWith("/dashboard")
+    ? "/"
+    : rawCallbackUrl;
+
+  // Redirect authenticated users away from sign-in page with countdown
+  useEffect(() => {
+    if (status === "authenticated" && session) {
+      // Start countdown timer
+      const countdownInterval = setInterval(() => {
+        setRedirectCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(countdownInterval);
+            router.push(callbackUrl);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(countdownInterval);
+    }
+  }, [status, session, router, callbackUrl]);
 
   // Load last used provider from localStorage on mount
   useEffect(() => {
@@ -24,13 +59,64 @@ function SignInContent() {
     }
   }, []);
 
+  // Show loading state while checking authentication
+  if (status === "loading") {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-12 bg-gradient-to-br from-[#0a0a0a] via-[#121212] to-[#1a1a1a]">
+        <div className="text-white">Loading...</div>
+      </div>
+    );
+  }
+
+  // If already authenticated, show message while redirecting
+  if (status === "authenticated" && session) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-12 bg-gradient-to-br from-[#0a0a0a] via-[#121212] to-[#1a1a1a]">
+        <div className="max-w-md w-full bg-[#1e1e1e] p-8 rounded-2xl border border-[#107c10]/50 shadow-2xl text-center">
+          <div className="inline-block p-3 bg-[#107c10] rounded-full mb-4 animate-pulse">
+            <FaCheckCircle className="text-white" size={32} />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">
+            Already Signed In
+          </h2>
+          <div className="mb-4 p-3 bg-[#107c10]/10 border border-[#107c10]/30 rounded-lg">
+            <p className="text-white font-medium">
+              {session.user?.name || session.user?.email}
+            </p>
+          </div>
+          <div className="mb-6 space-y-2">
+            <p className="text-gray-300">
+              You&apos;re already signed in. Redirecting you in{" "}
+              <span className="text-[#107c10] font-bold text-lg">
+                {redirectCountdown}
+              </span>{" "}
+              {redirectCountdown === 1 ? "second" : "seconds"}...
+            </p>
+            <div className="flex items-center justify-center gap-2 text-gray-400 text-sm">
+              <FaInfoCircle size={14} />
+              <span>
+                To sign in with a different provider, please sign out first.
+              </span>
+            </div>
+          </div>
+          <Link
+            href={callbackUrl}
+            className="inline-block px-6 py-3 bg-[#107c10] hover:bg-[#0d6b0d] text-white font-medium rounded-xl transition-colors"
+          >
+            Continue Now
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const handleSignIn = async (provider: string) => {
     setIsLoading(provider);
     try {
       // Store this provider as last used
       localStorage.setItem("gfwl_last_provider", provider);
       localStorage.setItem("gfwl_last_provider_time", new Date().toISOString());
-      
+
       await signIn(provider, { callbackUrl });
     } catch (error) {
       console.error("Sign in error:", error);
@@ -48,7 +134,8 @@ function SignInContent() {
               Join the GFWL Hub Community
             </h1>
             <p className="text-xl text-gray-400 leading-relaxed">
-              Help preserve gaming history by contributing accurate information about Games for Windows LIVE titles.
+              Help preserve gaming history by contributing accurate information
+              about Games for Windows LIVE titles.
             </p>
           </div>
 
@@ -58,9 +145,12 @@ function SignInContent() {
                 <FaEdit className="text-white" size={24} />
               </div>
               <div>
-                <h3 className="text-white font-semibold text-lg mb-1">Submit Corrections</h3>
+                <h3 className="text-white font-semibold text-lg mb-1">
+                  Submit Corrections
+                </h3>
                 <p className="text-gray-400 text-sm">
-                  Help us maintain accurate game information by submitting corrections and updates.
+                  Help us maintain accurate game information by submitting
+                  corrections and updates.
                 </p>
               </div>
             </div>
@@ -70,9 +160,12 @@ function SignInContent() {
                 <FaUsers className="text-white" size={24} />
               </div>
               <div>
-                <h3 className="text-white font-semibold text-lg mb-1">Community Driven</h3>
+                <h3 className="text-white font-semibold text-lg mb-1">
+                  Community Driven
+                </h3>
                 <p className="text-gray-400 text-sm">
-                  Join a community of passionate gamers preserving classic GFWL titles.
+                  Join a community of passionate gamers preserving classic GFWL
+                  titles.
                 </p>
               </div>
             </div>
@@ -82,9 +175,12 @@ function SignInContent() {
                 <FaShieldAlt className="text-white" size={24} />
               </div>
               <div>
-                <h3 className="text-white font-semibold text-lg mb-1">Secure & Private</h3>
+                <h3 className="text-white font-semibold text-lg mb-1">
+                  Secure & Private
+                </h3>
                 <p className="text-gray-400 text-sm">
-                  We use secure OAuth authentication and never store your passwords.
+                  We use secure OAuth authentication and never store your
+                  passwords.
                 </p>
               </div>
             </div>
@@ -93,7 +189,10 @@ function SignInContent() {
           <div className="pt-4 border-t border-gray-800">
             <p className="text-gray-500 text-sm">
               Need help?{" "}
-              <Link href="/contact" className="text-[#107c10] hover:text-[#0d6b0d] transition-colors">
+              <Link
+                href="/contact"
+                className="text-[#107c10] hover:text-[#0d6b0d] transition-colors"
+              >
                 Contact us
               </Link>
             </p>
@@ -108,7 +207,9 @@ function SignInContent() {
               <div className="inline-block p-3 bg-[#107c10] rounded-full mb-4">
                 <FaShieldAlt className="text-white" size={32} />
               </div>
-              <h2 className="text-3xl font-bold text-white mb-2">Welcome Back</h2>
+              <h2 className="text-3xl font-bold text-white mb-2">
+                Welcome Back
+              </h2>
               <p className="text-gray-400">Sign in to continue to GFWL Hub</p>
             </div>
 
@@ -184,7 +285,8 @@ function SignInContent() {
             {/* Info Box */}
             <div className="mt-8 p-4 bg-gradient-to-br from-[#107c10]/10 to-[#0d6b0d]/10 border border-[#107c10]/30 rounded-xl">
               <p className="text-gray-300 text-sm text-center leading-relaxed">
-                🔒 Your data is secure. We only access your basic profile information to create your account.
+                🔒 Your data is secure. We only access your basic profile
+                information to create your account.
               </p>
             </div>
 
@@ -192,11 +294,15 @@ function SignInContent() {
             <div className="md:hidden mt-6 pt-6 border-t border-gray-800 space-y-4">
               <div className="flex items-center gap-3">
                 <FaEdit className="text-[#107c10]" size={20} />
-                <p className="text-gray-400 text-sm">Submit corrections and help the community</p>
+                <p className="text-gray-400 text-sm">
+                  Submit corrections and help the community
+                </p>
               </div>
               <div className="flex items-center gap-3">
                 <FaUsers className="text-[#107c10]" size={20} />
-                <p className="text-gray-400 text-sm">Join passionate GFWL preservationists</p>
+                <p className="text-gray-400 text-sm">
+                  Join passionate GFWL preservationists
+                </p>
               </div>
             </div>
           </div>
@@ -218,11 +324,13 @@ function SignInContent() {
 
 export default function SignIn() {
   return (
-    <Suspense fallback={
-      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
-        <div className="text-white">Loading...</div>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+          <div className="text-white">Loading...</div>
+        </div>
+      }
+    >
       <SignInContent />
     </Suspense>
   );
