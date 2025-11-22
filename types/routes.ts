@@ -20,6 +20,8 @@ export interface Game {
   playabilityStatus?: "playable" | "unplayable" | "community_alternative" | "remastered_available";
   isUnplayable?: boolean;
   communityAlternativeName?: string;
+  communityAlternativeUrl?: string;
+  communityAlternativeDownloadLink?: string;
   remasteredName?: string;
   remasteredPlatform?: string;
 }

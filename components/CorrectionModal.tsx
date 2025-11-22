@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { FaTimes, FaCheck, FaEdit, FaPlus, FaTrash } from "react-icons/fa";
 import { Game } from "@/data/games";
 import { CorrectionField } from "@/types/crowdsource";
+import UrlSafetyIndicator from "@/components/UrlSafetyIndicator";
+import { getUrlValidationError } from "@/lib/url-validation";
 
 interface CorrectionModalProps {
   game: Game;
@@ -84,6 +86,61 @@ export default function CorrectionModal({
       return true;
     } catch {
       return false;
+    }
+  };
+
+  // Check if URL is blacklisted
+  const checkUrlBlacklist = (
+    url: string
+  ): { isBlocked: boolean; reason?: string } => {
+    if (!url || typeof url !== "string") {
+      return { isBlocked: false };
+    }
+
+    try {
+      const urlObj = new URL(url);
+      const domain = urlObj.hostname.toLowerCase();
+
+      // Known malicious domains (expand this list as needed)
+      const maliciousDomains: string[] = [
+        // Add known malicious domains here
+      ];
+
+      // Check against malicious domains
+      for (const maliciousDomain of maliciousDomains) {
+        if (
+          domain === maliciousDomain ||
+          domain.endsWith(`.${maliciousDomain}`)
+        ) {
+          return {
+            isBlocked: true,
+            reason: `Domain "${domain}" is on the blacklist`,
+          };
+        }
+      }
+
+      // Block URL shorteners for security
+      const urlShorteners = [
+        "bit.ly",
+        "tinyurl.com",
+        "t.co",
+        "goo.gl",
+        "ow.ly",
+        "is.gd",
+      ];
+
+      for (const shortener of urlShorteners) {
+        if (domain === shortener || domain.endsWith(`.${shortener}`)) {
+          return {
+            isBlocked: true,
+            reason: "URL shorteners are not allowed for security reasons",
+          };
+        }
+      }
+
+      return { isBlocked: false };
+    } catch {
+      return { isBlocked: false };
     }
   };
 
@@ -232,6 +289,10 @@ export default function CorrectionModal({
         return game.isUnplayable ? "true" : "false";
       case "communityAlternativeName":
         return game.communityAlternativeName || "";
+      case "communityAlternativeUrl":
+        return game.communityAlternativeUrl || "";
+      case "communityAlternativeDownloadLink":
+        return game.communityAlternativeDownloadLink || "";
       case "remasteredName":
         return game.remasteredName || "";
       case "remasteredPlatform":
@@ -290,12 +351,50 @@ export default function CorrectionModal({
       "steamDBLink",
       "purchaseLink",
       "gogDreamlistLink",
+      "communityAlternativeUrl",
+      "communityAlternativeDownloadLink",
     ];
 
     if (urlFields.includes(field as CorrectionField)) {
-      if (!isValidUrl(newValue.trim())) {
-        setUrlError(`${field} must be a valid URL`);
-        setError(`${field} must be a valid URL`);
+      if (newValue.trim()) {
+        if (!isValidUrl(newValue.trim())) {
+          setUrlError(`${field} must be a valid URL`);
+          setError(`${field} must be a valid URL`);
+          return;
+        }
+        
+        // Check domain-specific validation
+        const domainError = getUrlValidationError(field, newValue.trim());
+        if (domainError) {
+          setUrlError(domainError);
+          setError(domainError);
+          return;
+        }
+        
+        // Check blacklist
+        const blacklistCheck = checkUrlBlacklist(newValue.trim());
+        if (blacklistCheck.isBlocked) {
+          setUrlError(blacklistCheck.reason || "This URL is not allowed");
+          setError(blacklistCheck.reason || "This URL is not allowed");
+          return;
+        }
+      }
+    }
+
+    // DMCA Protection: Prevent download links if game is still being sold
+    if (field === "downloadLink" && newValue.trim()) {
+      if (game.remasteredName) {
+        setError(
+          "Download links cannot be added for games with available remasters. This helps protect against DMCA issues."
+        );
+        setIsSubmitting(false);
+        return;
+      }
+      if (game.purchaseLink) {
+        setError(
+          "Download links cannot be added when a purchase link exists. This helps protect against DMCA issues."
+        );
+        setIsSubmitting(false);
         return;
       }
     }
@@ -420,26 +519,28 @@ export default function CorrectionModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/75 p-4"
       onClick={onClose}
     >
       <div
-        className="bg-[#2d2d2d] rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-[rgb(var(--bg-card))] rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-[#2d2d2d] border-b border-gray-700 p-6">
+        <div className="sticky top-0 bg-[rgb(var(--bg-card))] border-b border-[rgb(var(--border-color))] p-6">
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="text-xl font-bold text-white mb-1 flex items-center gap-2">
+              <h2 className="text-xl font-bold text-[rgb(var(--text-primary))] mb-1 flex items-center gap-2">
                 <FaEdit />
                 Submit Correction
               </h2>
-              <p className="text-gray-400 text-sm">{game.title}</p>
+              <p className="text-[rgb(var(--text-secondary))] text-sm">
+                {game.title}
+              </p>
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white text-2xl"
+              className="text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] text-2xl"
             >
               ×
             </button>
@@ -448,9 +549,16 @@ export default function CorrectionModal({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* General Error */}
+          {error && (
+            <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4">
+              <p className="text-red-300 text-sm font-semibold">{error}</p>
+            </div>
+          )}
+
           {/* Field Selection */}
           <div>
-            <label className="text-sm text-gray-400 mb-2 block">
+            <label className="text-sm text-[rgb(var(--text-secondary))] mb-2 block">
               Field to Correct *
             </label>
             <select
@@ -470,7 +578,7 @@ export default function CorrectionModal({
                 setRelatedRemasteredName("");
                 setRelatedRemasteredPlatform("");
               }}
-              className="w-full px-4 py-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+              className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
               required
             >
               <option value="">Select a field...</option>
@@ -501,6 +609,12 @@ export default function CorrectionModal({
               <option value="communityAlternativeName">
                 Community Alternative Name
               </option>
+              <option value="communityAlternativeUrl">
+                Community Alternative Website URL
+              </option>
+              <option value="communityAlternativeDownloadLink">
+                Community Alternative Download Link
+              </option>
               <option value="remasteredName">Remastered Name</option>
               <option value="remasteredPlatform">Remastered Platform</option>
             </select>
@@ -509,27 +623,29 @@ export default function CorrectionModal({
           {/* Current Value */}
           {field && (
             <div>
-              <label className="text-sm text-gray-400 mb-2 block">
+              <label className="text-sm text-[rgb(var(--text-secondary))] mb-2 block">
                 Current Value
               </label>
-              <div className="bg-[#1a1a1a] rounded-lg p-3 border border-gray-700">
+              <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3 border border-[rgb(var(--border-color))]">
                 {Array.isArray(currentValue) ? (
                   <div className="flex flex-wrap gap-2">
                     {currentValue.length > 0 ? (
                       currentValue.map((item, index) => (
                         <span
                           key={index}
-                          className="bg-[#2d2d2d] border border-gray-600 rounded px-2.5 py-1 text-white text-xs"
+                          className="bg-[rgb(var(--bg-card))] border border-[rgb(var(--border-color))] rounded px-2.5 py-1 text-[rgb(var(--text-primary))] text-xs"
                         >
                           {item}
                         </span>
                       ))
                     ) : (
-                      <span className="text-gray-400 text-sm">N/A</span>
+                      <span className="text-[rgb(var(--text-secondary))] text-sm">
+                        N/A
+                      </span>
                     )}
                   </div>
                 ) : (
-                  <pre className="text-gray-400 text-sm whitespace-pre-wrap break-all">
+                  <pre className="text-[rgb(var(--text-secondary))] text-sm whitespace-pre-wrap break-all">
                     {currentValue || "N/A"}
                   </pre>
                 )}
@@ -539,12 +655,21 @@ export default function CorrectionModal({
 
           {/* New Value */}
           <div>
-            <label className="text-sm text-gray-400 mb-2 block">
-              New Value{" "}
-              {!["title", "status", "activationType"].includes(field || "")
-                ? "(leave empty to clear)"
-                : "*"}
-            </label>
+            <div className="flex items-center gap-2 mb-2">
+              <label className="text-sm text-[rgb(var(--text-secondary))] block">
+                New Value
+                {!["title", "status", "activationType"].includes(field || "")
+                  ? ""
+                  : " *"}
+              </label>
+              {/* URL Safety Indicator for URL fields - shown right after label */}
+              {/* Only show for download links and community alternative links, not social links (they're already domain-validated) */}
+              {(field === "imageUrl" ||
+                field === "downloadLink" ||
+                field === "communityAlternativeUrl" ||
+                field === "communityAlternativeDownloadLink") &&
+                newValue && <UrlSafetyIndicator url={newValue} />}
+            </div>
             {field === "genres" ? (
               <div>
                 <div className="flex gap-2 mb-2">
@@ -558,7 +683,7 @@ export default function CorrectionModal({
                         handleAddItem("genres", currentGenre, setCurrentGenre);
                       }
                     }}
-                    className="flex-1 bg-[#1a1a1a] text-white rounded-lg px-4 py-2 border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                    className="flex-1 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                     placeholder="Add a genre"
                   />
                   <button
@@ -576,9 +701,11 @@ export default function CorrectionModal({
                     {genres.map((genre, index) => (
                       <div
                         key={index}
-                        className="bg-[#2d2d2d] border border-gray-600 rounded px-2.5 py-1 flex items-center gap-1.5"
+                        className="bg-[rgb(var(--bg-card))] border border-[rgb(var(--border-color))] rounded px-2.5 py-1 flex items-center gap-1.5"
                       >
-                        <span className="text-white text-xs">{genre}</span>
+                        <span className="text-[rgb(var(--text-primary))] text-xs">
+                          {genre}
+                        </span>
                         <button
                           type="button"
                           onClick={() => handleRemoveItem("genres", index)}
@@ -609,7 +736,7 @@ export default function CorrectionModal({
                         );
                       }
                     }}
-                    className="flex-1 bg-[#1a1a1a] text-white rounded-lg px-4 py-2 border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                    className="flex-1 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                     placeholder="Add a platform"
                   />
                   <button
@@ -631,9 +758,11 @@ export default function CorrectionModal({
                     {platforms.map((platform, index) => (
                       <div
                         key={index}
-                        className="bg-[#2d2d2d] border border-gray-600 rounded px-2.5 py-1 flex items-center gap-1.5"
+                        className="bg-[rgb(var(--bg-card-alt))] border border-[rgb(var(--border-color))] rounded px-2.5 py-1 flex items-center gap-1.5"
                       >
-                        <span className="text-white text-xs">{platform}</span>
+                        <span className="text-[rgb(var(--text-primary))] text-xs">
+                          {platform}
+                        </span>
                         <button
                           type="button"
                           onClick={() => handleRemoveItem("platforms", index)}
@@ -664,7 +793,7 @@ export default function CorrectionModal({
                         );
                       }
                     }}
-                    className="flex-1 bg-[#1a1a1a] text-white rounded-lg px-4 py-2 border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                    className="flex-1 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                     placeholder="Add an instruction step"
                   />
                   <button
@@ -686,9 +815,9 @@ export default function CorrectionModal({
                     {instructions.map((instruction, index) => (
                       <li
                         key={index}
-                        className="bg-[#2d2d2d] rounded-lg px-4 py-2 flex items-center justify-between"
+                        className="bg-[rgb(var(--bg-card))] rounded-lg px-4 py-2 flex items-center justify-between"
                       >
-                        <span className="text-white text-sm">
+                        <span className="text-[rgb(var(--text-primary))] text-sm">
                           {index + 1}. {instruction}
                         </span>
                         <button
@@ -716,7 +845,7 @@ export default function CorrectionModal({
                     ? "Enter the corrected value (or leave empty to clear)..."
                     : "Enter the corrected value..."
                 }
-                className="w-full p-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                className="w-full p-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                 rows={6}
                 required={["title", "status", "activationType"].includes(
                   field || ""
@@ -726,7 +855,7 @@ export default function CorrectionModal({
               <select
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value)}
-                className="w-full px-4 py-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                 required
               >
                 <option value="">Select activation type...</option>
@@ -738,7 +867,7 @@ export default function CorrectionModal({
               <select
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value)}
-                className="w-full px-4 py-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                 required
               >
                 <option value="">Select status...</option>
@@ -760,7 +889,7 @@ export default function CorrectionModal({
                       setNewValue("");
                     }
                   }}
-                  className="w-full px-4 py-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                  className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                 >
                   <option value="">Select DRM type...</option>
                   <option value="Disc (SafeDisc/SecuROM/etc)">
@@ -783,7 +912,7 @@ export default function CorrectionModal({
                       setNewValue(e.target.value);
                     }}
                     placeholder="Enter custom DRM..."
-                    className="w-full px-4 py-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                    className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                   />
                 )}
               </div>
@@ -832,7 +961,7 @@ export default function CorrectionModal({
                       // (but don't auto-set it, let user decide)
                     }
                   }}
-                  className="w-full px-4 py-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                  className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                 >
                   <option value="">Select playability status...</option>
                   <option value="playable">Playable</option>
@@ -848,7 +977,7 @@ export default function CorrectionModal({
                 {/* Conditionally show related fields */}
                 {newValue === "community_alternative" && (
                   <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-[rgb(var(--text-primary))] mb-2">
                       Community Alternative Name (Optional)
                     </label>
                     <input
@@ -858,7 +987,7 @@ export default function CorrectionModal({
                         setRelatedCommunityAlternativeName(e.target.value)
                       }
                       placeholder="e.g., Project Name"
-                      className="w-full px-4 py-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                      className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                     />
                   </div>
                 )}
@@ -866,7 +995,7 @@ export default function CorrectionModal({
                 {newValue === "remastered_available" && (
                   <div className="mt-4 space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-[rgb(var(--text-primary))] mb-2">
                         Remastered Name (Optional)
                       </label>
                       <input
@@ -876,11 +1005,11 @@ export default function CorrectionModal({
                           setRelatedRemasteredName(e.target.value)
                         }
                         placeholder="e.g., Remastered Name"
-                        className="w-full px-4 py-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                        className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-[rgb(var(--text-primary))] mb-2">
                         Remastered Platform (Optional)
                       </label>
                       <input
@@ -890,7 +1019,7 @@ export default function CorrectionModal({
                           setRelatedRemasteredPlatform(e.target.value)
                         }
                         placeholder="e.g., Platform Name"
-                        className="w-full px-4 py-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                        className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                       />
                     </div>
                   </div>
@@ -905,21 +1034,28 @@ export default function CorrectionModal({
                   onChange={(e) =>
                     setNewValue(e.target.checked ? "true" : "false")
                   }
-                  className="w-4 h-4 text-[#107c10] bg-[#1a1a1a] border-gray-600 rounded focus:ring-[#107c10] focus:ring-2"
+                  className="w-4 h-4 text-[#107c10] bg-[rgb(var(--bg-card-alt))] border-[rgb(var(--border-color))] rounded focus:ring-[#107c10] focus:ring-2"
                 />
                 <label
                   htmlFor="isUnplayable"
-                  className="ml-2 text-sm font-medium text-gray-300"
+                  className="ml-2 text-sm font-medium text-[rgb(var(--text-primary))]"
                 >
                   Original game is unplayable
                 </label>
               </div>
             ) : field === "communityAlternativeName" ||
               field === "remasteredName" ||
-              field === "remasteredPlatform" ? (
+              field === "remasteredPlatform" ||
+              field === "communityAlternativeUrl" ||
+              field === "communityAlternativeDownloadLink" ? (
               <div className="space-y-2">
                 <input
-                  type="text"
+                  type={
+                    field === "communityAlternativeUrl" ||
+                    field === "communityAlternativeDownloadLink"
+                      ? "url"
+                      : "text"
+                  }
                   value={newValue}
                   onChange={(e) => {
                     setNewValue(e.target.value);
@@ -941,11 +1077,15 @@ export default function CorrectionModal({
                   placeholder={
                     field === "communityAlternativeName"
                       ? "e.g., Project Name"
+                      : field === "communityAlternativeUrl"
+                      ? "https://example.com"
+                      : field === "communityAlternativeDownloadLink"
+                      ? "https://example.com/download"
                       : field === "remasteredName"
                       ? "e.g., Remastered Name"
                       : "e.g., Platform Name"
                   }
-                  className="w-full px-4 py-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                  className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                 />
                 {newValue.trim() && (
                   <>
@@ -979,71 +1119,94 @@ export default function CorrectionModal({
                       setNewValue("");
                     }
                   }}
-                  className="w-full px-4 py-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none [color-scheme:dark]"
+                  className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                   min="1900-01-01"
                   max={new Date().toISOString().split("T")[0]}
                 />
                 {newValue && (
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-xs text-[rgb(var(--text-secondary))] mt-1">
                     Selected: {newValue}
                   </p>
                 )}
               </div>
             ) : (
-              <input
-                type={
-                  field === "imageUrl" ||
-                  field === "discordLink" ||
-                  field === "redditLink" ||
-                  field === "wikiLink" ||
-                  field === "steamDBLink" ||
-                  field === "purchaseLink" ||
-                  field === "gogDreamlistLink"
-                    ? "url"
-                    : "text"
-                }
-                value={newValue}
-                onChange={(e) => {
-                  setNewValue(e.target.value);
-                  // Clear error when user types
-                  if (urlError) {
-                    setUrlError("");
-                    setError("");
+              <div className="space-y-2">
+                <input
+                  type={
+                    field === "imageUrl" ||
+                    field === "discordLink" ||
+                    field === "redditLink" ||
+                    field === "wikiLink" ||
+                    field === "steamDBLink" ||
+                    field === "purchaseLink" ||
+                    field === "gogDreamlistLink" ||
+                    field === "downloadLink"
+                      ? "url"
+                      : "text"
                   }
-                }}
-                onBlur={() => {
-                  const urlFields: CorrectionField[] = [
-                    "imageUrl",
-                    "discordLink",
-                    "redditLink",
-                    "wikiLink",
-                    "steamDBLink",
-                    "purchaseLink",
-                    "gogDreamlistLink",
-                  ];
-                  if (
-                    urlFields.includes(field as CorrectionField) &&
-                    newValue &&
-                    !isValidUrl(newValue)
-                  ) {
-                    setUrlError(`${field} must be a valid URL`);
-                    setError(`${field} must be a valid URL`);
-                  }
-                }}
-                placeholder="Enter the corrected value..."
-                className={`w-full px-4 py-3 bg-[#1a1a1a] text-white rounded-lg border focus:border-[#107c10] focus:outline-none ${
-                  urlError ? "border-red-500" : "border-gray-700"
-                }`}
-                required={["title", "status", "activationType"].includes(
-                  field || ""
-                )}
-              />
+                  value={newValue}
+                  onChange={(e) => {
+                    setNewValue(e.target.value);
+                    // Clear error when user types
+                    if (urlError) {
+                      setUrlError("");
+                      setError("");
+                    }
+                  }}
+                  onBlur={() => {
+                    const urlFields: CorrectionField[] = [
+                      "imageUrl",
+                      "discordLink",
+                      "redditLink",
+                      "wikiLink",
+                      "steamDBLink",
+                      "purchaseLink",
+                      "gogDreamlistLink",
+                      "downloadLink",
+                      "communityAlternativeUrl",
+                      "communityAlternativeDownloadLink",
+                    ];
+                    if (
+                      urlFields.includes(field as CorrectionField) &&
+                      newValue &&
+                      newValue.trim()
+                    ) {
+                      if (!isValidUrl(newValue.trim())) {
+                        setUrlError(`${field} must be a valid URL`);
+                        setError(`${field} must be a valid URL`);
+                      } else {
+                        // Check domain-specific validation
+                        const domainError = getUrlValidationError(field, newValue.trim());
+                        if (domainError) {
+                          setUrlError(domainError);
+                          setError(domainError);
+                        } else {
+                          // Clear errors if validation passes
+                          if (urlError) {
+                            setUrlError("");
+                            setError("");
+                          }
+                        }
+                      }
+                    }
+                  }}
+                  placeholder="Enter the corrected value..."
+                  className={`w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border focus:border-[#107c10] focus:outline-none ${
+                    urlError
+                      ? "border-red-500"
+                      : "border-[rgb(var(--border-color))]"
+                  }`}
+                  required={["title", "status", "activationType"].includes(
+                    field || ""
+                  )}
+                />
+              </div>
             )}
             {urlError && (
               <p className="text-xs text-red-400 mt-1">{urlError}</p>
             )}
             {(field === "knownIssues" || field === "communityTips") && (
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-[rgb(var(--text-muted))] mt-1">
                 Enter one item per line
               </p>
             )}
@@ -1068,33 +1231,27 @@ export default function CorrectionModal({
 
           {/* Reason */}
           <div>
-            <label className="text-sm text-gray-400 mb-2 block">
+            <label className="text-sm text-[rgb(var(--text-secondary))] mb-2 block">
               Reason for Correction *
             </label>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Explain why this correction is needed..."
-              className="w-full p-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+              className="w-full p-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
               rows={3}
               required
             />
           </div>
 
-          {/* Error Message */}
-          {error && (
-            <div className="bg-red-900/30 border border-red-500/30 rounded-lg p-3">
-              <p className="text-red-400 text-sm">{error}</p>
-            </div>
-          )}
 
           {/* Footer - Actions */}
-          <div className="sticky bottom-0 bg-[#2d2d2d] border-t border-gray-700 pt-6 -mx-6 px-6 -mb-6 pb-6">
+          <div className="sticky bottom-0 bg-[rgb(var(--bg-card))] border-t border-[rgb(var(--border-color))] pt-6 -mx-6 px-6 -mb-6 pb-6">
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="px-4 py-2 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] rounded-lg transition-colors flex items-center justify-center gap-2 border border-[rgb(var(--border-color))]"
                 disabled={isSubmitting}
               >
                 <FaTimes />

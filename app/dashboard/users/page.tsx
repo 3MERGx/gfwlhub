@@ -205,7 +205,7 @@ export default function UsersPage() {
       case "google":
         return <FaGoogle className="text-red-500" size={16} />;
       case "github":
-        return <FaGithub className="text-gray-400" size={16} />;
+        return <FaGithub className="text-[rgb(var(--text-secondary))]" size={16} />;
       case "discord":
         return <FaDiscord className="text-[#5865F2]" size={16} />;
       default:
@@ -274,7 +274,7 @@ export default function UsersPage() {
       case "reviewer":
         return <FaUserCheck className="text-blue-500" size={16} />;
       default:
-        return <FaUser className="text-gray-500" size={16} />;
+        return <FaUser className="text-[rgb(var(--text-muted))]" size={16} />;
     }
   };
 
@@ -608,8 +608,8 @@ export default function UsersPage() {
     return (
       <button
         onClick={() => handleSort(column)}
-        className={`flex items-center gap-2 hover:text-white transition-colors ${className} ${
-          isActive ? "text-white" : "text-gray-400"
+        className={`flex items-center gap-2 hover:text-[rgb(var(--text-primary))] transition-colors ${className} ${
+          isActive ? "text-[rgb(var(--text-primary))]" : "text-[rgb(var(--text-secondary))]"
         }`}
       >
         <span>{label}</span>
@@ -638,32 +638,32 @@ export default function UsersPage() {
             >
               ← Back to Dashboard
             </Link>
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white mb-1 sm:mb-2">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-[rgb(var(--text-primary))] mb-1 sm:mb-2">
               User Management
             </h1>
-            <p className="text-gray-400 text-xs sm:text-sm md:text-base">
+            <p className="text-[rgb(var(--text-secondary))] text-xs sm:text-sm md:text-base">
               Manage user roles, permissions, and access
             </p>
           </div>
 
           {/* Search and Controls */}
-          <div className="bg-[#2d2d2d] rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
+          <div className="bg-[rgb(var(--bg-card))] rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
             {/* Search Bar */}
             <div className="relative mb-3 sm:mb-4">
-              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" />
+              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[rgb(var(--text-muted))]" />
               <input
                 type="text"
                 placeholder="Search by name or email..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 sm:py-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none text-sm sm:text-base"
+                className="w-full pl-10 pr-4 py-2.5 sm:py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none text-sm sm:text-base"
               />
             </div>
 
             {/* Filter Toggle (Mobile) */}
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="md:hidden w-full flex items-center justify-center gap-2 bg-[#1a1a1a] text-white py-2.5 rounded-lg border border-gray-700 mb-3 text-sm"
+              className="md:hidden w-full flex items-center justify-center gap-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] py-2.5 rounded-lg border border-[rgb(var(--border-color))] mb-3 text-sm"
             >
               <FaFilter size={14} />
               <span>Filters & Sort</span>
@@ -681,7 +681,7 @@ export default function UsersPage() {
                 className={`w-full md:w-auto px-4 py-2 rounded-lg border transition-colors flex items-center justify-center gap-2 ${
                   showDeletedUsers
                     ? "bg-red-900/30 border-red-500/50 text-red-300"
-                    : "bg-[#1a1a1a] border-gray-700 text-white hover:border-[#107c10]"
+                    : "bg-[rgb(var(--bg-card-alt))] border-[rgb(var(--border-color))] text-[rgb(var(--text-primary))] hover:border-[#107c10]"
                 }`}
               >
                 <FaTrashRestore size={14} />
@@ -693,7 +693,7 @@ export default function UsersPage() {
               <select
                 value={roleFilter}
                 onChange={(e) => setRoleFilter(e.target.value)}
-                className="w-full md:w-auto px-3 sm:px-4 py-2 pr-10 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none text-sm sm:text-base"
+                className="w-full md:w-auto px-3 sm:px-4 py-2 pr-10 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none text-sm sm:text-base"
                 style={{ paddingRight: "2.75rem" }}
                 disabled={showDeletedUsers}
               >
@@ -707,7 +707,7 @@ export default function UsersPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full md:w-auto px-3 sm:px-4 py-2 pr-10 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none text-sm sm:text-base"
+                className="w-full md:w-auto px-3 sm:px-4 py-2 pr-10 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none text-sm sm:text-base"
                 style={{ paddingRight: "2.75rem" }}
                 disabled={showDeletedUsers}
               >
@@ -720,20 +720,20 @@ export default function UsersPage() {
           </div>
 
           {/* Results Count */}
-          <div className="text-gray-400 text-xs sm:text-sm mb-3 sm:mb-4">
+          <div className="text-[rgb(var(--text-secondary))] text-xs sm:text-sm mb-3 sm:mb-4">
             Showing {startIndex + 1}-{Math.min(endIndex, filteredUsers.length)}{" "}
             of {filteredUsers.length} users
           </div>
 
           {/* Users Table - Desktop (XL screens only) */}
-          <div className="hidden xl:block bg-[#1e1e1e] rounded-xl border border-gray-700/50 overflow-hidden shadow-2xl">
+          <div className="hidden xl:block bg-[rgb(var(--bg-card))] rounded-xl border border-[rgb(var(--border-color))] overflow-hidden shadow-2xl">
             {/* Table Header */}
-            <div className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-gray-700/50 bg-gradient-to-r from-[#1a1a1a] to-[#151515] text-gray-300 text-xs font-semibold uppercase tracking-wider">
+            <div className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-[rgb(var(--border-color))] bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] text-xs font-semibold uppercase tracking-wider">
               <div className="col-span-2 flex items-center">
                 <SortableHeader column="name" label="User" />
               </div>
               <div className="col-span-2 flex items-center">
-                <span className="text-gray-400">Provider ID</span>
+                <span className="text-[rgb(var(--text-secondary))]">Provider ID</span>
               </div>
               <div className="col-span-1 flex items-center justify-center">
                 <SortableHeader
@@ -785,12 +785,12 @@ export default function UsersPage() {
             {/* Table Rows */}
             <div className="divide-y divide-gray-700/30">
               {paginatedUsers.length === 0 ? (
-                <div className="p-12 text-center text-gray-400">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-800/50 mb-4">
-                    <FaUsers size={28} className="text-gray-600" />
+                <div className="p-12 text-center text-[rgb(var(--text-secondary))]">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[rgb(var(--bg-card-alt))] mb-4">
+                    <FaUsers size={28} className="text-[rgb(var(--text-muted))]" />
                   </div>
                   <p className="text-lg font-medium">No users found</p>
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-sm text-[rgb(var(--text-muted))] mt-1">
                     Try adjusting your filters
                   </p>
                 </div>
@@ -807,7 +807,7 @@ export default function UsersPage() {
                   return (
                     <div
                       key={user.id}
-                      className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-[#252525] transition-all duration-200 group"
+                      className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-[rgb(var(--bg-card-alt))] transition-all duration-200 group"
                     >
                       {/* User Info */}
                       <div className="col-span-2 flex items-center gap-3">
@@ -821,7 +821,7 @@ export default function UsersPage() {
                             unoptimized
                           />
                         ) : (
-                          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#107c10] to-[#0d6b0d] flex items-center justify-center text-white font-bold text-base ring-2 ring-gray-700/50 group-hover:ring-[#107c10]/30 transition-all">
+                          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#107c10] to-[#0d6b0d] flex items-center justify-center text-white font-bold text-base ring-2 ring-[rgb(var(--border-color))] group-hover:ring-[#107c10]/30 transition-all">
                             {(user.status === "deleted" && user.archivedName
                               ? user.archivedName
                               : user.name
@@ -836,7 +836,7 @@ export default function UsersPage() {
                               {user.status === "deleted" ? (
                                 <div>
                                   <span
-                                    className="text-white font-semibold truncate text-sm block"
+                                    className="text-[rgb(var(--text-primary))] font-semibold truncate text-sm block"
                                     title={
                                       user.archivedName
                                         ? `Original name: ${user.archivedName}`
@@ -845,14 +845,14 @@ export default function UsersPage() {
                                   >
                                     {user.archivedName || user.name}
                                   </span>
-                                  <span className="text-xs text-gray-500 truncate block">
+                                  <span className="text-xs text-[rgb(var(--text-muted))] truncate block">
                                     (Deleted Account)
                                   </span>
                                 </div>
                               ) : (
                                 <Link
                                   href={`/profile/${user.id}`}
-                                  className="text-white font-semibold truncate text-sm hover:text-[#107c10] transition-colors block"
+                                  className="text-[rgb(var(--text-primary))] font-semibold truncate text-sm hover:text-[#107c10] transition-colors block"
                                 >
                                   {user.name}
                                 </Link>
@@ -864,7 +864,7 @@ export default function UsersPage() {
                                   className="text-red-400"
                                   size={14}
                                 />
-                                <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none z-10">
+                                <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] text-xs rounded whitespace-nowrap opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none z-10 border border-[rgb(var(--border-color))] shadow-lg">
                                   Admin
                                 </span>
                               </div>
@@ -876,7 +876,7 @@ export default function UsersPage() {
                       {/* Provider ID */}
                       <div className="col-span-2 flex items-center text-sm group/provider-id">
                         <div className="flex items-center gap-2">
-                          <span className="truncate font-mono text-xs text-gray-400 transition-all duration-200 blur-[3px] group-hover/provider-id:blur-none cursor-default" title={user.providerInfo?.providerAccountId || user.id}>
+                          <span className="truncate font-mono text-xs text-[rgb(var(--text-secondary))] transition-all duration-200 blur-[3px] group-hover/provider-id:blur-none cursor-default" title={user.providerInfo?.providerAccountId || user.id}>
                             {user.providerInfo?.providerAccountId || user.id}
                           </span>
                           <button
@@ -886,7 +886,7 @@ export default function UsersPage() {
                                 user.id
                               )
                             }
-                            className="relative flex-shrink-0 text-gray-400 hover:text-[#107c10] transition-colors p-1 group/copy"
+                            className="relative flex-shrink-0 text-[rgb(var(--text-secondary))] hover:text-[#107c10] transition-colors p-1 group/copy"
                             title="Copy to clipboard"
                           >
                             {copiedId === user.id ? (
@@ -894,7 +894,7 @@ export default function UsersPage() {
                             ) : (
                               <FaCopy size={12} />
                             )}
-                            <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover/copy:opacity-100 transition-opacity pointer-events-none z-10">
+                            <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] text-xs rounded whitespace-nowrap opacity-0 group-hover/copy:opacity-100 transition-opacity pointer-events-none z-10 border border-[rgb(var(--border-color))] shadow-lg">
                               Copy ID
                             </span>
                           </button>
@@ -906,10 +906,10 @@ export default function UsersPage() {
                         <span
                           className={`px-3 py-1.5 rounded-md text-xs font-medium border flex items-center gap-1.5 ${
                             user.role === "admin"
-                              ? "bg-red-900/20 text-red-300 border-red-500/40"
+                              ? "bg-red-500/20 dark:bg-red-900/20 text-red-600 dark:text-red-300 border-red-500/50 dark:border-red-500/40"
                               : user.role === "reviewer"
-                              ? "bg-blue-900/20 text-blue-300 border-blue-500/40"
-                              : "bg-gray-700/20 text-gray-300 border-gray-600/40"
+                              ? "bg-blue-500/20 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 border-blue-500/50 dark:border-blue-500/40"
+                              : "bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] border-[rgb(var(--border-color))]"
                           }`}
                         >
                           {getRoleIcon(user.role)}
@@ -920,23 +920,23 @@ export default function UsersPage() {
                       {/* Status - Only show if not active */}
                       <div className="col-span-1 flex items-center justify-center">
                         {user.status === "active" ? (
-                          <span className="px-3 py-1.5 rounded-md text-xs font-medium bg-green-900/20 text-green-300 border border-green-500/40">
+                          <span className="px-3 py-1.5 rounded-md text-xs font-medium bg-green-500/20 dark:bg-green-900/20 text-green-600 dark:text-green-300 border border-green-500/50 dark:border-green-500/40">
                             Active
                           </span>
                         ) : user.status === "suspended" ? (
-                          <span className="px-3 py-1.5 rounded-md text-xs font-medium bg-yellow-900/20 text-yellow-300 border border-yellow-500/40">
+                          <span className="px-3 py-1.5 rounded-md text-xs font-medium bg-yellow-500/20 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-300 border border-yellow-500/50 dark:border-yellow-500/40">
                             Suspended
                           </span>
                         ) : user.status === "restricted" ? (
-                          <span className="px-3 py-1.5 rounded-md text-xs font-medium bg-orange-900/20 text-orange-300 border border-orange-500/40">
+                          <span className="px-3 py-1.5 rounded-md text-xs font-medium bg-orange-500/20 dark:bg-orange-900/20 text-orange-600 dark:text-orange-300 border border-orange-500/50 dark:border-orange-500/40">
                             Restricted
                           </span>
                         ) : user.status === "blocked" ? (
-                          <span className="px-3 py-1.5 rounded-md text-xs font-medium bg-red-900/20 text-red-300 border border-red-500/40">
+                          <span className="px-3 py-1.5 rounded-md text-xs font-medium bg-red-500/20 dark:bg-red-900/20 text-red-600 dark:text-red-300 border border-red-500/50 dark:border-red-500/40">
                             Blocked
                           </span>
                         ) : (
-                          <span className="px-3 py-1.5 rounded-md text-xs font-medium bg-gray-900/20 text-gray-300 border border-gray-500/40">
+                          <span className="px-3 py-1.5 rounded-md text-xs font-medium bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] border border-[rgb(var(--border-color))]">
                             {user.status.charAt(0).toUpperCase() +
                               user.status.slice(1)}
                           </span>
@@ -945,16 +945,16 @@ export default function UsersPage() {
 
                       {/* Provider */}
                       <div className="col-span-1 flex items-center justify-center">
-                        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-gray-800/40">
+                        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-[rgb(var(--bg-card-alt))]">
                           {getProviderIcon(user.provider)}
-                          <span className="text-xs text-gray-300 font-medium">
+                          <span className="text-xs text-[rgb(var(--text-secondary))] font-medium">
                             {getProviderName(user.provider)}
                           </span>
                         </div>
                       </div>
 
                       {/* Last Active */}
-                      <div className="col-span-2 flex items-center justify-center text-sm text-gray-300 font-medium">
+                      <div className="col-span-2 flex items-center justify-center text-sm text-[rgb(var(--text-secondary))] font-medium">
                         <span
                           title={formatFullDateTime(user.lastLoginAt)}
                           className="cursor-help"
@@ -965,7 +965,7 @@ export default function UsersPage() {
 
                       {/* Submissions */}
                       <div className="col-span-1 flex items-center justify-center">
-                        <span className="text-sm font-semibold text-white px-3 py-1 rounded-md bg-[#107c10]/10">
+                        <span className="text-sm font-semibold text-[rgb(var(--text-primary))] px-3 py-1 rounded-md bg-[#107c10]/10">
                           {user.submissionsCount}
                         </span>
                       </div>
@@ -999,7 +999,7 @@ export default function UsersPage() {
                             className="p-2.5 hover:bg-[#107c10]/20 rounded-lg transition-all border border-transparent hover:border-[#107c10]/30"
                             aria-label="User actions"
                           >
-                            <FaEllipsisV className="text-gray-400 group-hover:text-gray-300" />
+                            <FaEllipsisV className="text-[rgb(var(--text-secondary))] group-hover:text-[rgb(var(--text-primary))]" />
                           </button>
                         )}
 
@@ -1010,7 +1010,7 @@ export default function UsersPage() {
                               className="fixed inset-0 z-10"
                               onClick={() => setOpenMenuId(null)}
                             />
-                            <div className="absolute right-0 mt-2 w-64 bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-xl z-20">
+                            <div className="absolute right-0 mt-2 w-64 bg-[rgb(var(--bg-card))] border border-[rgb(var(--border-color))] rounded-lg shadow-xl z-20">
                               <div className="py-1">
                                 {/* Restore Account - Only for deleted users */}
                                 {user.status === "deleted" && (
@@ -1019,7 +1019,7 @@ export default function UsersPage() {
                                       handleRestoreUserClick(user);
                                       setOpenMenuId(null);
                                     }}
-                                    className="w-full px-4 py-2 text-left text-green-400 hover:bg-[#2d2d2d] flex items-center gap-2"
+                                    className="w-full px-4 py-2 text-left text-green-500 hover:bg-[rgb(var(--bg-card-alt))] flex items-center gap-2"
                                   >
                                     <FaTrashRestore size={12} />
                                     Restore Account
@@ -1037,7 +1037,7 @@ export default function UsersPage() {
                                             setShowRoleModal(true);
                                             setOpenMenuId(null);
                                           }}
-                                          className="w-full px-4 py-2 text-left text-white hover:bg-[#2d2d2d] flex items-center gap-2"
+                                          className="w-full px-4 py-2 text-left text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--bg-card-alt))] flex items-center gap-2"
                                         >
                                           Change Permissions
                                         </button>
@@ -1062,7 +1062,7 @@ export default function UsersPage() {
                                           setShowSuspendModal(true);
                                           setOpenMenuId(null);
                                         }}
-                                        className="w-full px-4 py-2 text-left text-yellow-400 hover:bg-[#2d2d2d] flex items-center gap-2"
+                                        className="w-full px-4 py-2 text-left text-yellow-500 hover:bg-[rgb(var(--bg-card-alt))] flex items-center gap-2"
                                       >
                                         <FaClock size={12} />
                                         {user.status === "suspended"
@@ -1090,7 +1090,7 @@ export default function UsersPage() {
           {/* Mobile/Tablet Card View (XL screens use table) */}
           <div className="xl:hidden space-y-3">
             {paginatedUsers.length === 0 ? (
-              <div className="bg-[#2d2d2d] rounded-lg p-8 text-center text-gray-400">
+              <div className="bg-[rgb(var(--bg-card))] rounded-lg p-8 text-center text-[rgb(var(--text-secondary))]">
                 No users found
               </div>
             ) : (
@@ -1106,7 +1106,7 @@ export default function UsersPage() {
                 return (
                   <div
                     key={user.id}
-                    className="bg-[#2d2d2d] rounded-lg border border-gray-700 p-4 space-y-3"
+                    className="bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] p-4 space-y-3"
                   >
                     {/* Header Row */}
                     <div className="flex items-start justify-between">
@@ -1139,7 +1139,7 @@ export default function UsersPage() {
                               {user.status === "deleted" ? (
                                 <div>
                                   <span
-                                    className="text-white font-semibold truncate text-base block"
+                                    className="text-[rgb(var(--text-primary))] font-semibold truncate text-base block"
                                     title={
                                       user.archivedName
                                         ? `Original name: ${user.archivedName}`
@@ -1148,14 +1148,14 @@ export default function UsersPage() {
                                   >
                                     {user.archivedName || user.name}
                                   </span>
-                                  <span className="text-xs text-gray-500 truncate block">
+                                  <span className="text-xs text-[rgb(var(--text-muted))] truncate block">
                                     (Deleted Account)
                                   </span>
                                 </div>
                               ) : (
                                 <Link
                                   href={`/profile/${user.id}`}
-                                  className="text-white font-semibold truncate text-base hover:text-[#107c10] transition-colors block"
+                                  className="text-[rgb(var(--text-primary))] font-semibold truncate text-base hover:text-[#107c10] transition-colors block"
                                 >
                                   {user.name}
                                 </Link>
@@ -1167,14 +1167,14 @@ export default function UsersPage() {
                                   className="text-red-500"
                                   size={16}
                                 />
-                                <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 border border-[rgb(var(--border-color))] shadow-lg">
                                   Admin
                                 </span>
                               </div>
                             )}
                           </div>
                           <div className="flex items-center gap-2 text-sm group/provider-id">
-                            <span className="truncate font-mono text-xs text-gray-400 transition-all duration-200 blur-[3px] group-hover/provider-id:blur-none cursor-default" title={user.providerInfo?.providerAccountId || user.id}>
+                            <span className="truncate font-mono text-xs text-[rgb(var(--text-secondary))] transition-all duration-200 blur-[3px] group-hover/provider-id:blur-none cursor-default" title={user.providerInfo?.providerAccountId || user.id}>
                               {user.providerInfo?.providerAccountId || user.id}
                             </span>
                             <button
@@ -1185,7 +1185,7 @@ export default function UsersPage() {
                                   user.id
                                 )
                               }
-                              className="relative flex-shrink-0 text-gray-400 hover:text-[#107c10] transition-colors p-1 group/copy"
+                              className="relative flex-shrink-0 text-[rgb(var(--text-secondary))] hover:text-[#107c10] transition-colors p-1 group/copy"
                               title="Copy to clipboard"
                             >
                               {copiedId === user.id ? (
@@ -1211,10 +1211,10 @@ export default function UsersPage() {
                                 openMenuId === user.id ? null : user.id
                               )
                             }
-                            className="p-2.5 hover:bg-[#3d3d3d] rounded-lg transition-colors touch-manipulation"
+                            className="p-2.5 hover:bg-[rgb(var(--bg-card))] rounded-lg transition-colors touch-manipulation"
                             aria-label="User actions"
                           >
-                            <FaEllipsisV className="text-gray-400" size={18} />
+                            <FaEllipsisV className="text-[rgb(var(--text-secondary))]" size={18} />
                           </button>
                         )}
 
@@ -1225,7 +1225,7 @@ export default function UsersPage() {
                               className="fixed inset-0 z-10"
                               onClick={() => setOpenMenuId(null)}
                             />
-                            <div className="absolute right-0 mt-2 w-64 bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-xl z-20">
+                            <div className="absolute right-0 mt-2 w-64 bg-[rgb(var(--bg-card))] border border-[rgb(var(--border-color))] rounded-lg shadow-xl z-20">
                               <div className="py-1">
                                 {/* Restore Account - Only for deleted users */}
                                 {user.status === "deleted" && (
@@ -1234,7 +1234,7 @@ export default function UsersPage() {
                                       handleRestoreUserClick(user);
                                       setOpenMenuId(null);
                                     }}
-                                    className="w-full px-4 py-3 text-left text-green-400 hover:bg-[#2d2d2d] flex items-center gap-2 text-sm touch-manipulation"
+                                    className="w-full px-4 py-3 text-left text-green-500 hover:bg-[rgb(var(--bg-card-alt))] flex items-center gap-2 text-sm touch-manipulation"
                                   >
                                     <FaTrashRestore size={14} />
                                     Restore Account
@@ -1252,7 +1252,7 @@ export default function UsersPage() {
                                             setShowRoleModal(true);
                                             setOpenMenuId(null);
                                           }}
-                                          className="w-full px-4 py-3 text-left text-white hover:bg-[#2d2d2d] flex items-center gap-2 text-sm touch-manipulation"
+                                          className="w-full px-4 py-3 text-left text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--bg-card-alt))] flex items-center gap-2 text-sm touch-manipulation"
                                         >
                                           Change Permissions
                                         </button>
@@ -1277,7 +1277,7 @@ export default function UsersPage() {
                                           setShowSuspendModal(true);
                                           setOpenMenuId(null);
                                         }}
-                                        className="w-full px-4 py-3 text-left text-yellow-400 hover:bg-[#2d2d2d] flex items-center gap-2 text-sm touch-manipulation"
+                                        className="w-full px-4 py-3 text-left text-yellow-600 dark:text-yellow-400 hover:bg-[rgb(var(--bg-card-alt))] flex items-center gap-2 text-sm touch-manipulation"
                                       >
                                         <FaClock size={14} />
                                         {user.status === "suspended"
@@ -1302,10 +1302,10 @@ export default function UsersPage() {
                       <span
                         className={`px-2.5 py-1.5 rounded-md text-xs border flex items-center gap-1.5 ${
                           user.role === "admin"
-                            ? "bg-red-900/30 text-red-400 border-red-500/30"
+                            ? "bg-red-500/20 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-500/50 dark:border-red-500/30"
                             : user.role === "reviewer"
-                            ? "bg-blue-900/30 text-blue-400 border-blue-500/30"
-                            : "bg-gray-700/30 text-gray-400 border-gray-600/30"
+                            ? "bg-blue-500/20 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-500/50 dark:border-blue-500/30"
+                            : "bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] border-[rgb(var(--border-color))]"
                         }`}
                       >
                         {getRoleIcon(user.role)}
@@ -1318,55 +1318,55 @@ export default function UsersPage() {
                         <span
                           className={`px-2.5 py-1.5 rounded-md text-xs ${
                             user.status === "suspended"
-                              ? "bg-yellow-900/30 text-yellow-400"
-                              : "bg-red-900/30 text-red-400"
+                              ? "bg-yellow-500/20 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400"
+                              : "bg-red-500/20 dark:bg-red-900/30 text-red-600 dark:text-red-400"
                           }`}
                         >
                           {user.status}
                         </span>
                       )}
-                      <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs bg-gray-700/30 text-gray-300">
+                      <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))]">
                         {getProviderIcon(user.provider)}
                         <span>{getProviderName(user.provider)}</span>
                       </div>
                     </div>
 
                     {/* Stats Grid */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-gray-700">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-[rgb(var(--border-color))]">
                       <div>
-                        <div className="flex items-center gap-1.5 text-gray-400 text-xs mb-1">
+                        <div className="flex items-center gap-1.5 text-[rgb(var(--text-muted))] text-xs mb-1">
                           <FaCalendarAlt size={10} />
                           <span>Last Active</span>
                         </div>
                         <p
-                          className="text-white text-sm font-medium cursor-help"
+                          className="text-[rgb(var(--text-primary))] text-sm font-medium cursor-help"
                           title={formatFullDateTime(user.lastLoginAt)}
                         >
                           {formatRelativeTime(user.lastLoginAt)}
                         </p>
                       </div>
                       <div>
-                        <div className="flex items-center gap-1.5 text-gray-400 text-xs mb-1">
+                        <div className="flex items-center gap-1.5 text-[rgb(var(--text-muted))] text-xs mb-1">
                           <FaChartBar size={10} />
                           <span>Submissions</span>
                         </div>
-                        <p className="text-white text-sm font-medium">
+                        <p className="text-[rgb(var(--text-primary))] text-sm font-medium">
                           {user.submissionsCount}
                         </p>
                       </div>
                       <div>
-                        <div className="text-gray-400 text-xs mb-1">
+                        <div className="text-[rgb(var(--text-muted))] text-xs mb-1">
                           Approved
                         </div>
-                        <p className="text-green-400 text-sm font-medium">
+                        <p className="text-green-600 dark:text-green-400 text-sm font-medium">
                           {user.approvedCount}
                         </p>
                       </div>
                       <div>
-                        <div className="text-gray-400 text-xs mb-1">
+                        <div className="text-[rgb(var(--text-muted))] text-xs mb-1">
                           Approval Rate
                         </div>
-                        <p className="text-white text-sm font-medium">
+                        <p className="text-[rgb(var(--text-primary))] text-sm font-medium">
                           {approvalRate}%
                         </p>
                       </div>
@@ -1383,12 +1383,12 @@ export default function UsersPage() {
               <button
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="p-2.5 sm:p-2 bg-[#2d2d2d] text-white rounded-lg border border-gray-700 hover:border-[#107c10] transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+                className="p-2.5 sm:p-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10] transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                 aria-label="Previous page"
               >
                 <FaChevronLeft size={14} />
               </button>
-              <span className="text-gray-400 text-xs sm:text-sm px-3 sm:px-4">
+              <span className="text-[rgb(var(--text-secondary))] text-xs sm:text-sm px-3 sm:px-4">
                 Page {currentPage} of {totalPages}
               </span>
               <button
@@ -1396,7 +1396,7 @@ export default function UsersPage() {
                   setCurrentPage((p) => Math.min(totalPages, p + 1))
                 }
                 disabled={currentPage === totalPages}
-                className="p-2.5 sm:p-2 bg-[#2d2d2d] text-white rounded-lg border border-gray-700 hover:border-[#107c10] transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+                className="p-2.5 sm:p-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10] transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                 aria-label="Next page"
               >
                 <FaChevronRight size={14} />
@@ -1408,10 +1408,10 @@ export default function UsersPage() {
 
       {/* Change Role Modal */}
       {showRoleModal && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 p-4">
-          <div className="bg-[#2d2d2d] rounded-lg max-w-md w-full p-4 sm:p-6 border border-gray-700 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/75 p-4">
+          <div className="bg-[rgb(var(--bg-card))] rounded-lg max-w-md w-full p-4 sm:p-6 border border-[rgb(var(--border-color))] max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg sm:text-xl font-bold text-white">
+              <h3 className="text-lg sm:text-xl font-bold text-[rgb(var(--text-primary))]">
                 Change Role
               </h3>
               <button
@@ -1420,15 +1420,15 @@ export default function UsersPage() {
                   setSelectedUser(null);
                   setRoleChangeReason("");
                 }}
-                className="text-gray-400 hover:text-white p-1 touch-manipulation"
+                className="text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] p-1 touch-manipulation"
                 aria-label="Close"
               >
                 <FaTimes size={20} />
               </button>
             </div>
-            <p className="text-gray-300 mb-4 sm:mb-6 text-sm sm:text-base">
+            <p className="text-[rgb(var(--text-secondary))] mb-4 sm:mb-6 text-sm sm:text-base">
               Change role for{" "}
-              <strong className="text-white">{selectedUser.name}</strong>
+              <strong className="text-[rgb(var(--text-primary))]">{selectedUser.name}</strong>
             </p>
             <div className="space-y-2 mb-4 sm:mb-6">
               {(["user", "reviewer", "admin"] as const).map((role) => {
@@ -1439,10 +1439,10 @@ export default function UsersPage() {
                 return (
                   <label
                     key={role}
-                    className={`flex items-center gap-3 p-3 bg-[#1a1a1a] rounded-lg transition-colors touch-manipulation ${
+                    className={`flex items-center gap-3 p-3 bg-[rgb(var(--bg-card-alt))] rounded-lg transition-colors touch-manipulation ${
                       isDisabled
                         ? "opacity-50 cursor-not-allowed"
-                        : "cursor-pointer hover:bg-[#252525]"
+                        : "cursor-pointer hover:bg-[rgb(var(--bg-card))]"
                     }`}
                   >
                     <input
@@ -1460,7 +1460,7 @@ export default function UsersPage() {
                     />
                     <div className="flex items-center gap-2 flex-1">
                       {getRoleIcon(role)}
-                      <span className="text-white capitalize text-sm sm:text-base">
+                      <span className="text-[rgb(var(--text-primary))] capitalize text-sm sm:text-base">
                         {role}
                       </span>
                       {isAdminRole && !canSelectAdmin && (
@@ -1483,15 +1483,15 @@ export default function UsersPage() {
               
               return (
                 <div className="mb-4 sm:mb-6">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Reason {isDemoting && <span className="text-red-400">*</span>}
+                  <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
+                    Reason {isDemoting && <span className="text-red-500">*</span>}
                   </label>
                   <textarea
                     value={roleChangeReason}
                     onChange={(e) => setRoleChangeReason(e.target.value)}
                     placeholder={isDemoting ? "Enter reason for demoting this user..." : "Optional reason for role change..."}
                     rows={3}
-                    className="w-full px-4 py-2 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none resize-none"
+                    className="w-full px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none resize-none"
                     required={isDemoting}
                   />
                   {isDemoting && (
@@ -1510,7 +1510,7 @@ export default function UsersPage() {
                   setSelectedUser(null);
                   setRoleChangeReason("");
                 }}
-                className="flex-1 px-4 py-2.5 sm:py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm sm:text-base touch-manipulation"
+                className="flex-1 px-4 py-2.5 sm:py-2 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] rounded-lg transition-colors text-sm sm:text-base touch-manipulation border border-[rgb(var(--border-color))]"
               >
                 Cancel
               </button>
@@ -1527,22 +1527,22 @@ export default function UsersPage() {
 
       {/* Suspend/Block Modal */}
       {showSuspendModal && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 p-4">
-          <div className="bg-[#2d2d2d] rounded-lg max-w-lg w-full border border-gray-700">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/75 p-4">
+          <div className="bg-[rgb(var(--bg-card))] rounded-lg max-w-lg w-full border border-[rgb(var(--border-color))]">
             {/* Header */}
-            <div className="p-6 border-b border-gray-700">
+            <div className="p-6 border-b border-[rgb(var(--border-color))]">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-yellow-900/30 rounded-lg">
-                    <FaUserShield className="text-yellow-400" size={24} />
+                  <div className="p-2 bg-yellow-500/20 dark:bg-yellow-900/30 rounded-lg">
+                    <FaUserShield className="text-yellow-600 dark:text-yellow-400" size={24} />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-white">
+                    <h3 className="text-xl font-bold text-[rgb(var(--text-primary))]">
                       Suspend or Block User
                     </h3>
-                    <p className="text-sm text-gray-400 mt-0.5">
+                    <p className="text-sm text-[rgb(var(--text-secondary))] mt-0.5">
                       Temporarily or permanently restrict{" "}
-                      <span className="text-white font-medium">
+                      <span className="text-[rgb(var(--text-primary))] font-medium">
                         {selectedUser.name}
                       </span>
                     </p>
@@ -1555,7 +1555,7 @@ export default function UsersPage() {
                     setSuspendDays(7);
                     setSuspendReason("");
                   }}
-                  className="text-gray-400 hover:text-white transition-colors"
+                  className="text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] transition-colors"
                 >
                   <FaTimes size={20} />
                 </button>
@@ -1566,7 +1566,7 @@ export default function UsersPage() {
             <div className="p-6 space-y-4">
               {/* Duration Options */}
               <div className="space-y-2">
-                <label className="text-sm text-gray-400 block mb-3">
+                <label className="text-sm text-[rgb(var(--text-secondary))] block mb-3">
                   Select suspension duration:
                 </label>
 
@@ -1574,7 +1574,7 @@ export default function UsersPage() {
                 {(selectedUser.status === "suspended" ||
                   selectedUser.status === "restricted" ||
                   selectedUser.status === "blocked") && (
-                  <label className="flex items-center justify-between p-4 bg-green-900/20 rounded-lg cursor-pointer hover:bg-green-900/30 border border-green-500/30 hover:border-green-500/50 transition-all group">
+                  <label className="flex items-center justify-between p-4 bg-green-500/20 dark:bg-green-900/20 rounded-lg cursor-pointer hover:bg-green-500/30 dark:hover:bg-green-900/30 border border-green-500/50 dark:border-green-500/30 hover:border-green-500/70 dark:hover:border-green-500/50 transition-all group">
                     <div className="flex items-center gap-3">
                       <input
                         type="radio"
@@ -1583,17 +1583,17 @@ export default function UsersPage() {
                         onChange={() => setSuspendDays(-1)}
                         className="text-green-500 w-4 h-4"
                       />
-                      <span className="text-green-300 font-medium">
+                      <span className="text-green-600 dark:text-green-300 font-medium">
                         Restore to Active
                       </span>
                     </div>
-                    <span className="text-xs text-green-400/70 group-hover:text-green-400">
+                    <span className="text-xs text-green-600/70 dark:text-green-400/70 group-hover:text-green-600 dark:group-hover:text-green-400">
                       Remove all restrictions
                     </span>
                   </label>
                 )}
 
-                <label className="flex items-center justify-between p-4 bg-[#1a1a1a] rounded-lg cursor-pointer hover:bg-[#252525] border border-transparent hover:border-[#107c10]/50 transition-all group">
+                <label className="flex items-center justify-between p-4 bg-[rgb(var(--bg-card-alt))] rounded-lg cursor-pointer hover:bg-[rgb(var(--bg-card))] border border-transparent hover:border-[#107c10]/50 transition-all group">
                   <div className="flex items-center gap-3">
                     <input
                       type="radio"
@@ -1602,14 +1602,14 @@ export default function UsersPage() {
                       onChange={() => setSuspendDays(3)}
                       className="text-[#107c10] w-4 h-4"
                     />
-                    <span className="text-white font-medium">3 Days</span>
+                    <span className="text-[rgb(var(--text-primary))] font-medium">3 Days</span>
                   </div>
-                  <span className="text-xs text-gray-500 group-hover:text-gray-400">
+                  <span className="text-xs text-[rgb(var(--text-muted))] group-hover:text-[rgb(var(--text-secondary))]">
                     Short suspension
                   </span>
                 </label>
 
-                <label className="flex items-center justify-between p-4 bg-[#1a1a1a] rounded-lg cursor-pointer hover:bg-[#252525] border border-transparent hover:border-[#107c10]/50 transition-all group">
+                <label className="flex items-center justify-between p-4 bg-[rgb(var(--bg-card-alt))] rounded-lg cursor-pointer hover:bg-[rgb(var(--bg-card))] border border-transparent hover:border-[#107c10]/50 transition-all group">
                   <div className="flex items-center gap-3">
                     <input
                       type="radio"
@@ -1618,14 +1618,14 @@ export default function UsersPage() {
                       onChange={() => setSuspendDays(7)}
                       className="text-[#107c10] w-4 h-4"
                     />
-                    <span className="text-white font-medium">7 Days</span>
+                    <span className="text-[rgb(var(--text-primary))] font-medium">7 Days</span>
                   </div>
-                  <span className="text-xs text-gray-500 group-hover:text-gray-400">
+                  <span className="text-xs text-[rgb(var(--text-muted))] group-hover:text-[rgb(var(--text-secondary))]">
                     Standard suspension
                   </span>
                 </label>
 
-                <label className="flex items-center justify-between p-4 bg-[#1a1a1a] rounded-lg cursor-pointer hover:bg-[#252525] border border-transparent hover:border-[#107c10]/50 transition-all group">
+                <label className="flex items-center justify-between p-4 bg-[rgb(var(--bg-card-alt))] rounded-lg cursor-pointer hover:bg-[rgb(var(--bg-card))] border border-transparent hover:border-[#107c10]/50 transition-all group">
                   <div className="flex items-center gap-3">
                     <input
                       type="radio"
@@ -1634,14 +1634,14 @@ export default function UsersPage() {
                       onChange={() => setSuspendDays(30)}
                       className="text-[#107c10] w-4 h-4"
                     />
-                    <span className="text-white font-medium">30 Days</span>
+                    <span className="text-[rgb(var(--text-primary))] font-medium">30 Days</span>
                   </div>
-                  <span className="text-xs text-gray-500 group-hover:text-gray-400">
+                  <span className="text-xs text-[rgb(var(--text-muted))] group-hover:text-[rgb(var(--text-secondary))]">
                     Extended suspension
                   </span>
                 </label>
 
-                <label className="flex items-center justify-between p-4 bg-orange-900/20 rounded-lg cursor-pointer hover:bg-orange-900/30 border border-orange-500/30 hover:border-orange-500/50 transition-all group">
+                <label className="flex items-center justify-between p-4 bg-orange-500/20 dark:bg-orange-900/20 rounded-lg cursor-pointer hover:bg-orange-500/30 dark:hover:bg-orange-900/30 border border-orange-500/50 dark:border-orange-500/30 hover:border-orange-500/70 dark:hover:border-orange-500/50 transition-all group">
                   <div className="flex items-center gap-3">
                     <input
                       type="radio"
@@ -1650,16 +1650,16 @@ export default function UsersPage() {
                       onChange={() => setSuspendDays(-2)}
                       className="text-orange-500 w-4 h-4"
                     />
-                    <span className="text-orange-300 font-medium">
+                    <span className="text-orange-600 dark:text-orange-300 font-medium">
                       Permanent Restriction
                     </span>
                   </div>
-                  <span className="text-xs text-orange-400/70 group-hover:text-orange-400">
+                  <span className="text-xs text-orange-600/70 dark:text-orange-400/70 group-hover:text-orange-600 dark:group-hover:text-orange-400">
                     Can sign in
                   </span>
                 </label>
 
-                <label className="flex items-center justify-between p-4 bg-red-900/20 rounded-lg cursor-pointer hover:bg-red-900/30 border border-red-500/30 hover:border-red-500/50 transition-all group">
+                <label className="flex items-center justify-between p-4 bg-red-500/20 dark:bg-red-900/20 rounded-lg cursor-pointer hover:bg-red-500/30 dark:hover:bg-red-900/30 border border-red-500/50 dark:border-red-500/30 hover:border-red-500/70 dark:hover:border-red-500/50 transition-all group">
                   <div className="flex items-center gap-3">
                     <input
                       type="radio"
@@ -1668,11 +1668,11 @@ export default function UsersPage() {
                       onChange={() => setSuspendDays(0)}
                       className="text-red-500 w-4 h-4"
                     />
-                    <span className="text-red-300 font-medium">
+                    <span className="text-red-600 dark:text-red-300 font-medium">
                       Permanent Ban
                     </span>
                   </div>
-                  <span className="text-xs text-red-400/70 group-hover:text-red-400">
+                  <span className="text-xs text-red-600/70 dark:text-red-400/70 group-hover:text-red-600 dark:group-hover:text-red-400">
                     Cannot sign in
                   </span>
                 </label>
@@ -1680,25 +1680,25 @@ export default function UsersPage() {
 
               {/* Reason Field */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Reason <span className="text-red-400">*</span>
+                <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
+                  Reason <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   value={suspendReason}
                   onChange={(e) => setSuspendReason(e.target.value)}
                   placeholder="Enter reason for this moderation action..."
                   rows={3}
-                  className="w-full px-4 py-2 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none resize-none"
+                  className="w-full px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none resize-none"
                   required
                 />
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs text-[rgb(var(--text-secondary))] mt-1">
                   A reason is required for all moderation actions.
                 </p>
               </div>
 
               {/* Info Box */}
-              <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
-                <p className="text-sm text-blue-300">
+              <div className="bg-blue-500/20 dark:bg-blue-900/20 border border-blue-500/50 dark:border-blue-500/30 rounded-lg p-4">
+                <p className="text-sm text-blue-600 dark:text-blue-300">
                   {suspendDays === -1 ? (
                     <>
                       <strong>Restore to Active:</strong> User will be able to
@@ -1727,7 +1727,7 @@ export default function UsersPage() {
             </div>
 
             {/* Footer */}
-            <div className="p-6 border-t border-gray-700 flex gap-3">
+            <div className="p-6 border-t border-[rgb(var(--border-color))] flex gap-3">
               <button
                 onClick={() => {
                   setShowSuspendModal(false);
@@ -1735,7 +1735,7 @@ export default function UsersPage() {
                   setSuspendDays(7);
                   setSuspendReason("");
                 }}
-                className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium"
+                className="flex-1 px-4 py-2.5 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] rounded-lg transition-colors font-medium border border-[rgb(var(--border-color))]"
               >
                 Cancel
               </button>
@@ -1776,20 +1776,20 @@ export default function UsersPage() {
 
       {/* Restore Account Confirmation Modal */}
       {showRestoreModal && userToRestore && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 p-4">
-          <div className="bg-[#2d2d2d] rounded-lg max-w-md w-full border border-gray-700">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/75 p-4">
+          <div className="bg-[rgb(var(--bg-card))] rounded-lg max-w-md w-full border border-[rgb(var(--border-color))]">
             {/* Header */}
-            <div className="p-6 border-b border-gray-700">
+            <div className="p-6 border-b border-[rgb(var(--border-color))]">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-green-900/30 rounded-lg">
-                    <FaTrashRestore className="text-green-400" size={24} />
+                  <div className="p-2 bg-green-500/20 dark:bg-green-900/30 rounded-lg">
+                    <FaTrashRestore className="text-green-600 dark:text-green-400" size={24} />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-white">
+                    <h3 className="text-xl font-bold text-[rgb(var(--text-primary))]">
                       Restore Account
                     </h3>
-                    <p className="text-sm text-gray-400 mt-0.5">
+                    <p className="text-sm text-[rgb(var(--text-secondary))] mt-0.5">
                       Restore {userToRestore.archivedName || userToRestore.name}
                       &apos;s account
                     </p>
@@ -1800,7 +1800,7 @@ export default function UsersPage() {
                     setShowRestoreModal(false);
                     setUserToRestore(null);
                   }}
-                  className="text-gray-400 hover:text-white transition-colors"
+                  className="text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] transition-colors"
                 >
                   <FaTimes size={20} />
                 </button>
@@ -1821,15 +1821,15 @@ export default function UsersPage() {
 
                 if (beyondGracePeriod) {
                   return (
-                    <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-4">
-                      <p className="text-sm text-yellow-300">
+                    <div className="bg-yellow-500/20 dark:bg-yellow-900/20 border border-yellow-500/50 dark:border-yellow-500/30 rounded-lg p-4">
+                      <p className="text-sm text-yellow-700 dark:text-yellow-300">
                         <strong>⚠️ Developer Override Required</strong>
                       </p>
-                      <p className="text-sm text-yellow-200 mt-2">
+                      <p className="text-sm text-yellow-700/90 dark:text-yellow-200 mt-2">
                         This account was deleted {daysSinceDeletion} days ago
                         (beyond the 30-day grace period).
                       </p>
-                      <p className="text-sm text-yellow-200 mt-1">
+                      <p className="text-sm text-yellow-700/90 dark:text-yellow-200 mt-1">
                         Restoring this account requires developer override.
                       </p>
                     </div>
@@ -1837,12 +1837,12 @@ export default function UsersPage() {
                 }
 
                 return (
-                  <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
-                    <p className="text-sm text-blue-300">
+                  <div className="bg-blue-500/20 dark:bg-blue-900/20 border border-blue-500/50 dark:border-blue-500/30 rounded-lg p-4">
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
                       This will restore the account and allow the user to sign
                       in again.
                     </p>
-                    <p className="text-sm text-blue-200 mt-2">
+                    <p className="text-sm text-blue-700/90 dark:text-blue-200 mt-2">
                       All their corrections and audit logs will be restored with
                       their original name.
                     </p>
@@ -1852,13 +1852,13 @@ export default function UsersPage() {
             </div>
 
             {/* Footer */}
-            <div className="p-6 border-t border-gray-700 flex gap-3">
+            <div className="p-6 border-t border-[rgb(var(--border-color))] flex gap-3">
               <button
                 onClick={() => {
                   setShowRestoreModal(false);
                   setUserToRestore(null);
                 }}
-                className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium"
+                className="flex-1 px-4 py-2.5 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] rounded-lg transition-colors font-medium border border-[rgb(var(--border-color))]"
               >
                 Cancel
               </button>

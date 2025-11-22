@@ -48,10 +48,13 @@ export type CorrectionField =
   | "steamDBLink"
   | "purchaseLink"
   | "gogDreamlistLink"
+  | "downloadLink"
   | "additionalDRM"
   | "playabilityStatus"
   | "isUnplayable"
   | "communityAlternativeName"
+  | "communityAlternativeUrl"
+  | "communityAlternativeDownloadLink"
   | "remasteredName"
   | "remasteredPlatform";
 
@@ -225,6 +228,8 @@ export interface GameSubmission {
       | "remastered_available";
     isUnplayable?: boolean;
     communityAlternativeName?: string;
+    communityAlternativeUrl?: string;
+    communityAlternativeDownloadLink?: string;
     remasteredName?: string;
     remasteredPlatform?: string;
   };

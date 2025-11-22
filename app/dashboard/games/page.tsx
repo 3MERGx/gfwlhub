@@ -146,7 +146,7 @@ function GamesManagementPage() {
   if (loading || status === "loading") {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="text-center text-white">Loading...</div>
+        <div className="text-center text-[rgb(var(--text-primary))]">Loading...</div>
       </div>
     );
   }
@@ -163,20 +163,20 @@ function GamesManagementPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-7xl mx-auto">
-        <div className="bg-[#202020] rounded-lg shadow-xl p-6 md:p-8">
+        <div className="bg-[rgb(var(--bg-card))] rounded-lg shadow-xl p-6 md:p-8">
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-white mb-2">
+              <h1 className="text-3xl font-bold text-[rgb(var(--text-primary))] mb-2">
                 Games Management
               </h1>
-              <p className="text-gray-400">
+              <p className="text-[rgb(var(--text-secondary))]">
                 Enable or disable games for public visibility
               </p>
             </div>
             <Link
               href="/dashboard"
-              className="mt-4 md:mt-0 inline-flex items-center text-gray-300 hover:text-white transition-colors"
+              className="mt-4 md:mt-0 inline-flex items-center text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] transition-colors"
             >
               <FaArrowLeft className="mr-2" />
               Back to Dashboard
@@ -185,27 +185,27 @@ function GamesManagementPage() {
 
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-[#2d2d2d] rounded-lg p-4">
-              <div className="text-2xl font-bold text-white">{stats.total}</div>
-              <div className="text-sm text-gray-400">Total Games</div>
+            <div className="bg-[rgb(var(--bg-card))] rounded-lg p-4 border border-[rgb(var(--border-color))]">
+              <div className="text-2xl font-bold text-[rgb(var(--text-primary))]">{stats.total}</div>
+              <div className="text-sm text-[rgb(var(--text-secondary))]">Total Games</div>
             </div>
-            <div className="bg-[#2d2d2d] rounded-lg p-4">
-              <div className="text-2xl font-bold text-green-400">
+            <div className="bg-[rgb(var(--bg-card))] rounded-lg p-4 border border-[rgb(var(--border-color))]">
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                 {stats.enabled}
               </div>
-              <div className="text-sm text-gray-400">Enabled</div>
+              <div className="text-sm text-[rgb(var(--text-secondary))]">Enabled</div>
             </div>
-            <div className="bg-[#2d2d2d] rounded-lg p-4">
-              <div className="text-2xl font-bold text-red-400">
+            <div className="bg-[rgb(var(--bg-card))] rounded-lg p-4 border border-[rgb(var(--border-color))]">
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">
                 {stats.disabled}
               </div>
-              <div className="text-sm text-gray-400">Disabled</div>
+              <div className="text-sm text-[rgb(var(--text-secondary))]">Disabled</div>
             </div>
-            <div className="bg-[#2d2d2d] rounded-lg p-4">
-              <div className="text-2xl font-bold text-yellow-400">
+            <div className="bg-[rgb(var(--bg-card))] rounded-lg p-4 border border-[rgb(var(--border-color))]">
+              <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
                 {stats.withSubmissions}
               </div>
-              <div className="text-sm text-gray-400">With Submissions</div>
+              <div className="text-sm text-[rgb(var(--text-secondary))]">With Submissions</div>
             </div>
           </div>
 
@@ -213,13 +213,13 @@ function GamesManagementPage() {
           <div className="flex flex-col md:flex-row gap-4 mb-6">
             <div className="flex-1">
               <div className="relative">
-                <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[rgb(var(--text-secondary))]" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search games..."
-                  className="w-full bg-[#2d2d2d] text-white rounded-lg pl-12 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+                  className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg pl-12 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
                 />
               </div>
             </div>
@@ -232,7 +232,7 @@ function GamesManagementPage() {
                 className={`px-4 py-2 rounded-lg transition-colors ${
                   showEnabledOnly
                     ? "bg-green-600 text-white"
-                    : "bg-[#2d2d2d] text-gray-300 hover:bg-[#3d3d3d]"
+                    : "bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--bg-card))]"
                 }`}
               >
                 Enabled Only
@@ -245,7 +245,7 @@ function GamesManagementPage() {
                 className={`px-4 py-2 rounded-lg transition-colors ${
                   showDisabledOnly
                     ? "bg-red-600 text-white"
-                    : "bg-[#2d2d2d] text-gray-300 hover:bg-[#3d3d3d]"
+                    : "bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--bg-card))]"
                 }`}
               >
                 Disabled Only
@@ -255,7 +255,7 @@ function GamesManagementPage() {
 
           {/* Games List */}
           {filteredGames.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
+            <div className="text-center py-12 text-[rgb(var(--text-secondary))]">
               <p>No games found</p>
             </div>
           ) : (
@@ -264,21 +264,21 @@ function GamesManagementPage() {
                 {currentGames.map((game) => (
                   <div
                     key={game.slug}
-                    className="bg-[#2d2d2d] rounded-lg p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4 border border-gray-700"
+                    className="bg-[rgb(var(--bg-card))] rounded-lg p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4 border border-[rgb(var(--border-color))]"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 mb-2 flex-wrap">
                         {game.featureEnabled ? (
                           <Link
                             href={`/games/${game.slug}`}
-                            className="text-lg font-bold text-white hover:text-[#107c10] transition-colors break-words"
+                            className="text-lg font-bold text-[rgb(var(--text-primary))] hover:text-[#107c10] transition-colors break-words"
                           >
                             {game.title}
                           </Link>
                         ) : (
                           <button
                             onClick={() => setSelectedDisabledGame(game)}
-                            className="text-lg font-bold text-white hover:text-[#107c10] transition-colors break-words text-left"
+                            className="text-lg font-bold text-[rgb(var(--text-primary))] hover:text-[#107c10] transition-colors break-words text-left"
                           >
                             {game.title}
                           </button>
@@ -286,28 +286,28 @@ function GamesManagementPage() {
                         <span
                           className={`px-2 py-1 rounded text-xs font-medium flex-shrink-0 ${
                             game.featureEnabled
-                              ? "bg-green-900/30 text-green-400"
-                              : "bg-red-900/30 text-red-400"
+                              ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border border-green-300 dark:border-transparent"
+                              : "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400 border border-red-300 dark:border-transparent"
                           }`}
                         >
                           {game.featureEnabled ? "Enabled" : "Disabled"}
                         </span>
                         {!hasMinimumFields(game) && !game.featureEnabled && (
-                          <span className="px-2 py-1 rounded text-xs font-medium bg-gray-700 text-gray-300 flex-shrink-0">
+                          <span className="px-2 py-1 rounded text-xs font-medium bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] flex-shrink-0">
                             Missing Info
                           </span>
                         )}
                         {(game.submissionCount ?? 0) > 0 && (
                           <Link
                             href={`/dashboard/game-submissions?game=${game.slug}`}
-                            className="px-2 py-1 rounded text-xs font-medium bg-yellow-900/30 text-yellow-400 hover:bg-yellow-800/40 transition-colors flex-shrink-0"
+                            className="px-2 py-1 rounded text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400 border border-yellow-300 dark:border-transparent hover:bg-yellow-200 dark:hover:bg-yellow-800/40 transition-colors flex-shrink-0"
                           >
                             {game.submissionCount} Submission
                             {game.submissionCount !== 1 ? "s" : ""}
                           </Link>
                         )}
                       </div>
-                      <div className="text-xs sm:text-sm text-gray-400 space-x-2 sm:space-x-4 flex flex-wrap">
+                      <div className="text-xs sm:text-sm text-[rgb(var(--text-secondary))] space-x-2 sm:space-x-4 flex flex-wrap">
                         <span>Slug: {game.slug}</span>
                         <span>Type: {game.activationType}</span>
                         <span>
@@ -351,7 +351,7 @@ function GamesManagementPage() {
               {/* Pagination */}
               {totalPages > 1 && (
                 <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="text-sm text-gray-400">
+                  <div className="text-sm text-[rgb(var(--text-secondary))]">
                     Showing {indexOfFirstGame + 1} to{" "}
                     {Math.min(indexOfLastGame, filteredGames.length)} of{" "}
                     {filteredGames.length} games
@@ -362,7 +362,7 @@ function GamesManagementPage() {
                         setCurrentPage((prev) => Math.max(1, prev - 1))
                       }
                       disabled={currentPage === 1}
-                      className="p-2 rounded-lg bg-[#2d2d2d] text-white hover:bg-[#3d3d3d] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="p-2 rounded-lg bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--bg-card))] disabled:opacity-50 disabled:cursor-not-allowed transition-colors border border-[rgb(var(--border-color))]"
                       aria-label="Previous page"
                     >
                       <FaChevronLeft />
@@ -388,7 +388,7 @@ function GamesManagementPage() {
                               className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
                                 currentPage === pageNum
                                   ? "bg-[#107c10] text-white"
-                                  : "bg-[#2d2d2d] text-gray-300 hover:bg-[#3d3d3d]"
+                                  : "bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--bg-card))]"
                               }`}
                             >
                               {pageNum}
@@ -402,7 +402,7 @@ function GamesManagementPage() {
                         setCurrentPage((prev) => Math.min(totalPages, prev + 1))
                       }
                       disabled={currentPage === totalPages}
-                      className="p-2 rounded-lg bg-[#2d2d2d] text-white hover:bg-[#3d3d3d] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="p-2 rounded-lg bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--bg-card))] disabled:opacity-50 disabled:cursor-not-allowed transition-colors border border-[rgb(var(--border-color))]"
                       aria-label="Next page"
                     >
                       <FaChevronRight />

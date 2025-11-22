@@ -143,7 +143,7 @@ export default function AuditPage() {
       case "reviewer":
         return <FaUserCheck className="text-blue-500" size={14} />;
       default:
-        return <FaUser className="text-gray-500" size={14} />;
+        return <FaUser className="text-[rgb(var(--text-muted))]" size={14} />;
     }
   };
 
@@ -194,26 +194,26 @@ export default function AuditPage() {
             >
               ← Back to Dashboard
             </Link>
-            <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
+            <h1 className="text-2xl md:text-3xl font-bold text-[rgb(var(--text-primary))] mb-2">
               Audit Log
             </h1>
-            <p className="text-gray-400 text-sm md:text-base">
+            <p className="text-[rgb(var(--text-secondary))] text-sm md:text-base">
               Complete history of all changes made to game information
             </p>
           </div>
 
           {/* Search and Controls */}
-          <div className="bg-[#2d2d2d] rounded-lg p-4 mb-6">
+          <div className="bg-[rgb(var(--bg-card))] rounded-lg p-4 mb-6">
             {/* Search Bar and Clear Filters - Large Screens */}
             <div className="hidden lg:flex gap-3 mb-4">
               <div className="relative flex-1">
-                <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" />
+                <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[rgb(var(--text-muted))]" />
                 <input
                   type="text"
                   placeholder="Search by game, user, or field..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                  className="w-full pl-10 pr-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                 />
               </div>
               <button
@@ -222,7 +222,7 @@ export default function AuditPage() {
                   setRoleFilter("all");
                   setFieldFilter("all");
                 }}
-                className="px-4 py-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 hover:border-[#107c10] transition-colors whitespace-nowrap"
+                className="px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10] transition-colors whitespace-nowrap"
               >
                 Clear Filters
               </button>
@@ -230,20 +230,20 @@ export default function AuditPage() {
 
             {/* Search Bar - Mobile/Tablet */}
             <div className="lg:hidden relative mb-4">
-              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" />
+              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[rgb(var(--text-muted))]" />
               <input
                 type="text"
                 placeholder="Search by game, user, or field..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                className="w-full pl-10 pr-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
               />
             </div>
 
             {/* Filter Toggle (Mobile) */}
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="md:hidden w-full flex items-center justify-center gap-2 bg-[#1a1a1a] text-white py-2 rounded-lg border border-gray-700 mb-4"
+              className="md:hidden w-full flex items-center justify-center gap-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] py-2 rounded-lg border border-[rgb(var(--border-color))] mb-4"
             >
               <FaFilter size={14} />
               <span>Filters & Sort</span>
@@ -256,7 +256,7 @@ export default function AuditPage() {
                 <select
                   value={roleFilter}
                   onChange={(e) => setRoleFilter(e.target.value)}
-                  className="px-4 py-2 pr-10 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                  className="px-4 py-2 pr-10 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                   style={{ paddingRight: "2.75rem" }}
                 >
                   <option value="all">All Roles</option>
@@ -268,7 +268,7 @@ export default function AuditPage() {
                 <select
                   value={fieldFilter}
                   onChange={(e) => setFieldFilter(e.target.value)}
-                  className="px-4 py-2 pr-10 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                  className="px-4 py-2 pr-10 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                   style={{ paddingRight: "2.75rem" }}
                 >
                   <option value="all">All Fields</option>
@@ -285,7 +285,7 @@ export default function AuditPage() {
                   onClick={() =>
                     setSortOrder(sortOrder === "asc" ? "desc" : "asc")
                   }
-                  className="ml-auto px-4 py-2 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 hover:border-[#107c10] transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
+                  className="ml-auto px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10] transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
                 >
                   {sortOrder === "desc" ? (
                     <>
@@ -307,7 +307,7 @@ export default function AuditPage() {
                   <select
                     value={roleFilter}
                     onChange={(e) => setRoleFilter(e.target.value)}
-                    className="w-full px-4 py-2 pr-10 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                    className="w-full px-4 py-2 pr-10 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                     style={{ paddingRight: "2.75rem" }}
                   >
                     <option value="all">All Roles</option>
@@ -319,7 +319,7 @@ export default function AuditPage() {
                   <select
                     value={fieldFilter}
                     onChange={(e) => setFieldFilter(e.target.value)}
-                    className="w-full px-4 py-2 pr-10 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                    className="w-full px-4 py-2 pr-10 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                     style={{ paddingRight: "2.75rem" }}
                   >
                     <option value="all">All Fields</option>
@@ -338,7 +338,7 @@ export default function AuditPage() {
                     onClick={() =>
                       setSortOrder(sortOrder === "asc" ? "desc" : "asc")
                     }
-                    className="w-full sm:flex-1 px-4 py-2 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 hover:border-[#107c10] transition-colors flex items-center justify-center gap-2"
+                    className="w-full sm:flex-1 px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10] transition-colors flex items-center justify-center gap-2"
                   >
                     {sortOrder === "desc" ? (
                       <>
@@ -358,7 +358,7 @@ export default function AuditPage() {
                       setRoleFilter("all");
                       setFieldFilter("all");
                     }}
-                    className="w-full sm:flex-1 px-4 py-2 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 hover:border-[#107c10] transition-colors"
+                    className="w-full sm:flex-1 px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10] transition-colors"
                   >
                     Clear Filters
                   </button>
@@ -368,7 +368,7 @@ export default function AuditPage() {
           </div>
 
           {/* Results Count */}
-          <div className="text-gray-400 text-sm mb-4">
+          <div className="text-[rgb(var(--text-secondary))] text-sm mb-4">
             Showing {startIndex + 1}-{Math.min(endIndex, filteredLogs.length)}{" "}
             of {filteredLogs.length} changes
             {filteredLogs.length !== logs.length &&
@@ -376,19 +376,19 @@ export default function AuditPage() {
           </div>
 
           {/* Audit Log Table - Desktop */}
-          <div className="hidden lg:block bg-[#2d2d2d] rounded-lg border border-gray-700 overflow-hidden">
+          <div className="hidden lg:block bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] overflow-hidden">
             {paginatedLogs.length === 0 ? (
               <div className="p-8 text-center">
-                <FaHistory className="mx-auto text-gray-600 mb-4" size={48} />
-                <p className="text-gray-400">No audit logs found</p>
+                <FaHistory className="mx-auto text-[rgb(var(--text-muted))] mb-4" size={48} />
+                <p className="text-[rgb(var(--text-secondary))]">No audit logs found</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gradient-to-r from-[#1a1a1a] to-[#151515] text-gray-300 text-xs uppercase">
+                  <thead className="bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] text-xs uppercase">
                     <tr>
                       <th
-                        className="px-4 py-3 text-left cursor-pointer hover:bg-[#252525] transition-colors select-none"
+                        className="px-4 py-3 text-left cursor-pointer hover:bg-[rgb(var(--bg-card))] transition-colors select-none"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (sortBy === "game") {
@@ -413,7 +413,7 @@ export default function AuditPage() {
                         </div>
                       </th>
                       <th
-                        className="px-4 py-3 text-left cursor-pointer hover:bg-[#252525] transition-colors select-none"
+                        className="px-4 py-3 text-left cursor-pointer hover:bg-[rgb(var(--bg-card))] transition-colors select-none"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (sortBy === "field") {
@@ -439,7 +439,7 @@ export default function AuditPage() {
                       </th>
                       <th className="px-4 py-3 text-left">Change</th>
                       <th
-                        className="px-4 py-3 text-left cursor-pointer hover:bg-[#252525] transition-colors select-none"
+                        className="px-4 py-3 text-left cursor-pointer hover:bg-[rgb(var(--bg-card))] transition-colors select-none"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (sortBy === "submittedBy") {
@@ -464,7 +464,7 @@ export default function AuditPage() {
                         </div>
                       </th>
                       <th
-                        className="px-4 py-3 text-left cursor-pointer hover:bg-[#252525] transition-colors select-none"
+                        className="px-4 py-3 text-left cursor-pointer hover:bg-[rgb(var(--bg-card))] transition-colors select-none"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (sortBy === "approvedBy") {
@@ -489,7 +489,7 @@ export default function AuditPage() {
                         </div>
                       </th>
                       <th
-                        className="px-4 py-3 text-left cursor-pointer hover:bg-[#252525] transition-colors select-none"
+                        className="px-4 py-3 text-left cursor-pointer hover:bg-[rgb(var(--bg-card))] transition-colors select-none"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (sortBy === "date") {
@@ -520,7 +520,7 @@ export default function AuditPage() {
                     {paginatedLogs.map((log) => (
                       <tr
                         key={log.id}
-                        className="hover:bg-[#252525] transition-colors"
+                        className="hover:bg-[rgb(var(--bg-card-alt))] transition-colors"
                       >
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
@@ -528,42 +528,42 @@ export default function AuditPage() {
                               className="text-[#107c10] flex-shrink-0"
                               size={12}
                             />
-                            <span className="text-white text-sm truncate max-w-[150px]">
+                            <span className="text-[rgb(var(--text-primary))] text-sm truncate max-w-[150px]">
                               {log.gameTitle}
                             </span>
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="px-2 py-1 rounded text-xs bg-blue-900/30 text-blue-400 border border-blue-500/30">
+                          <span className="px-2 py-1 rounded text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30">
                             {getFieldDisplayName(log.field)}
                           </span>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5 text-xs">
-                            <span className="text-gray-500 truncate max-w-[100px]">
+                            <span className="text-[rgb(var(--text-muted))] truncate max-w-[100px]">
                               {formatValue(log.oldValue)}
                             </span>
-                            <span className="text-gray-600">→</span>
+                            <span className="text-[rgb(var(--text-muted))]">→</span>
                             <span className="text-[#107c10] truncate max-w-[100px]">
                               {formatValue(log.newValue)}
                             </span>
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-gray-300 text-sm">
+                          <span className="text-[rgb(var(--text-secondary))] text-sm">
                             {log.submittedByName || "—"}
                           </span>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             {getRoleIcon(log.changedByRole)}
-                            <span className="text-white text-sm">
+                            <span className="text-[rgb(var(--text-primary))] text-sm">
                               {log.changedByName}
                             </span>
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-gray-400 text-xs whitespace-nowrap">
+                          <span className="text-[rgb(var(--text-secondary))] text-xs whitespace-nowrap">
                             {formatDate(log.changedAt)}
                           </span>
                         </td>
@@ -586,9 +586,9 @@ export default function AuditPage() {
           {/* Audit Log List - Mobile/Tablet */}
           <div className="lg:hidden space-y-3 mb-6">
             {paginatedLogs.length === 0 ? (
-              <div className="bg-[#2d2d2d] rounded-lg p-8 text-center">
-                <FaHistory className="mx-auto text-gray-600 mb-4" size={48} />
-                <p className="text-gray-400">No audit logs found</p>
+              <div className="bg-[rgb(var(--bg-card))] rounded-lg p-8 text-center">
+                <FaHistory className="mx-auto text-[rgb(var(--text-muted))] mb-4" size={48} />
+                <p className="text-[rgb(var(--text-secondary))]">No audit logs found</p>
               </div>
             ) : (
               paginatedLogs.map((log) => (
@@ -606,7 +606,7 @@ export default function AuditPage() {
           {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
-              <div className="text-sm text-gray-400">
+              <div className="text-sm text-[rgb(var(--text-secondary))]">
                 Page {currentPage} of {totalPages}
               </div>
               <div className="flex items-center gap-2">
@@ -615,7 +615,7 @@ export default function AuditPage() {
                     setCurrentPage((prev) => Math.max(1, prev - 1))
                   }
                   disabled={currentPage === 1}
-                  className="px-4 py-2 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 hover:border-[#107c10] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Previous
                 </button>
@@ -638,7 +638,7 @@ export default function AuditPage() {
                         className={`px-3 py-2 rounded-lg border transition-colors ${
                           currentPage === pageNum
                             ? "bg-[#107c10] text-white border-[#107c10]"
-                            : "bg-[#1a1a1a] text-white border-gray-700 hover:border-[#107c10]"
+                            : "bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] border-[rgb(var(--border-color))] hover:border-[#107c10]"
                         }`}
                       >
                         {pageNum}
@@ -651,7 +651,7 @@ export default function AuditPage() {
                     setCurrentPage((prev) => Math.min(totalPages, prev + 1))
                   }
                   disabled={currentPage === totalPages}
-                  className="px-4 py-2 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 hover:border-[#107c10] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next
                 </button>
@@ -710,35 +710,35 @@ function AuditLogCard({
   };
 
   return (
-    <div className="bg-[#2d2d2d] rounded border border-gray-700 hover:border-gray-600 transition-colors">
+    <div className="bg-[rgb(var(--bg-card))] rounded border border-[rgb(var(--border-color))] hover:border-[rgb(var(--border-hover))] transition-colors">
       <div className="p-2.5 sm:p-3">
         {/* Ultra-compact single line layout */}
         <div className="flex items-center gap-2 text-xs">
           {/* Game + Field */}
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
             <FaGamepad className="text-[#107c10] flex-shrink-0" size={12} />
-            <span className="text-white font-medium truncate">
+            <span className="text-[rgb(var(--text-primary))] font-medium truncate">
               {log.gameTitle}
             </span>
-            <span className="text-gray-600 hidden sm:inline">·</span>
-            <span className="text-blue-400 truncate hidden sm:inline">
+            <span className="text-[rgb(var(--text-muted))] hidden sm:inline">·</span>
+            <span className="text-blue-600 dark:text-blue-500 truncate hidden sm:inline">
               {getFieldDisplayName(log.field)}
             </span>
           </div>
 
           {/* Value change - desktop */}
           <div className="hidden md:flex items-center gap-1.5 text-xs min-w-0 flex-shrink">
-            <span className="text-gray-500 truncate max-w-[120px]">
+            <span className="text-[rgb(var(--text-muted))] truncate max-w-[120px]">
               {formatValue(log.oldValue)}
             </span>
-            <span className="text-gray-600">→</span>
+            <span className="text-[rgb(var(--text-muted))]">→</span>
             <span className="text-[#107c10] truncate max-w-[120px]">
               {formatValue(log.newValue)}
             </span>
           </div>
 
           {/* User + Time */}
-          <div className="flex items-center gap-1.5 text-gray-500 whitespace-nowrap text-xs">
+          <div className="flex items-center gap-1.5 text-[rgb(var(--text-muted))] whitespace-nowrap text-xs">
             {log.submittedByName && (
               <>
                 <span
@@ -773,19 +773,19 @@ function AuditLogCard({
         {/* Mobile: Field and value change */}
         <div className="sm:hidden mt-1.5 space-y-1">
           <div className="flex items-center gap-1.5 text-xs">
-            <span className="text-blue-400">
+            <span className="text-blue-600 dark:text-blue-400">
               {getFieldDisplayName(log.field)}:
             </span>
-            <span className="text-gray-500 truncate">
+            <span className="text-[rgb(var(--text-muted))] truncate">
               {formatValue(log.oldValue)}
             </span>
-            <span className="text-gray-600">→</span>
+            <span className="text-[rgb(var(--text-muted))]">→</span>
             <span className="text-[#107c10] truncate">
               {formatValue(log.newValue)}
             </span>
           </div>
           {log.submittedByName && (
-            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+            <div className="flex items-center gap-1.5 text-xs text-[rgb(var(--text-muted))]">
               <span>{log.submittedByName}</span>
               <span>→</span>
               {getRoleIcon(log.changedByRole)}
@@ -820,24 +820,24 @@ function AuditDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/75 p-4"
       onClick={onClose}
     >
       <div
-        className="bg-[#2d2d2d] rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-[rgb(var(--bg-card))] rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-[#2d2d2d] border-b border-gray-700 p-6 flex items-start justify-between">
+        <div className="sticky top-0 bg-[rgb(var(--bg-card))] border-b border-[rgb(var(--border-color))] p-6 flex items-start justify-between">
           <div>
-            <h2 className="text-xl font-bold text-white mb-1">
+            <h2 className="text-xl font-bold text-[rgb(var(--text-primary))] mb-1">
               Change Details
             </h2>
-            <p className="text-gray-400 text-sm">{log.gameTitle}</p>
+            <p className="text-[rgb(var(--text-secondary))] text-sm">{log.gameTitle}</p>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white text-2xl"
+            className="text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] text-2xl"
           >
             ×
           </button>
@@ -847,17 +847,17 @@ function AuditDetailModal({
         <div className="p-6 space-y-6">
           {/* Field Changed */}
           <div>
-            <h3 className="text-sm text-gray-500 mb-2">Field Changed</h3>
-            <div className="bg-[#1a1a1a] rounded-lg p-3">
-              <p className="text-white">{getFieldDisplayName(log.field)}</p>
+            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">Field Changed</h3>
+            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3">
+              <p className="text-[rgb(var(--text-primary))]">{getFieldDisplayName(log.field)}</p>
             </div>
           </div>
 
           {/* Old Value */}
           <div>
-            <h3 className="text-sm text-gray-500 mb-2">Previous Value</h3>
-            <div className="bg-[#1a1a1a] rounded-lg p-3">
-              <pre className="text-gray-400 text-sm whitespace-pre-wrap break-all">
+            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">Previous Value</h3>
+            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3">
+              <pre className="text-[rgb(var(--text-secondary))] text-sm whitespace-pre-wrap break-all">
                 {formatValue(log.oldValue)}
               </pre>
             </div>
@@ -865,8 +865,8 @@ function AuditDetailModal({
 
           {/* New Value */}
           <div>
-            <h3 className="text-sm text-gray-500 mb-2">New Value</h3>
-            <div className="bg-[#1a1a1a] rounded-lg p-3 border-l-4 border-[#107c10]">
+            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">New Value</h3>
+            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3 border-l-4 border-[#107c10]">
               <pre className="text-[#107c10] text-sm whitespace-pre-wrap break-all">
                 {formatValue(log.newValue)}
               </pre>
@@ -876,20 +876,20 @@ function AuditDetailModal({
           {/* Submitter */}
           {log.submittedByName && (
             <div>
-              <h3 className="text-sm text-gray-500 mb-2">Submitted By</h3>
-              <div className="bg-[#1a1a1a] rounded-lg p-3">
-                <span className="text-white">{log.submittedByName}</span>
+              <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">Submitted By</h3>
+              <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3">
+                <span className="text-[rgb(var(--text-primary))]">{log.submittedByName}</span>
               </div>
             </div>
           )}
 
           {/* Approved/Reviewed By */}
           <div>
-            <h3 className="text-sm text-gray-500 mb-2">Approved By</h3>
-            <div className="bg-[#1a1a1a] rounded-lg p-3 flex items-center gap-2">
+            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">Approved By</h3>
+            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3 flex items-center gap-2">
               {getRoleIcon(log.changedByRole)}
-              <span className="text-white">{log.changedByName}</span>
-              <span className="text-gray-500 text-sm">
+              <span className="text-[rgb(var(--text-primary))]">{log.changedByName}</span>
+              <span className="text-[rgb(var(--text-muted))] text-sm">
                 ({log.changedByRole})
               </span>
             </div>
@@ -897,9 +897,9 @@ function AuditDetailModal({
 
           {/* Date */}
           <div>
-            <h3 className="text-sm text-gray-500 mb-2">Changed At</h3>
-            <div className="bg-[#1a1a1a] rounded-lg p-3">
-              <p className="text-white">
+            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">Changed At</h3>
+            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3">
+              <p className="text-[rgb(var(--text-primary))]">
                 {new Date(log.changedAt).toLocaleString()}
               </p>
             </div>
@@ -908,9 +908,9 @@ function AuditDetailModal({
           {/* Notes */}
           {log.notes && (
             <div>
-              <h3 className="text-sm text-gray-500 mb-2">Notes</h3>
-              <div className="bg-[#1a1a1a] rounded-lg p-3">
-                <p className="text-gray-400 text-sm">{log.notes}</p>
+              <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">Notes</h3>
+              <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3">
+                <p className="text-[rgb(var(--text-secondary))] text-sm">{log.notes}</p>
               </div>
             </div>
           )}
@@ -918,9 +918,9 @@ function AuditDetailModal({
           {/* Correction ID */}
           {log.correctionId && (
             <div>
-              <h3 className="text-sm text-gray-500 mb-2">Correction ID</h3>
-              <div className="bg-[#1a1a1a] rounded-lg p-3">
-                <code className="text-gray-400 text-sm">
+              <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">Correction ID</h3>
+              <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3">
+                <code className="text-[rgb(var(--text-secondary))] text-sm">
                   {log.correctionId}
                 </code>
               </div>
@@ -929,7 +929,7 @@ function AuditDetailModal({
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-[#2d2d2d] border-t border-gray-700 p-6">
+        <div className="sticky bottom-0 bg-[rgb(var(--bg-card))] border-t border-[rgb(var(--border-color))] p-6">
           <button
             onClick={onClose}
             className="w-full px-4 py-2 bg-[#107c10] hover:bg-[#0d6b0d] text-white rounded-lg transition-colors"

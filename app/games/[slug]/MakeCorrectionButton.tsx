@@ -17,12 +17,11 @@ export default function MakeCorrectionButton({
 }: MakeCorrectionButtonProps) {
   const { data: session, status } = useSession();
   const [showModal, setShowModal] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
   const { showToast } = useToast();
 
   const handleSubmitSuccess = () => {
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 5000);
+    showToast("Correction submitted successfully! It will be reviewed shortly.", 5000, "success");
+    setShowModal(false);
   };
 
   const handleButtonClick = () => {
@@ -107,14 +106,6 @@ export default function MakeCorrectionButton({
 
   return (
     <>
-      {showSuccess && (
-        <div className="mb-4 bg-green-900/30 border border-green-500/30 rounded-lg p-3 animate-fade-in">
-          <p className="text-green-400 text-sm">
-            ✓ Correction submitted successfully! It will be reviewed shortly.
-          </p>
-        </div>
-      )}
-
       <button
         onClick={handleButtonClick}
         className="inline-flex items-center gap-2 bg-[#107c10] hover:bg-[#0d6b0d] text-white font-semibold py-2 px-4 rounded-lg transition-colors shadow-md focus:outline-none focus:ring-2 focus:ring-[#107c10] focus:ring-opacity-75"

@@ -17,6 +17,7 @@ import {
   FaExternalLinkAlt,
   FaChartLine,
   FaHistory,
+  FaEye,
 } from "react-icons/fa";
 import Tooltip from "@/components/ui/tooltip";
 
@@ -34,6 +35,10 @@ interface User {
   createdAt: Date;
   deletedAt?: Date;
   lastLoginAt?: Date;
+  settings?: {
+    publicProfile?: boolean;
+    showStatistics?: boolean;
+  };
 }
 
 interface Correction {
@@ -111,9 +116,11 @@ export default function ProfilePage({
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-[#2d2d2d] rounded-lg p-8 text-center">
+          <div className="bg-[rgb(var(--bg-card))] rounded-lg p-8 text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#107c10] mx-auto"></div>
-            <p className="text-gray-400 mt-4">Loading profile...</p>
+            <p className="text-[rgb(var(--text-secondary))] mt-4">
+              Loading profile...
+            </p>
           </div>
         </div>
       </div>
@@ -125,18 +132,18 @@ export default function ProfilePage({
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-[#2d2d2d] rounded-lg p-12 text-center border-2 border-red-900/30">
+          <div className="bg-[rgb(var(--bg-card))] rounded-lg p-12 text-center border-2 border-red-900/30">
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-900/20 mb-6">
               <FaUser size={36} className="text-red-400" />
             </div>
-            <h1 className="text-3xl font-bold text-white mb-3">
+            <h1 className="text-3xl font-bold text-[rgb(var(--text-primary))] mb-3">
               Account Deleted
             </h1>
-            <p className="text-gray-400 text-lg mb-2">
+            <p className="text-[rgb(var(--text-secondary))] text-lg mb-2">
               This user has deleted their account.
             </p>
             {profileUser.deletedAt && (
-              <p className="text-gray-500 text-sm">
+              <p className="text-[rgb(var(--text-muted))] text-sm">
                 Deleted on{" "}
                 {new Date(profileUser.deletedAt).toLocaleDateString("en-US", {
                   year: "numeric",
@@ -161,8 +168,10 @@ export default function ProfilePage({
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-[#2d2d2d] rounded-lg p-8 text-center">
-            <p className="text-gray-400">Please sign in to view profiles.</p>
+          <div className="bg-[rgb(var(--bg-card))] rounded-lg p-8 text-center">
+            <p className="text-[rgb(var(--text-secondary))]">
+              Please sign in to view profiles.
+            </p>
             <Link
               href="/auth/signin"
               className="mt-4 inline-block px-4 py-2 bg-[#107c10] text-white rounded-lg hover:bg-[#0d6b0d] transition-colors"
@@ -179,8 +188,8 @@ export default function ProfilePage({
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-[#2d2d2d] rounded-lg p-8 text-center">
-            <p className="text-gray-400">User not found.</p>
+          <div className="bg-[rgb(var(--bg-card))] rounded-lg p-8 text-center">
+            <p className="text-[rgb(var(--text-secondary))]">User not found.</p>
             <Link
               href="/"
               className="mt-4 inline-block px-4 py-2 bg-[#107c10] text-white rounded-lg hover:bg-[#0d6b0d] transition-colors"
@@ -224,7 +233,7 @@ export default function ProfilePage({
       default:
         return (
           <Tooltip text={roleName}>
-            <FaUser className="text-gray-500" size={20} />
+            <FaUser className="text-[rgb(var(--text-muted))]" size={20} />
           </Tooltip>
         );
     }
@@ -249,7 +258,7 @@ export default function ProfilePage({
       case "modified":
         return "bg-blue-500/20 text-blue-400 border-blue-500/30";
       default:
-        return "bg-gray-500/20 text-gray-400 border-gray-500/30";
+        return "bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] border-[rgb(var(--border-color))]";
     }
   };
 
@@ -341,10 +350,10 @@ export default function ProfilePage({
             >
               ← Back to Home
             </Link>
-            <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
+            <h1 className="text-2xl md:text-3xl font-bold text-[rgb(var(--text-primary))] mb-2">
               {isOwnProfile ? "My Profile" : "User Profile"}
             </h1>
-            <p className="text-gray-400 text-sm md:text-base">
+            <p className="text-[rgb(var(--text-secondary))] text-sm md:text-base">
               {isOwnProfile
                 ? "View and manage your account information"
                 : "View user profile and contributions"}
@@ -353,9 +362,9 @@ export default function ProfilePage({
         </div>
 
         {/* Profile Card */}
-        <div className="bg-[#2d2d2d] rounded-lg p-6 md:p-8 border border-gray-700 mb-6 shadow-lg">
+        <div className="bg-[rgb(var(--bg-card))] rounded-lg p-6 md:p-8 border border-[rgb(var(--border-color))] mb-6 shadow-lg">
           {/* Avatar and Basic Info */}
-          <div className="flex flex-col md:flex-row items-center md:items-start gap-6 mb-8 pb-8 border-b border-gray-700">
+          <div className="flex flex-col md:flex-row items-center md:items-start gap-6 mb-8 pb-8 border-b border-[rgb(var(--border-color))]">
             {profileUser.avatar ? (
               <Image
                 src={profileUser.avatar}
@@ -372,7 +381,7 @@ export default function ProfilePage({
             )}
 
             <div className="flex-1 text-center md:text-left">
-              <h2 className="text-2xl md:text-3xl font-bold text-white mb-3 flex items-center gap-3 justify-center md:justify-start">
+              <h2 className="text-2xl md:text-3xl font-bold text-[rgb(var(--text-primary))] mb-3 flex items-center gap-3 justify-center md:justify-start">
                 {profileUser.name}
                 {getRoleIcon()}
               </h2>
@@ -408,11 +417,11 @@ export default function ProfilePage({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {/* Member Since */}
             <div className="space-y-2">
-              <label className="text-sm text-gray-500 flex items-center gap-2">
+              <label className="text-sm text-[rgb(var(--text-muted))] flex items-center gap-2">
                 <FaCalendar size={14} />
                 Member Since
               </label>
-              <p className="text-white font-medium">
+              <p className="text-[rgb(var(--text-primary))] font-medium">
                 {formatDate(profileUser.createdAt)}
               </p>
             </div>
@@ -420,11 +429,11 @@ export default function ProfilePage({
             {/* Last Login */}
             {profileUser.lastLoginAt && (
               <div className="space-y-2">
-                <label className="text-sm text-gray-500 flex items-center gap-2">
+                <label className="text-sm text-[rgb(var(--text-muted))] flex items-center gap-2">
                   <FaHistory size={14} />
                   Last Login
                 </label>
-                <p className="text-white font-medium">
+                <p className="text-[rgb(var(--text-primary))] font-medium">
                   {formatDate(profileUser.lastLoginAt)}
                 </p>
               </div>
@@ -433,46 +442,63 @@ export default function ProfilePage({
         </div>
 
         {/* Statistics Card */}
-        <div className="bg-[#2d2d2d] rounded-lg p-6 md:p-8 border border-gray-700 mb-6 shadow-lg">
-          <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-6">
+        <div className="bg-[rgb(var(--bg-card))] rounded-lg p-6 md:p-8 border border-[rgb(var(--border-color))] mb-6 shadow-lg">
+          <h3 className="text-xl font-bold text-[rgb(var(--text-primary))] flex items-center gap-2 mb-6">
             <FaChartLine className="text-[#107c10]" />
             Contribution Statistics
           </h3>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-gradient-to-br from-[#1a1a1a] to-[#151515] p-4 rounded-lg border border-gray-700">
-              <p className="text-gray-400 text-xs mb-1">Total</p>
-              <p className="text-2xl font-bold text-white">
+            <div className="bg-[rgb(var(--bg-card-alt))] p-4 rounded-lg border border-[rgb(var(--border-color))]">
+              <p className="text-[rgb(var(--text-secondary))] text-xs mb-1">
+                Total
+              </p>
+              <p className="text-2xl font-bold text-[rgb(var(--text-primary))]">
                 {profileUser.submissionsCount}
               </p>
             </div>
 
-            <div className="bg-gradient-to-br from-green-500/10 to-green-600/5 p-4 rounded-lg border border-green-500/20">
+            <div className="bg-green-50 dark:bg-green-500/10 p-4 rounded-lg border border-green-200 dark:border-green-500/20">
               <div className="flex items-center gap-2 mb-1">
-                <FaCheckCircle className="text-green-500" size={14} />
-                <p className="text-gray-400 text-xs">Approved</p>
+                <FaCheckCircle
+                  className="text-green-600 dark:text-green-500"
+                  size={14}
+                />
+                <p className="text-green-700 dark:text-[rgb(var(--text-secondary))] text-xs">
+                  Approved
+                </p>
               </div>
-              <p className="text-2xl font-bold text-green-500">
+              <p className="text-2xl font-bold text-green-600 dark:text-green-500">
                 {profileUser.approvedCount}
               </p>
             </div>
 
-            <div className="bg-gradient-to-br from-red-500/10 to-red-600/5 p-4 rounded-lg border border-red-500/20">
+            <div className="bg-red-50 dark:bg-red-500/10 p-4 rounded-lg border border-red-200 dark:border-red-500/20">
               <div className="flex items-center gap-2 mb-1">
-                <FaTimesCircle className="text-red-500" size={14} />
-                <p className="text-gray-400 text-xs">Rejected</p>
+                <FaTimesCircle
+                  className="text-red-600 dark:text-red-500"
+                  size={14}
+                />
+                <p className="text-red-700 dark:text-[rgb(var(--text-secondary))] text-xs">
+                  Rejected
+                </p>
               </div>
-              <p className="text-2xl font-bold text-red-500">
+              <p className="text-2xl font-bold text-red-600 dark:text-red-500">
                 {profileUser.rejectedCount}
               </p>
             </div>
 
-            <div className="bg-gradient-to-br from-yellow-500/10 to-yellow-600/5 p-4 rounded-lg border border-yellow-500/20">
+            <div className="bg-yellow-50 dark:bg-yellow-500/10 p-4 rounded-lg border border-yellow-200 dark:border-yellow-500/20">
               <div className="flex items-center gap-2 mb-1">
-                <FaClock className="text-yellow-500" size={14} />
-                <p className="text-gray-400 text-xs">Pending</p>
+                <FaClock
+                  className="text-yellow-600 dark:text-yellow-500"
+                  size={14}
+                />
+                <p className="text-yellow-700 dark:text-[rgb(var(--text-secondary))] text-xs">
+                  Pending
+                </p>
               </div>
-              <p className="text-2xl font-bold text-yellow-500">
+              <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-500">
                 {pendingCount}
               </p>
             </div>
@@ -480,14 +506,16 @@ export default function ProfilePage({
 
           {/* Approval Rate */}
           {reviewedCount > 0 && (
-            <div className="pt-6 border-t border-gray-700">
+            <div className="pt-6 border-t border-[rgb(var(--border-color))]">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-gray-400 text-sm">Approval Rate</p>
-                <span className="text-white font-bold text-lg">
+                <p className="text-[rgb(var(--text-secondary))] text-sm">
+                  Approval Rate
+                </p>
+                <span className="text-[rgb(var(--text-primary))] font-bold text-lg">
                   {approvalRate}%
                 </span>
               </div>
-              <div className="flex-1 bg-[#1a1a1a] rounded-full h-4 overflow-hidden">
+              <div className="flex-1 bg-[rgb(var(--bg-card-alt))] rounded-full h-4 overflow-hidden">
                 <div
                   className={`h-full transition-all ${
                     parseFloat(approvalRate) >= 75
@@ -506,78 +534,137 @@ export default function ProfilePage({
         </div>
 
         {/* Recent Submissions */}
-        {profileUser.submissionsCount > 0 && (
-          <div className="bg-[#2d2d2d] rounded-lg p-6 md:p-8 border border-gray-700 shadow-lg">
-            <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-6">
-              <FaHistory className="text-[#107c10]" />
-              Recent Activity
-            </h3>
+        {profileUser.submissionsCount > 0 &&
+          (() => {
+            // Determine if we should show recent activity
+            // Always show to: user themselves, admins
+            // Hide to: others if showStatistics is false
+            const showStatistics = profileUser.settings?.showStatistics ?? true;
+            const isAdmin = session?.user?.role === "admin";
+            const shouldShowActivity =
+              isOwnProfile || isAdmin || showStatistics;
 
-            {submissionsLoading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#107c10] mx-auto"></div>
-                <p className="text-gray-400 mt-4 text-sm">
-                  Loading submissions...
-                </p>
-              </div>
-            ) : recentSubmissions.length === 0 ? (
-              <div className="text-center py-8">
-                <FaEdit className="mx-auto text-gray-600 mb-4" size={32} />
-                <p className="text-gray-400">No submissions yet</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {recentSubmissions.map((submission) => (
-                  <Link
-                    key={submission.id}
-                    href={`/games/${submission.gameSlug}`}
-                    className="block bg-[#1a1a1a] hover:bg-[#252525] rounded-lg p-4 border border-gray-700 hover:border-[#107c10]/50 transition-all group"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <FaGamepad
-                            className="text-[#107c10] flex-shrink-0"
-                            size={14}
-                          />
-                          <h4 className="text-white font-semibold truncate group-hover:text-[#107c10] transition-colors">
-                            {submission.gameTitle}
-                          </h4>
+            return (
+              <div className="bg-[rgb(var(--bg-card))] rounded-lg p-6 md:p-8 border border-[rgb(var(--border-color))] shadow-lg">
+                <h3 className="text-xl font-bold text-[rgb(var(--text-primary))] flex items-center gap-2 mb-6">
+                  <FaHistory className="text-[#107c10]" />
+                  Recent Activity
+                </h3>
+
+                {!shouldShowActivity ? (
+                  <div className="text-center py-8">
+                    <FaEye
+                      className="mx-auto text-[rgb(var(--text-muted))] mb-4"
+                      size={32}
+                    />
+                    <p className="text-[rgb(var(--text-secondary))] mb-2">
+                      Recent activity is hidden by this user
+                    </p>
+                    <p className="text-[rgb(var(--text-muted))] text-sm">
+                      This user has chosen to keep their activity private
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {!showStatistics && isOwnProfile && (
+                      <div className="mb-6 p-4 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <FaEye className="text-yellow-400 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-yellow-400 text-sm font-medium mb-1">
+                              Activity Hidden to Others
+                            </p>
+                            <p className="text-gray-300 text-xs">
+                              Your recent activity is hidden from other users
+                              and reviewers. Admins can still see your activity.
+                              You can change this in your{" "}
+                              <Link
+                                href="/settings"
+                                className="text-[#107c10] hover:underline"
+                              >
+                                settings
+                              </Link>
+                              .
+                            </p>
+                          </div>
                         </div>
-                        <p className="text-gray-400 text-sm">
-                          {getFieldDisplayName(submission.field)}
-                        </p>
-                        <p className="text-gray-500 text-xs mt-1">
-                          {formatDateTime(submission.submittedAt)}
+                      </div>
+                    )}
+
+                    {submissionsLoading ? (
+                      <div className="text-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#107c10] mx-auto"></div>
+                        <p className="text-gray-400 mt-4 text-sm">
+                          Loading submissions...
                         </p>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadgeColor(
-                            submission.status
-                          )}`}
-                        >
-                          {submission.status.charAt(0).toUpperCase() +
-                            submission.status.slice(1)}
-                        </span>
-                        <FaExternalLinkAlt
-                          className="text-gray-500 group-hover:text-[#107c10] transition-colors"
-                          size={12}
+                    ) : recentSubmissions.length === 0 ? (
+                      <div className="text-center py-8">
+                        <FaEdit
+                          className="mx-auto text-gray-600 mb-4"
+                          size={32}
                         />
+                        <p className="text-gray-400">No submissions yet</p>
                       </div>
-                    </div>
-                  </Link>
-                ))}
+                    ) : (
+                      <div className="space-y-3">
+                        {recentSubmissions.map((submission) => (
+                          <Link
+                            key={submission.id}
+                            href={`/games/${submission.gameSlug}`}
+                            className="block bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] rounded-lg p-4 border border-[rgb(var(--border-color))] hover:border-[#107c10]/50 transition-all group"
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <FaGamepad
+                                    className="text-[#107c10] flex-shrink-0"
+                                    size={14}
+                                  />
+                                  <h4 className="text-[rgb(var(--text-primary))] font-semibold truncate group-hover:text-[#107c10] transition-colors">
+                                    {submission.gameTitle}
+                                  </h4>
+                                </div>
+                                <p className="text-[rgb(var(--text-secondary))] text-sm">
+                                  {getFieldDisplayName(submission.field)}
+                                </p>
+                                <p className="text-[rgb(var(--text-muted))] text-xs mt-1">
+                                  {formatDateTime(submission.submittedAt)}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span
+                                  className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadgeColor(
+                                    submission.status
+                                  )}`}
+                                >
+                                  {submission.status.charAt(0).toUpperCase() +
+                                    submission.status.slice(1)}
+                                </span>
+                                <FaExternalLinkAlt
+                                  className="text-[rgb(var(--text-muted))] group-hover:text-[#107c10] transition-colors"
+                                  size={12}
+                                />
+                              </div>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
-            )}
-          </div>
-        )}
+            );
+          })()}
 
         {/* Empty State for No Submissions */}
         {profileUser.submissionsCount === 0 && (
-          <div className="bg-[#2d2d2d] rounded-lg p-12 border border-gray-700 text-center shadow-lg">
-            <FaEdit className="mx-auto text-gray-600 mb-4" size={48} />
-            <h3 className="text-xl font-bold text-white mb-2">
+          <div className="bg-[rgb(var(--bg-card))] rounded-lg p-12 border border-[rgb(var(--border-color))] text-center shadow-lg">
+            <FaEdit
+              className="mx-auto text-[rgb(var(--text-muted))] mb-4"
+              size={48}
+            />
+            <h3 className="text-xl font-bold text-[rgb(var(--text-primary))] mb-2">
               No Contributions Yet
             </h3>
             <p className="text-gray-400 mb-6">

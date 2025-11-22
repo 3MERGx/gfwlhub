@@ -13,6 +13,8 @@ import {
   FaSortAmountDown,
   FaSortAmountUp,
   FaUser,
+  FaShieldAlt,
+  FaSpinner,
 } from "react-icons/fa";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -87,7 +89,7 @@ function ImagePreview({ imageUrl, label }: ImagePreviewProps) {
   return (
     <div className="relative inline-block mt-2 z-10">
       <div
-        className="relative w-24 h-24 rounded-lg overflow-hidden border border-gray-700 cursor-pointer transition-all touch-manipulation"
+        className="relative w-24 h-24 rounded-lg overflow-hidden border border-[rgb(var(--border-color))] cursor-pointer transition-all touch-manipulation"
         onMouseEnter={() => {
           if (!isTouchDevice) {
             setIsHovered(true);
@@ -121,20 +123,22 @@ function ImagePreview({ imageUrl, label }: ImagePreviewProps) {
           unoptimized
         />
         {!imageLoaded && !imageError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a]">
-            <p className="text-xs text-gray-500">Loading...</p>
+          <div className="absolute inset-0 flex items-center justify-center bg-[rgb(var(--bg-card-alt))]">
+            <p className="text-xs text-[rgb(var(--text-muted))]">Loading...</p>
           </div>
         )}
         {!isRevealed && imageLoaded && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-            <p className="text-xs text-white/70">
+            <p className="text-xs text-[rgb(var(--text-primary))]/70">
               {isTouchDevice ? "Tap to view" : "Hover to view"}
             </p>
           </div>
         )}
       </div>
       {isRevealed && imageLoaded && isTouchDevice && (
-        <p className="text-xs text-gray-400 mt-1 text-center">Tap to hide</p>
+        <p className="text-xs text-[rgb(var(--text-secondary))] mt-1 text-center">
+          Tap to hide
+        </p>
       )}
     </div>
   );
@@ -265,15 +269,15 @@ export default function SubmissionsPage() {
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
       case "pending":
-        return "bg-yellow-900/30 text-yellow-400 border-yellow-500/30";
+        return "bg-yellow-500/20 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 border-yellow-500/50 dark:border-yellow-500/30";
       case "approved":
-        return "bg-green-900/30 text-green-400 border-green-500/30";
+        return "bg-green-500/20 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-green-500/50 dark:border-green-500/30";
       case "rejected":
-        return "bg-red-900/30 text-red-400 border-red-500/30";
+        return "bg-red-500/20 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-500/50 dark:border-red-500/30";
       case "modified":
-        return "bg-blue-900/30 text-blue-400 border-blue-500/30";
+        return "bg-blue-500/20 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-500/50 dark:border-blue-500/30";
       default:
-        return "bg-gray-700/30 text-gray-400 border-gray-600/30";
+        return "bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] border-[rgb(var(--border-color))]";
     }
   };
 
@@ -289,32 +293,32 @@ export default function SubmissionsPage() {
             >
               ← Back to Dashboard
             </Link>
-            <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
+            <h1 className="text-2xl md:text-3xl font-bold text-[rgb(var(--text-primary))] mb-2">
               Review Submissions
             </h1>
-            <p className="text-gray-400 text-sm md:text-base">
+            <p className="text-[rgb(var(--text-secondary))] text-sm md:text-base">
               Review and approve game information corrections
             </p>
           </div>
 
           {/* Search and Controls */}
-          <div className="bg-[#2d2d2d] rounded-lg p-4 mb-6">
+          <div className="bg-[rgb(var(--bg-card))] rounded-lg p-4 mb-6">
             {/* Search Bar */}
             <div className="relative mb-4">
-              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" />
+              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[rgb(var(--text-muted))]" />
               <input
                 type="text"
                 placeholder="Search by game, user, or field..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                className="w-full pl-10 pr-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
               />
             </div>
 
             {/* Filter Toggle (Mobile) */}
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="md:hidden w-full flex items-center justify-center gap-2 bg-[#1a1a1a] text-white py-2 rounded-lg border border-gray-700 mb-4"
+              className="md:hidden w-full flex items-center justify-center gap-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] py-2 rounded-lg border border-[rgb(var(--border-color))] mb-4"
             >
               <FaFilter size={14} />
               <span>Filters & Sort</span>
@@ -330,7 +334,7 @@ export default function SubmissionsPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full md:w-auto px-4 py-2 pr-10 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                className="w-full md:w-auto px-4 py-2 pr-10 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                 style={{ paddingRight: "2.75rem" }}
               >
                 <option value="pending">Pending</option>
@@ -344,7 +348,7 @@ export default function SubmissionsPage() {
               <select
                 value={fieldFilter}
                 onChange={(e) => setFieldFilter(e.target.value)}
-                className="w-full md:w-auto px-4 py-2 pr-10 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                className="w-full md:w-auto px-4 py-2 pr-10 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                 style={{ paddingRight: "2.75rem" }}
               >
                 <option value="all">All Fields</option>
@@ -361,7 +365,7 @@ export default function SubmissionsPage() {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="w-full md:w-auto px-4 py-2 pr-10 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+                className="w-full md:w-auto px-4 py-2 pr-10 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                 style={{ paddingRight: "2.75rem" }}
               >
                 <option value="date">Submission Date</option>
@@ -374,7 +378,7 @@ export default function SubmissionsPage() {
                 onClick={() =>
                   setSortOrder(sortOrder === "asc" ? "desc" : "asc")
                 }
-                className="w-full md:w-auto px-4 py-2 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 hover:border-[#107c10] transition-colors flex items-center justify-center gap-2"
+                className="w-full md:w-auto px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10] transition-colors flex items-center justify-center gap-2"
               >
                 {sortOrder === "desc" ? (
                   <FaSortAmountDown size={14} />
@@ -390,34 +394,42 @@ export default function SubmissionsPage() {
 
           {/* Stats Row */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <div className="bg-[#2d2d2d] rounded-lg p-3 border border-gray-700">
-              <p className="text-xs text-gray-500 mb-1">Total</p>
-              <p className="text-xl font-bold text-white">
+            <div className="bg-[rgb(var(--bg-card))] rounded-lg p-3 border border-[rgb(var(--border-color))]">
+              <p className="text-xs text-[rgb(var(--text-muted))] mb-1">
+                Total
+              </p>
+              <p className="text-xl font-bold text-[rgb(var(--text-primary))]">
                 {corrections.length}
               </p>
             </div>
-            <div className="bg-[#2d2d2d] rounded-lg p-3 border border-yellow-700">
-              <p className="text-xs text-gray-500 mb-1">Pending</p>
-              <p className="text-xl font-bold text-yellow-400">
+            <div className="bg-[rgb(var(--bg-card))] rounded-lg p-3 border border-yellow-500/50">
+              <p className="text-xs text-[rgb(var(--text-muted))] mb-1">
+                Pending
+              </p>
+              <p className="text-xl font-bold text-yellow-500">
                 {corrections.filter((c) => c.status === "pending").length}
               </p>
             </div>
-            <div className="bg-[#2d2d2d] rounded-lg p-3 border border-green-700">
-              <p className="text-xs text-gray-500 mb-1">Approved</p>
-              <p className="text-xl font-bold text-green-400">
+            <div className="bg-[rgb(var(--bg-card))] rounded-lg p-3 border border-green-500/50">
+              <p className="text-xs text-[rgb(var(--text-muted))] mb-1">
+                Approved
+              </p>
+              <p className="text-xl font-bold text-green-500">
                 {corrections.filter((c) => c.status === "approved").length}
               </p>
             </div>
-            <div className="bg-[#2d2d2d] rounded-lg p-3 border border-red-700">
-              <p className="text-xs text-gray-500 mb-1">Rejected</p>
-              <p className="text-xl font-bold text-red-400">
+            <div className="bg-[rgb(var(--bg-card))] rounded-lg p-3 border border-red-500/50">
+              <p className="text-xs text-[rgb(var(--text-muted))] mb-1">
+                Rejected
+              </p>
+              <p className="text-xl font-bold text-red-500">
                 {corrections.filter((c) => c.status === "rejected").length}
               </p>
             </div>
           </div>
 
           {/* Results Count */}
-          <div className="text-gray-400 text-sm mb-4">
+          <div className="text-[rgb(var(--text-secondary))] text-sm mb-4">
             Showing {startIndex + 1}-
             {Math.min(endIndex, filteredCorrections.length)} of{" "}
             {filteredCorrections.length} submissions
@@ -428,9 +440,14 @@ export default function SubmissionsPage() {
           {/* Submissions List */}
           <div className="space-y-3 mb-6">
             {paginatedCorrections.length === 0 ? (
-              <div className="bg-[#2d2d2d] rounded-lg p-8 text-center">
-                <FaClock className="mx-auto text-gray-600 mb-4" size={48} />
-                <p className="text-gray-400">No submissions found</p>
+              <div className="bg-[rgb(var(--bg-card))] rounded-lg p-8 text-center">
+                <FaClock
+                  className="mx-auto text-[rgb(var(--text-muted))] mb-4"
+                  size={48}
+                />
+                <p className="text-[rgb(var(--text-secondary))]">
+                  No submissions found
+                </p>
               </div>
             ) : (
               paginatedCorrections.map((correction) => {
@@ -457,7 +474,7 @@ export default function SubmissionsPage() {
           {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
-              <div className="text-sm text-gray-400">
+              <div className="text-sm text-[rgb(var(--text-secondary))]">
                 Page {currentPage} of {totalPages}
               </div>
               <div className="flex items-center gap-2">
@@ -466,7 +483,7 @@ export default function SubmissionsPage() {
                     setCurrentPage((prev) => Math.max(1, prev - 1))
                   }
                   disabled={currentPage === 1}
-                  className="px-4 py-2 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 hover:border-[#107c10] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Previous
                 </button>
@@ -489,7 +506,7 @@ export default function SubmissionsPage() {
                         className={`px-3 py-2 rounded-lg border transition-colors ${
                           currentPage === pageNum
                             ? "bg-[#107c10] text-white border-[#107c10]"
-                            : "bg-[#1a1a1a] text-white border-gray-700 hover:border-[#107c10]"
+                            : "bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] border-[rgb(var(--border-color))] hover:border-[#107c10]"
                         }`}
                       >
                         {pageNum}
@@ -502,7 +519,7 @@ export default function SubmissionsPage() {
                     setCurrentPage((prev) => Math.min(totalPages, prev + 1))
                   }
                   disabled={currentPage === totalPages}
-                  className="px-4 py-2 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 hover:border-[#107c10] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next
                 </button>
@@ -570,14 +587,14 @@ function CorrectionCard({
   };
 
   return (
-    <div className="bg-[#2d2d2d] rounded-lg p-4 border border-gray-700 hover:border-gray-600 transition-colors">
+    <div className="bg-[rgb(var(--bg-card))] rounded-lg p-4 border border-[rgb(var(--border-color))] hover:border-[rgb(var(--border-hover))] transition-colors">
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <FaGamepad className="text-[#107c10] flex-shrink-0" size={16} />
           <Link
             href={`/games/${correction.gameSlug}`}
-            className="text-white font-medium truncate hover:text-[#107c10] transition-colors"
+            className="text-[rgb(var(--text-primary))] font-medium truncate hover:text-[#107c10] transition-colors"
           >
             {correction.gameTitle}
           </Link>
@@ -586,7 +603,7 @@ function CorrectionCard({
           <>
             {isOwnSubmission ? (
               <div
-                className="px-3 py-1 bg-gray-700 text-gray-400 text-sm rounded-lg whitespace-nowrap ml-2 cursor-not-allowed"
+                className="px-3 py-1 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] text-sm rounded-lg whitespace-nowrap ml-2 cursor-not-allowed border border-[rgb(var(--border-color))]"
                 title="You cannot review your own submissions"
               >
                 Your Submission
@@ -621,22 +638,30 @@ function CorrectionCard({
           {correction.status.charAt(0).toUpperCase() +
             correction.status.slice(1)}
         </span>
-        <span className="px-2 py-1 rounded text-xs border bg-blue-900/30 text-blue-400 border-blue-500/30 inline-flex items-center gap-1">
+        <span className="px-2 py-1 rounded text-xs border bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/30 inline-flex items-center gap-1">
           <FaEdit size={10} />
           {getFieldDisplayName(correction.field)}
         </span>
+        {(correction.field === "downloadLink" ||
+          correction.field === "communityAlternativeDownloadLink") && (
+          <span className="px-2 py-1 rounded text-xs border bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-500/30 inline-flex items-center gap-1 font-semibold">
+            ⚠️ Download Link
+          </span>
+        )}
       </div>
 
       {/* Changes */}
       <div className="space-y-2 mb-3">
         <div>
-          <p className="text-xs text-gray-500 mb-1">Current:</p>
-          <p className="text-gray-400 text-sm line-clamp-2">
+          <p className="text-xs text-[rgb(var(--text-muted))] mb-1">Current:</p>
+          <p className="text-[rgb(var(--text-secondary))] text-sm line-clamp-2">
             {formatValue(correction.oldValue)}
           </p>
         </div>
         <div>
-          <p className="text-xs text-gray-500 mb-1">Proposed:</p>
+          <p className="text-xs text-[rgb(var(--text-muted))] mb-1">
+            Proposed:
+          </p>
           <p className="text-[#107c10] text-sm line-clamp-2">
             {formatValue(correction.newValue, true)}
           </p>
@@ -645,16 +670,16 @@ function CorrectionCard({
 
       {/* Reason */}
       {correction.reason && (
-        <div className="mb-3 p-2 bg-[#1a1a1a] rounded">
-          <p className="text-xs text-gray-500 mb-1">Reason:</p>
-          <p className="text-gray-400 text-sm line-clamp-2">
+        <div className="mb-3 p-2 bg-[rgb(var(--bg-card-alt))] rounded">
+          <p className="text-xs text-[rgb(var(--text-muted))] mb-1">Reason:</p>
+          <p className="text-[rgb(var(--text-secondary))] text-sm line-clamp-2">
             {correction.reason}
           </p>
         </div>
       )}
 
       {/* Footer */}
-      <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-[rgb(var(--text-secondary))]">
         <div className="flex items-center gap-1">
           <FaUser size={10} />
           <span>{correction.submittedByName}</span>
@@ -709,6 +734,15 @@ function ReviewModal({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [scanningUrl, setScanningUrl] = useState<string | null>(null);
+  const [scanResult, setScanResult] = useState<{
+    url: string;
+    malicious: number;
+    harmless: number;
+    suspicious: number;
+    total: number;
+    reportUrl?: string;
+  } | null>(null);
 
   const handleApprove = async () => {
     setIsSubmitting(true);
@@ -827,25 +861,27 @@ function ReviewModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/75 p-4"
       onClick={onClose}
     >
       <div
-        className="bg-[#2d2d2d] rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-[rgb(var(--bg-card))] rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 z-20 bg-[#2d2d2d] border-b border-gray-700 p-6">
+        <div className="sticky top-0 z-20 bg-[rgb(var(--bg-card))] border-b border-[rgb(var(--border-color))] p-6">
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="text-xl font-bold text-white mb-1">
+              <h2 className="text-xl font-bold text-[rgb(var(--text-primary))] mb-1">
                 Review Submission
               </h2>
-              <p className="text-gray-400 text-sm">{correction.gameTitle}</p>
+              <p className="text-[rgb(var(--text-secondary))] text-sm">
+                {correction.gameTitle}
+              </p>
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white text-2xl"
+              className="text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] text-2xl"
             >
               ×
             </button>
@@ -856,9 +892,11 @@ function ReviewModal({
         <div className="p-6 space-y-6 pb-24">
           {/* Field */}
           <div>
-            <h3 className="text-sm text-gray-500 mb-2">Field</h3>
-            <div className="bg-[#1a1a1a] rounded-lg p-3">
-              <p className="text-white">
+            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">
+              Field
+            </h3>
+            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3">
+              <p className="text-[rgb(var(--text-primary))]">
                 {getFieldDisplayName(correction.field)}
               </p>
             </div>
@@ -866,10 +904,14 @@ function ReviewModal({
 
           {/* Submitted By */}
           <div>
-            <h3 className="text-sm text-gray-500 mb-2">Submitted By</h3>
-            <div className="bg-[#1a1a1a] rounded-lg p-3 flex items-center justify-between">
-              <span className="text-white">{correction.submittedByName}</span>
-              <span className="text-gray-500 text-sm">
+            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">
+              Submitted By
+            </h3>
+            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3 flex items-center justify-between">
+              <span className="text-[rgb(var(--text-primary))]">
+                {correction.submittedByName}
+              </span>
+              <span className="text-[rgb(var(--text-muted))] text-sm">
                 {new Date(correction.submittedAt).toLocaleString()}
               </span>
             </div>
@@ -877,9 +919,11 @@ function ReviewModal({
 
           {/* Current Value */}
           <div>
-            <h3 className="text-sm text-gray-500 mb-2">Current Value</h3>
-            <div className="bg-[#1a1a1a] rounded-lg p-3">
-              <pre className="text-gray-400 text-sm whitespace-pre-wrap break-all">
+            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">
+              Current Value
+            </h3>
+            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3">
+              <pre className="text-[rgb(var(--text-secondary))] text-sm whitespace-pre-wrap break-all">
                 {formatValue(correction.oldValue)}
               </pre>
               {correction.field === "imageUrl" &&
@@ -897,8 +941,10 @@ function ReviewModal({
 
           {/* Proposed Value */}
           <div>
-            <h3 className="text-sm text-gray-500 mb-2">Proposed Value</h3>
-            <div className="bg-[#1a1a1a] rounded-lg p-3 border-l-4 border-[#107c10]">
+            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">
+              Proposed Value
+            </h3>
+            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3 border-l-4 border-[#107c10]">
               <pre className="text-[#107c10] text-sm whitespace-pre-wrap break-all">
                 {formatValue(correction.newValue, true)}
               </pre>
@@ -910,6 +956,159 @@ function ReviewModal({
                       imageUrl={correction.newValue}
                       label="Proposed image"
                     />
+                  </div>
+                )}
+              {/* VirusTotal Scan for Download Links */}
+              {(correction.field === "downloadLink" ||
+                correction.field === "communityAlternativeDownloadLink") &&
+                typeof correction.newValue === "string" &&
+                correction.newValue &&
+                (correction.newValue.startsWith("http://") ||
+                  correction.newValue.startsWith("https://")) && (
+                  <div className="mt-3 pt-3 border-t border-[rgb(var(--border-color))]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <FaShieldAlt className="text-blue-400" size={16} />
+                      <span className="text-sm font-medium text-[rgb(var(--text-primary))]">
+                        VirusTotal Security Scan
+                      </span>
+                    </div>
+                    {scanningUrl === correction.newValue ? (
+                      <div className="flex items-center gap-2 text-sm text-[rgb(var(--text-secondary))]">
+                        <FaSpinner className="animate-spin" size={14} />
+                        <span>Scanning URL...</span>
+                      </div>
+                    ) : scanResult && scanResult.url === correction.newValue ? (
+                      <div className="space-y-2">
+                        <div className="p-3 bg-[rgb(var(--bg-card-alt))] rounded-lg border-l-4 border-green-500">
+                          <div className="flex items-center gap-4 text-sm mb-2">
+                            <div className="flex items-center gap-1">
+                              <span className="text-green-400 font-semibold">
+                                {scanResult.harmless}
+                              </span>
+                              <span className="text-[rgb(var(--text-secondary))]">
+                                clean
+                              </span>
+                            </div>
+                            {scanResult.malicious > 0 && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-red-400 font-semibold">
+                                  {scanResult.malicious}
+                                </span>
+                                <span className="text-[rgb(var(--text-secondary))]">
+                                  malicious
+                                </span>
+                              </div>
+                            )}
+                            {scanResult.suspicious > 0 && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-yellow-400 font-semibold">
+                                  {scanResult.suspicious}
+                                </span>
+                                <span className="text-[rgb(var(--text-secondary))]">
+                                  suspicious
+                                </span>
+                              </div>
+                            )}
+                            {scanResult.total > 0 && (
+                              <span className="text-[rgb(var(--text-muted))] text-xs">
+                                ({scanResult.total} total engines)
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-yellow-400 bg-yellow-900/20 dark:bg-yellow-900/10 border border-yellow-500/30 rounded p-2 mt-2">
+                            ⚠️ <strong>Important:</strong> VirusTotal results are not a guarantee of safety. Proceed with caution and use antivirus software.
+                          </div>
+                          {scanResult.reportUrl && (
+                            <a
+                              href={scanResult.reportUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-400 hover:text-blue-300 underline mt-2 inline-block"
+                            >
+                              View full report on VirusTotal →
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          const url = correction.newValue as string;
+                          setScanningUrl(url);
+                          setScanResult(null);
+                          try {
+                            const response = await fetch(
+                              "/api/virustotal/scan",
+                              {
+                                method: "POST",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                },
+                                body: JSON.stringify({
+                                  url,
+                                  action: "scan",
+                                }),
+                              }
+                            );
+
+                            if (!response.ok) {
+                              const data = await response.json();
+                              setError(data.error || "Failed to scan URL");
+                              setScanningUrl(null);
+                              return;
+                            }
+
+                            const scanData = await response.json();
+                            if (scanData.report?.data?.attributes) {
+                              const attrs = scanData.report.data.attributes;
+                              // VirusTotal URL report endpoint uses 'last_analysis_stats' instead of 'stats'
+                              // Analysis endpoint uses 'stats'
+                              const stats = attrs.last_analysis_stats || attrs.stats;
+                              
+                              if (!stats) {
+                                setError("Scan results are not yet available. Please try again in a moment.");
+                                setScanningUrl(null);
+                                return;
+                              }
+
+                              // Construct the correct VirusTotal URL report link
+                              // URL needs to be base64 encoded (without padding, with URL-safe characters)
+                              const encodedUrl = btoa(url).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+                              setScanResult({
+                                url,
+                                malicious: stats.malicious || 0,
+                                harmless: stats.harmless || 0,
+                                suspicious: stats.suspicious || 0,
+                                total:
+                                  (stats.malicious || 0) +
+                                  (stats.harmless || 0) +
+                                  (stats.suspicious || 0) +
+                                  (stats.undetected || 0),
+                                reportUrl: `https://www.virustotal.com/gui/url/${encodedUrl}`,
+                              });
+                            } else if (scanData.analysisId) {
+                              setError(
+                                "Scan submitted but results not yet available. Please try again in a moment."
+                              );
+                            } else {
+                              setError("Unexpected response format from VirusTotal API");
+                            }
+                          } catch (err) {
+                            setError(
+                              err instanceof Error
+                                ? err.message
+                                : "Failed to scan URL"
+                            );
+                          } finally {
+                            setScanningUrl(null);
+                          }
+                        }}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md transition-colors"
+                      >
+                        <FaShieldAlt size={12} />
+                        Scan URL with VirusTotal
+                      </button>
+                    )}
                   </div>
                 )}
             </div>
@@ -925,20 +1124,26 @@ function ReviewModal({
 
           {/* Reason */}
           <div>
-            <h3 className="text-sm text-gray-500 mb-2">Reason for Change</h3>
-            <div className="bg-[#1a1a1a] rounded-lg p-3">
-              <p className="text-gray-400 text-sm">{correction.reason}</p>
+            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">
+              Reason for Change
+            </h3>
+            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3">
+              <p className="text-[rgb(var(--text-secondary))] text-sm">
+                {correction.reason}
+              </p>
             </div>
           </div>
 
           {/* Modify Value (Optional) */}
           {showModify && (
             <div>
-              <h3 className="text-sm text-gray-500 mb-2">Modified Value</h3>
+              <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">
+                Modified Value
+              </h3>
               <textarea
                 value={modifiedValue}
                 onChange={(e) => setModifiedValue(e.target.value)}
-                className="w-full p-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none font-mono text-sm"
+                className="w-full p-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none font-mono text-sm"
                 rows={6}
               />
             </div>
@@ -946,14 +1151,14 @@ function ReviewModal({
 
           {/* Review Notes */}
           <div>
-            <h3 className="text-sm text-gray-500 mb-2">
+            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">
               Review Notes (Optional)
             </h3>
             <textarea
               value={reviewNotes}
               onChange={(e) => setReviewNotes(e.target.value)}
               placeholder="Add notes about your decision..."
-              className="w-full p-3 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none"
+              className="w-full p-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
               rows={3}
             />
           </div>
@@ -968,7 +1173,7 @@ function ReviewModal({
 
         {/* Footer - Actions */}
         {correction.status === "pending" && (
-          <div className="sticky bottom-0 z-20 bg-[#2d2d2d] border-t border-gray-700 p-6 space-y-3">
+          <div className="sticky bottom-0 z-20 bg-[rgb(var(--bg-card))] border-t border-[rgb(var(--border-color))] p-6 space-y-3">
             {!showModify && (
               <button
                 onClick={() => setShowModify(true)}
@@ -1004,23 +1209,27 @@ function ReviewModal({
 
         {/* Footer - Reviewed */}
         {correction.status !== "pending" && (
-          <div className="sticky bottom-0 z-20 bg-[#2d2d2d] border-t border-gray-700 p-6">
-            <div className="mb-4 p-3 bg-[#1a1a1a] rounded-lg">
-              <p className="text-sm text-gray-500 mb-1">Reviewed by</p>
-              <p className="text-white">{correction.reviewedByName}</p>
-              <p className="text-gray-500 text-xs mt-1">
+          <div className="sticky bottom-0 z-20 bg-[rgb(var(--bg-card))] border-t border-[rgb(var(--border-color))] p-6">
+            <div className="mb-4 p-3 bg-[rgb(var(--bg-card-alt))] rounded-lg">
+              <p className="text-sm text-[rgb(var(--text-muted))] mb-1">
+                Reviewed by
+              </p>
+              <p className="text-[rgb(var(--text-primary))]">
+                {correction.reviewedByName}
+              </p>
+              <p className="text-[rgb(var(--text-muted))] text-xs mt-1">
                 {correction.reviewedAt &&
                   new Date(correction.reviewedAt).toLocaleString()}
               </p>
               {correction.reviewNotes && (
-                <p className="text-gray-400 text-sm mt-2">
+                <p className="text-[rgb(var(--text-secondary))] text-sm mt-2">
                   {correction.reviewNotes}
                 </p>
               )}
             </div>
             <button
               onClick={onClose}
-              className="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+              className="w-full px-4 py-2 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] rounded-lg transition-colors border border-[rgb(var(--border-color))]"
             >
               Close
             </button>

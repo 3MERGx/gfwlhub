@@ -387,7 +387,7 @@ export default function FAQ() {
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto text-center text-white">
+        <div className="max-w-4xl mx-auto text-center text-[rgb(var(--text-primary))]">
           Loading FAQs...
         </div>
       </div>
@@ -398,10 +398,10 @@ export default function FAQ() {
     <>
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-[#202020] p-8 rounded-lg shadow-xl mb-8">
+          <div className="bg-[rgb(var(--bg-card))] p-8 rounded-lg shadow-xl mb-8">
           <div className="mb-6 pb-4 border-b border-gray-700">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
-              <h1 className="text-3xl font-bold text-white flex-1">
+              <h1 className="text-3xl font-bold text-[rgb(var(--text-primary))] flex-1">
                 Frequently Asked Questions
               </h1>
               {isAdmin && (
@@ -411,7 +411,7 @@ export default function FAQ() {
                     className={`px-4 py-2.5 rounded-lg transition-all flex items-center gap-2 text-sm font-medium shadow-sm ${
                       isReorderMode
                         ? "bg-yellow-600 hover:bg-yellow-700 text-white ring-2 ring-yellow-500/30"
-                        : "bg-[#2d2d2d] hover:bg-[#3d3d3d] text-gray-300 hover:text-white border border-gray-700"
+                        : "bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] border border-[rgb(var(--border-color))]"
                     }`}
                   >
                     <FaArrowsAlt size={14} />
@@ -430,18 +430,18 @@ export default function FAQ() {
             
             {/* Search Bar */}
             <div className="relative">
-              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={16} />
+              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[rgb(var(--text-muted))]" size={16} />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search FAQs..."
-                className="w-full pl-10 pr-4 py-2.5 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none focus:ring-2 focus:ring-[#107c10]/20"
+                className="w-full pl-10 pr-4 py-2.5 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none focus:ring-2 focus:ring-[#107c10]/20"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[rgb(var(--text-muted))] hover:text-[rgb(var(--text-primary))] transition-colors"
                 >
                   <FaTimes size={14} />
                 </button>
@@ -451,7 +451,7 @@ export default function FAQ() {
 
             <div className="space-y-3">
               {filteredFaqs.length === 0 ? (
-                <div className="text-center py-12 text-gray-400">
+                <div className="text-center py-12 text-[rgb(var(--text-secondary))]">
                   <p>
                     {searchQuery
                       ? `No FAQs found matching "${searchQuery}"`
@@ -490,7 +490,7 @@ export default function FAQ() {
                   >
                     {isAdmin && editingId === faq._id ? (
                       // Edit Mode
-                      <div className="p-5 bg-[#2d2d2d] rounded-lg border-2 border-yellow-500/50 shadow-lg">
+                      <div className="p-5 bg-[rgb(var(--bg-card-alt))] rounded-lg border-2 border-yellow-500/50 shadow-lg">
                         <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-700">
                           <div className="p-1.5 bg-yellow-500/20 rounded">
                             <FaGripVertical className="text-yellow-400" size={14} />
@@ -501,25 +501,25 @@ export default function FAQ() {
                         </div>
                         <div className="space-y-4">
                           <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">
+                            <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                               Question
                             </label>
                             <input
                               type="text"
                               value={editingQuestion}
                               onChange={(e) => setEditingQuestion(e.target.value)}
-                              className="w-full px-4 py-2.5 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none focus:ring-2 focus:ring-[#107c10]/20"
+                              className="w-full px-4 py-2.5 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none focus:ring-2 focus:ring-[#107c10]/20"
                             />
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">
+                            <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                               Answer (HTML supported)
                             </label>
                             <textarea
                               value={editingAnswer}
                               onChange={(e) => setEditingAnswer(e.target.value)}
                               rows={6}
-                              className="w-full px-4 py-2.5 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none focus:ring-2 focus:ring-[#107c10]/20 font-mono text-sm"
+                              className="w-full px-4 py-2.5 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none focus:ring-2 focus:ring-[#107c10]/20 font-mono text-sm"
                             />
                           </div>
                           <div className="flex gap-2 pt-2">
@@ -533,7 +533,7 @@ export default function FAQ() {
                             </button>
                             <button
                               onClick={handleCancelEdit}
-                              className="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors flex items-center gap-2 font-medium"
+                              className="px-4 py-2.5 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] rounded-lg transition-colors flex items-center gap-2 font-medium border border-[rgb(var(--border-color))]"
                             >
                               <FaTimes size={14} />
                               Cancel
@@ -548,7 +548,7 @@ export default function FAQ() {
                           {/* Drag Handle - Only shown in reorder mode */}
                           {isAdmin && isReorderMode && (
                             <div className="pt-4 sm:pt-5 flex-shrink-0">
-                              <div className="p-1.5 sm:p-2 text-gray-500 flex items-center justify-center cursor-grab active:cursor-grabbing hover:text-gray-300 transition-colors">
+                              <div className="p-1.5 sm:p-2 text-[rgb(var(--text-muted))] flex items-center justify-center cursor-grab active:cursor-grabbing hover:text-[rgb(var(--text-secondary))] transition-colors">
                                 <FaGripVertical size={16} className="sm:w-[18px] sm:h-[18px]" />
                               </div>
                             </div>
@@ -568,7 +568,7 @@ export default function FAQ() {
                                         <button
                                           onClick={() => handleMoveUp(index)}
                                           disabled={index === 0}
-                                          className="w-full sm:w-auto px-3 py-2 bg-[#2d2d2d] hover:bg-[#3d3d3d] text-gray-300 hover:text-white rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed touch-manipulation border border-gray-700 hover:border-[#107c10] flex items-center justify-center gap-2 text-sm font-medium"
+                                          className="w-full sm:w-auto px-3 py-2 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed touch-manipulation border border-[rgb(var(--border-color))] hover:border-[#107c10] flex items-center justify-center gap-2 text-sm font-medium"
                                           title="Move up"
                                         >
                                           <FaArrowUp size={12} />
@@ -577,7 +577,7 @@ export default function FAQ() {
                                         <button
                                           onClick={() => handleMoveDown(index)}
                                           disabled={index === faqs.length - 1}
-                                          className="w-full sm:w-auto px-3 py-2 bg-[#2d2d2d] hover:bg-[#3d3d3d] text-gray-300 hover:text-white rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed touch-manipulation border border-gray-700 hover:border-[#107c10] flex items-center justify-center gap-2 text-sm font-medium"
+                                          className="w-full sm:w-auto px-3 py-2 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed touch-manipulation border border-[rgb(var(--border-color))] hover:border-[#107c10] flex items-center justify-center gap-2 text-sm font-medium"
                                           title="Move down"
                                         >
                                           <FaArrowDown size={12} />
@@ -625,7 +625,7 @@ export default function FAQ() {
                   className={`w-full px-4 py-2.5 rounded-lg transition-all flex items-center justify-center gap-2 text-sm font-medium shadow-sm ${
                     isReorderMode
                       ? "bg-yellow-600 hover:bg-yellow-700 text-white ring-2 ring-yellow-500/30"
-                      : "bg-[#2d2d2d] hover:bg-[#3d3d3d] text-gray-300 hover:text-white border border-gray-700"
+                      : "bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] border border-[rgb(var(--border-color))]"
                   }`}
                 >
                   <FaArrowsAlt size={14} />
@@ -647,7 +647,7 @@ export default function FAQ() {
       {/* Add FAQ Modal */}
       {isAdmin && showAddModal && (
         <div
-          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 overflow-y-auto"
+          className="fixed inset-0 bg-black/40 dark:bg-black/70 flex items-center justify-center z-50 p-4 overflow-y-auto"
           onClick={() => {
             setShowAddModal(false);
             setNewQuestion("");
@@ -655,7 +655,7 @@ export default function FAQ() {
           }}
         >
           <div
-            className="bg-[#202020] rounded-lg max-w-2xl w-full border border-gray-700 shadow-xl"
+            className="bg-[rgb(var(--bg-card))] rounded-lg max-w-2xl w-full border border-[rgb(var(--border-color))] shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-6 border-b border-gray-700">
@@ -663,7 +663,7 @@ export default function FAQ() {
                 <div className="p-1.5 bg-[#107c10]/20 rounded">
                   <FaPlus className="text-[#107c10]" size={16} />
                 </div>
-                <h2 className="text-xl font-bold text-white">Add New FAQ</h2>
+                <h2 className="text-xl font-bold text-[rgb(var(--text-primary))]">Add New FAQ</h2>
               </div>
               <button
                 onClick={() => {
@@ -679,33 +679,33 @@ export default function FAQ() {
 
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                   Question
                 </label>
                 <input
                   type="text"
                   value={newQuestion}
                   onChange={(e) => setNewQuestion(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none focus:ring-2 focus:ring-[#107c10]/20"
+                  className="w-full px-4 py-2.5 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none focus:ring-2 focus:ring-[#107c10]/20"
                   placeholder="Enter question..."
                   autoFocus
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                   Answer (HTML supported)
                 </label>
                 <textarea
                   value={newAnswer}
                   onChange={(e) => setNewAnswer(e.target.value)}
                   rows={8}
-                  className="w-full px-4 py-2.5 bg-[#1a1a1a] text-white rounded-lg border border-gray-700 focus:border-[#107c10] focus:outline-none focus:ring-2 focus:ring-[#107c10]/20 font-mono text-sm"
+                  className="w-full px-4 py-2.5 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none focus:ring-2 focus:ring-[#107c10]/20 font-mono text-sm"
                   placeholder="Enter answer (HTML supported)..."
                 />
               </div>
             </div>
 
-            <div className="flex gap-3 p-6 border-t border-gray-700">
+            <div className="flex gap-3 p-6 border-t border-[rgb(var(--border-color))]">
               <button
                 onClick={handleAdd}
                 disabled={isSaving}
@@ -720,7 +720,7 @@ export default function FAQ() {
                   setNewQuestion("");
                   setNewAnswer("");
                 }}
-                className="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium"
+                className="px-4 py-2.5 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] rounded-lg transition-colors font-medium border border-[rgb(var(--border-color))]"
               >
                 Cancel
               </button>

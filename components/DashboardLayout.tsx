@@ -56,80 +56,134 @@ export default function DashboardLayout({
 
   // Fetch pending corrections count for reviewers and admins
   useEffect(() => {
+    // Only proceed if authenticated
+    if (status !== "authenticated" || !session) {
+      return;
+    }
+
+    const userRole = session.user.role;
+    // Only fetch for reviewers and admins
+    if (userRole !== "reviewer" && userRole !== "admin") {
+      return;
+    }
+
+    let isMounted = true;
+    let intervalId: NodeJS.Timeout | null = null;
+    let debounceTimeout: NodeJS.Timeout | null = null;
+
     const fetchPendingCount = async () => {
-      if (status === "authenticated" && session) {
-        const userRole = session.user.role;
-        // Only fetch for reviewers and admins
-        if (userRole === "reviewer" || userRole === "admin") {
-          try {
-            const response = await fetch("/api/corrections?status=pending");
-            if (response.ok) {
-              const data = await response.json();
-              setPendingCount(data.corrections?.length || 0);
-            }
-          } catch (error) {
-            console.error("Error fetching pending corrections count:", error);
-          }
+      if (!isMounted) return;
+      
+      try {
+        const response = await fetch("/api/corrections?status=pending");
+        if (response.ok && isMounted) {
+          const data = await response.json();
+          setPendingCount(data.corrections?.length || 0);
+        }
+      } catch (error) {
+        if (isMounted) {
+          console.error("Error fetching pending corrections count:", error);
         }
       }
     };
 
+    // Initial fetch
     fetchPendingCount();
-    // Refresh count every 30 seconds
-    const interval = setInterval(fetchPendingCount, 30000);
     
-    // Listen for custom event to refresh immediately after review
+    // Refresh count every 60 seconds (reduced frequency)
+    intervalId = setInterval(fetchPendingCount, 60000);
+    
+    // Listen for custom event to refresh immediately after review (with debounce)
     const handleCorrectionsUpdated = () => {
-      fetchPendingCount();
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout);
+      }
+      debounceTimeout = setTimeout(() => {
+        if (isMounted) {
+          fetchPendingCount();
+        }
+      }, 500); // Debounce to 500ms
     };
     window.addEventListener("correctionsUpdated", handleCorrectionsUpdated);
     
     return () => {
-      clearInterval(interval);
+      isMounted = false;
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout);
+      }
       window.removeEventListener("correctionsUpdated", handleCorrectionsUpdated);
     };
   }, [status, session]);
 
   // Fetch pending game submissions count for reviewers and admins
   useEffect(() => {
+    // Only proceed if authenticated
+    if (status !== "authenticated" || !session) {
+      return;
+    }
+
+    const userRole = session.user.role;
+    // Only fetch for reviewers and admins
+    if (userRole !== "reviewer" && userRole !== "admin") {
+      return;
+    }
+
+    let isMounted = true;
+    let intervalId: NodeJS.Timeout | null = null;
+    let debounceTimeout: NodeJS.Timeout | null = null;
+
     const fetchPendingGameSubmissionsCount = async () => {
-      if (status === "authenticated" && session) {
-        const userRole = session.user.role;
-        // Only fetch for reviewers and admins
-        if (userRole === "reviewer" || userRole === "admin") {
-          try {
-            const response = await fetch(
-              "/api/game-submissions?status=pending"
-            );
-            if (response.ok) {
-              const data = await response.json();
-              // API returns array directly
-              setPendingGameSubmissionsCount(
-                Array.isArray(data) ? data.length : 0
-              );
-            }
-          } catch (error) {
-            console.error(
-              "Error fetching pending game submissions count:",
-              error
-            );
-          }
+      if (!isMounted) return;
+      
+      try {
+        const response = await fetch("/api/game-submissions?status=pending");
+        if (response.ok && isMounted) {
+          const data = await response.json();
+          // API returns array directly
+          setPendingGameSubmissionsCount(
+            Array.isArray(data) ? data.length : 0
+          );
+        }
+      } catch (error) {
+        if (isMounted) {
+          console.error(
+            "Error fetching pending game submissions count:",
+            error
+          );
         }
       }
     };
 
+    // Initial fetch
     fetchPendingGameSubmissionsCount();
-    // Refresh count every 30 seconds
-    const interval = setInterval(fetchPendingGameSubmissionsCount, 30000);
     
-    // Listen for custom event to refresh immediately after review
+    // Refresh count every 60 seconds (reduced frequency)
+    intervalId = setInterval(fetchPendingGameSubmissionsCount, 60000);
+    
+    // Listen for custom event to refresh immediately after review (with debounce)
     const handleGameSubmissionsUpdated = () => {
-      fetchPendingGameSubmissionsCount();
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout);
+      }
+      debounceTimeout = setTimeout(() => {
+        if (isMounted) {
+          fetchPendingGameSubmissionsCount();
+        }
+      }, 500); // Debounce to 500ms
     };
     window.addEventListener("gameSubmissionsUpdated", handleGameSubmissionsUpdated);
     
     return () => {
-      clearInterval(interval);
+      isMounted = false;
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout);
+      }
       window.removeEventListener("gameSubmissionsUpdated", handleGameSubmissionsUpdated);
     };
   }, [status, session]);
@@ -137,8 +191,8 @@ export default function DashboardLayout({
   // Show loading state while checking auth
   if (status === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#121212]">
-        <div className="text-white">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-[rgb(var(--bg-dashboard))]">
+        <div className="text-[rgb(var(--text-primary))]">Loading...</div>
       </div>
     );
   }
@@ -160,10 +214,10 @@ export default function DashboardLayout({
       return (
         <div className="container mx-auto px-4 py-8">
           <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-6 text-center">
-            <h1 className="text-2xl font-bold text-white mb-2">
+            <h1 className="text-2xl font-bold text-[rgb(var(--text-primary))] mb-2">
               Access Denied
             </h1>
-            <p className="text-gray-300 mb-4">
+            <p className="text-[rgb(var(--text-secondary))] mb-4">
               You don&apos;t have permission to access this page.
             </p>
             <Link href="/dashboard" className="text-[#107c10] hover:underline">
@@ -244,14 +298,14 @@ export default function DashboardLayout({
   const experimentalNavItems = visibleNavItems.filter((item) => item.section === "experimental");
 
   return (
-    <div className="h-full flex bg-[#121212] overflow-hidden">
+    <div className="h-full flex bg-[rgb(var(--bg-dashboard))] overflow-hidden">
       {/* Sidebar - Only visible on xl screens and up */}
-      <aside className="hidden xl:block w-72 bg-[#1a1a1a] border-r border-gray-700 sticky top-0 h-full flex-shrink-0">
+      <aside className="hidden xl:block w-72 bg-[rgb(var(--bg-sidebar))] border-r border-[rgb(var(--border-color))] sticky top-0 h-full flex-shrink-0">
         <div className="flex flex-col h-full">
           {/* Sidebar Header */}
-          <div className="p-4 border-b border-gray-700 flex-shrink-0">
-            <h2 className="text-xl font-bold text-white">Dashboard</h2>
-            <p className="text-xs text-gray-400 mt-1">
+          <div className="p-4 border-b border-[rgb(var(--border-color))] flex-shrink-0">
+            <h2 className="text-xl font-bold text-[rgb(var(--text-primary))]">Dashboard</h2>
+            <p className="text-xs text-[rgb(var(--text-secondary))] mt-1">
               {session.user.name || session.user.email}
             </p>
             <p className="text-xs text-[#107c10] capitalize">
@@ -277,7 +331,7 @@ export default function DashboardLayout({
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors relative ${
                     isActive
                       ? "bg-[#107c10] text-white"
-                      : "text-gray-300 hover:bg-[#2d2d2d] hover:text-white"
+                      : "text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--bg-card))] hover:text-[rgb(var(--text-primary))]"
                   }`}
                 >
                   <Icon size={18} />
@@ -302,7 +356,7 @@ export default function DashboardLayout({
             {experimentalNavItems.length > 0 && (
               <>
                 <div className="pt-4 pb-2 px-2">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-[rgb(var(--text-muted))] uppercase tracking-wider">
                     <FaFlask size={12} />
                     <span>Experimental</span>
                   </div>
@@ -317,12 +371,12 @@ export default function DashboardLayout({
                       className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors relative ${
                         isActive
                           ? "bg-[#107c10] text-white"
-                          : "text-gray-300 hover:bg-[#2d2d2d] hover:text-white"
+                          : "text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--bg-card))] hover:text-[rgb(var(--text-primary))]"
                       }`}
                     >
                       <Icon size={18} />
                       <span className="font-medium">{item.label}</span>
-                      <span className="ml-auto bg-yellow-500/20 text-yellow-400 text-[10px] font-bold rounded px-1.5 py-0.5 uppercase">
+                      <span className="ml-auto bg-yellow-500/20 dark:bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 text-[10px] font-bold rounded px-1.5 py-0.5 uppercase">
                         Beta
                       </span>
                     </Link>
@@ -333,10 +387,10 @@ export default function DashboardLayout({
           </nav>
 
           {/* Sidebar Footer */}
-          <div className="p-4 border-t border-gray-700 flex-shrink-0">
+          <div className="p-4 border-t border-[rgb(var(--border-color))] flex-shrink-0">
             <Link
               href="/"
-              className="flex items-center gap-2 text-gray-400 hover:text-white text-sm transition-colors"
+              className="flex items-center gap-2 text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] text-sm transition-colors"
             >
               ← Back to Site
             </Link>
