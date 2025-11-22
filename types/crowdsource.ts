@@ -161,6 +161,22 @@ export interface BannedProvider {
   notes?: string;
 }
 
+// Leaderboard entry for community contributions
+export interface LeaderboardEntry {
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  userRole: UserRole;
+  userStatus: UserStatus;
+  totalSubmissions: number;
+  approvedSubmissions: number;
+  rejectedSubmissions: number;
+  reviewedSubmissions: number; // approved + rejected (excludes pending)
+  approvalRate: number; // Percentage
+  rank: number;
+  lastSubmission?: Date;
+}
+
 // Game submission (for adding complete game information)
 export type GameSubmissionStatus = "pending" | "approved" | "rejected";
 

@@ -15,6 +15,7 @@ function GameSubmissionsPage() {
   const router = useRouter();
   const { showToast } = useToast();
   const [submissions, setSubmissions] = useState<GameSubmission[]>([]);
+  const [allSubmissions, setAllSubmissions] = useState<GameSubmission[]>([]); // For stats calculation
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("pending");
   const [gameFilter, setGameFilter] = useState<string>("");
@@ -40,6 +41,14 @@ function GameSubmissionsPage() {
 
   const fetchSubmissions = async () => {
     try {
+      // Fetch all submissions for stats
+      const allResponse = await fetch("/api/game-submissions");
+      if (allResponse.ok) {
+        const allData = await allResponse.json();
+        setAllSubmissions(allData);
+      }
+
+      // Fetch filtered submissions for display
       const params = new URLSearchParams();
       if (statusFilter !== "all") {
         params.append("status", statusFilter);
@@ -183,11 +192,12 @@ function GameSubmissionsPage() {
     );
   }
 
+  // Calculate stats from all submissions, not filtered ones
   const stats = {
-    total: submissions.length,
-    pending: submissions.filter((s) => s.status === "pending").length,
-    approved: submissions.filter((s) => s.status === "approved").length,
-    rejected: submissions.filter((s) => s.status === "rejected").length,
+    total: allSubmissions.length,
+    pending: allSubmissions.filter((s) => s.status === "pending").length,
+    approved: allSubmissions.filter((s) => s.status === "approved").length,
+    rejected: allSubmissions.filter((s) => s.status === "rejected").length,
   };
 
   return (

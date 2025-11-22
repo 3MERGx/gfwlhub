@@ -108,7 +108,7 @@ export default function Header() {
   }, [session]);
 
   return (
-    <header className="bg-[#107c10] text-white shadow-md">
+    <header className="sticky top-0 z-50 bg-[#107c10] text-white shadow-md">
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           {/* Mobile menu button - Left side on mobile/tablet */}
@@ -298,7 +298,7 @@ export default function Header() {
                             className="block hover:text-gray-200 transition-colors"
                             onClick={() => setIsMenuOpen(false)}
                           >
-                            Audit
+                            Audit Log
                           </Link>
                         </li>
                         <li>

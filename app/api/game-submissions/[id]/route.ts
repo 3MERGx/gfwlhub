@@ -46,6 +46,21 @@ export async function PATCH(
       );
     }
 
+    // Prevent self-approval abuse: reviewers cannot approve their own submissions
+    // Exception: Developers (from DEVELOPER_EMAIL env var) can approve their own submissions
+    const adminEmails =
+      process.env.DEVELOPER_EMAILS?.split(",").map((email) => email.trim()) || [];
+    const isDeveloper = session.user.email && adminEmails.includes(session.user.email);
+    
+    if (submission.submittedBy === session.user.id && !isDeveloper) {
+      return NextResponse.json(
+        { 
+          error: "You cannot review your own submissions. This prevents abuse of the approval system." 
+        },
+        { status: 403 }
+      );
+    }
+
     // Update submission
     await submissionsCollection.updateOne(
       { _id: new ObjectId(id) },
