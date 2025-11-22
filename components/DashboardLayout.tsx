@@ -244,12 +244,12 @@ export default function DashboardLayout({
   const experimentalNavItems = visibleNavItems.filter((item) => item.section === "experimental");
 
   return (
-    <div className="min-h-screen flex bg-[#121212]">
+    <div className="h-full flex bg-[#121212] overflow-hidden">
       {/* Sidebar - Only visible on xl screens and up */}
-      <aside className="hidden xl:block w-72 bg-[#1a1a1a] border-r border-gray-700">
+      <aside className="hidden xl:block w-72 bg-[#1a1a1a] border-r border-gray-700 sticky top-0 h-full flex-shrink-0">
         <div className="flex flex-col h-full">
           {/* Sidebar Header */}
-          <div className="p-4 border-b border-gray-700">
+          <div className="p-4 border-b border-gray-700 flex-shrink-0">
             <h2 className="text-xl font-bold text-white">Dashboard</h2>
             <p className="text-xs text-gray-400 mt-1">
               {session.user.name || session.user.email}
@@ -333,7 +333,7 @@ export default function DashboardLayout({
           </nav>
 
           {/* Sidebar Footer */}
-          <div className="p-4 border-t border-gray-700">
+          <div className="p-4 border-t border-gray-700 flex-shrink-0">
             <Link
               href="/"
               className="flex items-center gap-2 text-gray-400 hover:text-white text-sm transition-colors"
@@ -345,9 +345,9 @@ export default function DashboardLayout({
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Page Content */}
-        <main className="flex-1 overflow-auto">{children}</main>
+        <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>
   );

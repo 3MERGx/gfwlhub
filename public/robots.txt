@@ -1,7 +1,59 @@
-# Allow all crawlers
+# Robots.txt for GFWL Hub
+# https://gfwl-hub.vercel.app
+
+# Allow all search engine crawlers
 User-agent: *
 Allow: /
 Allow: /_next/image
+Allow: /games/
+Allow: /supported-games
+Allow: /download
+Allow: /faq
+Allow: /contact
+
+# Disallow private/admin areas
+User-agent: *
+Disallow: /dashboard/
+Disallow: /api/
+Disallow: /auth/
+Disallow: /settings
+Disallow: /profile/
+Disallow: /leaderboard
+
+# Disallow Next.js internal files
+Disallow: /_next/
+Disallow: /api/auth/
+
+# Allow specific API endpoints that should be indexed (if any)
+# User-agent: *
+# Allow: /api/games
+
+# Crawl-delay for aggressive crawlers (optional)
+User-agent: *
+Crawl-delay: 1
+
+# Specific rules for major search engines
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 0
+
+User-agent: Googlebot-Image
+Allow: /
+Allow: /_next/image
+
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 0
+
+User-agent: Slurp
+Allow: /
+Crawl-delay: 1
+
+# Block bad bots (optional - add as needed)
+# User-agent: AhrefsBot
+# Disallow: /
+# User-agent: SemrushBot
+# Disallow: /
 
 # Sitemap location
 Sitemap: https://gfwl-hub.vercel.app/sitemap.xml 

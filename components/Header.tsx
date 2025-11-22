@@ -111,17 +111,17 @@ export default function Header() {
     <header className="sticky top-0 z-50 bg-[#107c10] text-white shadow-md">
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
-          {/* Mobile menu button - Left side on mobile/tablet */}
+          {/* Mobile menu button - Left side on mobile/tablet/iPad Pro */}
           <button
-            className="lg:hidden text-white focus:outline-none order-1"
+            className="xl:hidden text-white focus:outline-none order-1"
             onClick={toggleMenu}
             aria-label={isMenuOpen ? "Close menu" : "Open menu"}
           >
             {isMenuOpen ? <FaTimes size={24} /> : <FaBars size={24} />}
           </button>
 
-          {/* Logo - Centered on mobile/tablet, left on desktop */}
-          <Link href="/" className="flex items-center order-2 lg:order-1">
+          {/* Logo - Centered on mobile/tablet/iPad Pro, left on desktop */}
+          <Link href="/" className="flex items-center order-2 xl:order-1">
             <Image
               src="/GFWL _logo.png"
               alt="GFWL Hub"
@@ -134,7 +134,7 @@ export default function Header() {
           </Link>
 
           {/* Desktop navigation */}
-          <nav className="hidden lg:flex items-center justify-center flex-1 order-2">
+          <nav className="hidden xl:flex items-center justify-center flex-1 order-2">
             <ul className="flex space-x-8">
               <li>
                 <Link
@@ -177,7 +177,7 @@ export default function Header() {
           </nav>
 
           {/* Right side items */}
-          <div className="hidden lg:flex items-center gap-4 order-3">
+          <div className="hidden xl:flex items-center gap-4 order-3">
             {/* <Link
               href="/download"
               className="bg-white text-[#107c10] hover:bg-gray-100 px-4 py-2 rounded-md font-medium flex items-center transition-colors"
@@ -188,8 +188,8 @@ export default function Header() {
             <UserMenu />
           </div>
 
-          {/* Mobile user menu - Right side on mobile/tablet */}
-          <div className="lg:hidden flex items-center gap-2 order-3">
+          {/* Mobile user menu - Right side on mobile/tablet/iPad Pro */}
+          <div className="xl:hidden flex items-center gap-2 order-3">
             <UserMenu />
           </div>
         </div>
@@ -197,7 +197,7 @@ export default function Header() {
 
       {/* Mobile navigation */}
       {isMenuOpen && (
-        <div className="lg:hidden bg-[#0e6b0e] py-4">
+        <div className="xl:hidden bg-[#0e6b0e] py-4">
           <nav className="container mx-auto px-4">
             <ul className="space-y-4">
               <li>
@@ -245,12 +245,12 @@ export default function Header() {
                     <li>
                       <Link
                         href="/dashboard/submissions"
-                        className="flex items-center justify-between hover:text-gray-200 transition-colors"
+                        className="flex items-center gap-2 hover:text-gray-200 transition-colors"
                         onClick={() => setIsMenuOpen(false)}
                       >
                         <span>Submissions</span>
                         {pendingCount > 0 && (
-                          <span className="ml-2 bg-orange-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+                          <span className="bg-orange-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
                             {pendingCount > 99 ? "99+" : pendingCount}
                           </span>
                         )}
@@ -261,12 +261,12 @@ export default function Header() {
                         <li>
                           <Link
                             href="/dashboard/game-submissions"
-                            className="flex items-center justify-between hover:text-gray-200 transition-colors"
+                            className="flex items-center gap-2 hover:text-gray-200 transition-colors"
                             onClick={() => setIsMenuOpen(false)}
                           >
                             <span>Game Submissions</span>
                             {pendingGameSubmissionsCount > 0 && (
-                              <span className="ml-2 bg-orange-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+                              <span className="bg-orange-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
                                 {pendingGameSubmissionsCount > 99
                                   ? "99+"
                                   : pendingGameSubmissionsCount}
@@ -312,6 +312,19 @@ export default function Header() {
                         </li>
                       </>
                     )}
+                    {/* Leaderboard - Reviewers and Admins */}
+                    <li className="pt-2 border-t border-gray-600">
+                      <Link
+                        href="/leaderboard"
+                        className="flex items-center gap-2 hover:text-gray-200 transition-colors"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        <span>Leaderboard</span>
+                        <span className="bg-yellow-500/20 text-yellow-400 text-[10px] font-bold rounded px-1.5 py-0.5 uppercase">
+                          Beta
+                        </span>
+                      </Link>
+                    </li>
                   </>
                 )}
             </ul>
