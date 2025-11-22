@@ -20,90 +20,133 @@ export default function Header() {
 
   // Fetch pending corrections count for reviewers and admins
   useEffect(() => {
+    // Only proceed if session exists and user is reviewer/admin
+    if (!session) {
+      return;
+    }
+
+    const userRole = session.user.role;
+    if (userRole !== "reviewer" && userRole !== "admin") {
+      return;
+    }
+
+    let isMounted = true;
+    let intervalId: NodeJS.Timeout | null = null;
+    let debounceTimeout: NodeJS.Timeout | null = null;
+
     const fetchPendingCount = async () => {
-      if (session) {
-        const userRole = session.user.role;
-        // Only fetch for reviewers and admins
-        if (userRole === "reviewer" || userRole === "admin") {
-          try {
-            const response = await fetch("/api/corrections?status=pending");
-            if (response.ok) {
-              const data = await response.json();
-              setPendingCount(data.corrections?.length || 0);
-            }
-          } catch (error) {
-            console.error("Error fetching pending corrections count:", error);
-          }
+      if (!isMounted) return;
+      
+      try {
+        const response = await fetch("/api/corrections?status=pending");
+        if (response.ok && isMounted) {
+          const data = await response.json();
+          setPendingCount(data.corrections?.length || 0);
+        }
+      } catch (error) {
+        if (isMounted) {
+          console.error("Error fetching pending corrections count:", error);
         }
       }
     };
 
+    // Initial fetch
     fetchPendingCount();
-    // Refresh count every 30 seconds
-    const interval = setInterval(fetchPendingCount, 30000);
+    
+    // Refresh count every 60 seconds (reduced frequency)
+    intervalId = setInterval(fetchPendingCount, 60000);
 
-    // Listen for custom event to refresh immediately after review
+    // Listen for custom event to refresh immediately after review (with debounce)
     const handleCorrectionsUpdated = () => {
-      fetchPendingCount();
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout);
+      }
+      debounceTimeout = setTimeout(() => {
+        if (isMounted) {
+          fetchPendingCount();
+        }
+      }, 500); // Debounce to 500ms
     };
     window.addEventListener("correctionsUpdated", handleCorrectionsUpdated);
 
     return () => {
-      clearInterval(interval);
-      window.removeEventListener(
-        "correctionsUpdated",
-        handleCorrectionsUpdated
-      );
+      isMounted = false;
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout);
+      }
+      window.removeEventListener("correctionsUpdated", handleCorrectionsUpdated);
     };
   }, [session]);
 
   // Fetch pending game submissions count for reviewers and admins
   useEffect(() => {
+    // Only proceed if session exists and user is reviewer/admin
+    if (!session) {
+      return;
+    }
+
+    const userRole = session.user.role;
+    if (userRole !== "reviewer" && userRole !== "admin") {
+      return;
+    }
+
+    let isMounted = true;
+    let intervalId: NodeJS.Timeout | null = null;
+    let debounceTimeout: NodeJS.Timeout | null = null;
+
     const fetchPendingGameSubmissionsCount = async () => {
-      if (session) {
-        const userRole = session.user.role;
-        // Only fetch for reviewers and admins
-        if (userRole === "reviewer" || userRole === "admin") {
-          try {
-            const response = await fetch(
-              "/api/game-submissions?status=pending"
-            );
-            if (response.ok) {
-              const data = await response.json();
-              // API returns array directly
-              setPendingGameSubmissionsCount(
-                Array.isArray(data) ? data.length : 0
-              );
-            }
-          } catch (error) {
-            console.error(
-              "Error fetching pending game submissions count:",
-              error
-            );
-          }
+      if (!isMounted) return;
+      
+      try {
+        const response = await fetch("/api/game-submissions?status=pending");
+        if (response.ok && isMounted) {
+          const data = await response.json();
+          // API returns array directly
+          setPendingGameSubmissionsCount(
+            Array.isArray(data) ? data.length : 0
+          );
+        }
+      } catch (error) {
+        if (isMounted) {
+          console.error(
+            "Error fetching pending game submissions count:",
+            error
+          );
         }
       }
     };
 
+    // Initial fetch
     fetchPendingGameSubmissionsCount();
-    // Refresh count every 30 seconds
-    const interval = setInterval(fetchPendingGameSubmissionsCount, 30000);
+    
+    // Refresh count every 60 seconds (reduced frequency)
+    intervalId = setInterval(fetchPendingGameSubmissionsCount, 60000);
 
-    // Listen for custom event to refresh immediately after review
+    // Listen for custom event to refresh immediately after review (with debounce)
     const handleGameSubmissionsUpdated = () => {
-      fetchPendingGameSubmissionsCount();
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout);
+      }
+      debounceTimeout = setTimeout(() => {
+        if (isMounted) {
+          fetchPendingGameSubmissionsCount();
+        }
+      }, 500); // Debounce to 500ms
     };
-    window.addEventListener(
-      "gameSubmissionsUpdated",
-      handleGameSubmissionsUpdated
-    );
+    window.addEventListener("gameSubmissionsUpdated", handleGameSubmissionsUpdated);
 
     return () => {
-      clearInterval(interval);
-      window.removeEventListener(
-        "gameSubmissionsUpdated",
-        handleGameSubmissionsUpdated
-      );
+      isMounted = false;
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout);
+      }
+      window.removeEventListener("gameSubmissionsUpdated", handleGameSubmissionsUpdated);
     };
   }, [session]);
 

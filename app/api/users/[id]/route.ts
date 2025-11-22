@@ -43,6 +43,7 @@ export async function GET(
       createdAt: user.createdAt || new Date(),
       lastLoginAt: user.lastLoginAt || undefined,
       providerInfo: user.providerInfo,
+      settings: user.settings || { publicProfile: true, showStatistics: true },
     });
   } catch (error) {
     console.error("Error fetching user:", error);

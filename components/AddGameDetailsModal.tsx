@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { FaTimes, FaPlus, FaTrash } from "react-icons/fa";
 import { Game } from "@/data/games";
+import UrlSafetyIndicator from "@/components/UrlSafetyIndicator";
+import { getUrlValidationError } from "@/lib/url-validation";
 
 interface AddGameDetailsModalProps {
   game: Game;
@@ -45,6 +47,9 @@ export default function AddGameDetailsModal({
     playabilityStatus: game.playabilityStatus || "",
     isUnplayable: game.isUnplayable || false,
     communityAlternativeName: game.communityAlternativeName || "",
+    communityAlternativeUrl: game.communityAlternativeUrl || "",
+    communityAlternativeDownloadLink:
+      game.communityAlternativeDownloadLink || "",
     remasteredName: game.remasteredName || "",
     remasteredPlatform: game.remasteredPlatform || "",
     submitterNotes: "",
@@ -52,6 +57,7 @@ export default function AddGameDetailsModal({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [urlErrors, setUrlErrors] = useState<Record<string, string>>({});
+  const [error, setError] = useState("");
   const [datePickerValue, setDatePickerValue] = useState<string>("");
 
   // Handle array fields
@@ -117,6 +123,61 @@ export default function AddGameDetailsModal({
     }
   };
 
+  // Check if URL is blacklisted
+  const checkUrlBlacklist = (
+    url: string
+  ): { isBlocked: boolean; reason?: string } => {
+    if (!url || typeof url !== "string") {
+      return { isBlocked: false };
+    }
+
+    try {
+      const urlObj = new URL(url);
+      const domain = urlObj.hostname.toLowerCase();
+
+      // Known malicious domains (expand this list as needed)
+      const maliciousDomains: string[] = [
+        // Add known malicious domains here
+      ];
+
+      // Check against malicious domains
+      for (const maliciousDomain of maliciousDomains) {
+        if (
+          domain === maliciousDomain ||
+          domain.endsWith(`.${maliciousDomain}`)
+        ) {
+          return {
+            isBlocked: true,
+            reason: `Domain "${domain}" is on the blacklist`,
+          };
+        }
+      }
+
+      // Block URL shorteners for security
+      const urlShorteners = [
+        "bit.ly",
+        "tinyurl.com",
+        "t.co",
+        "goo.gl",
+        "ow.ly",
+        "is.gd",
+      ];
+
+      for (const shortener of urlShorteners) {
+        if (domain === shortener || domain.endsWith(`.${shortener}`)) {
+          return {
+            isBlocked: true,
+            reason: "URL shorteners are not allowed for security reasons",
+          };
+        }
+      }
+
+      return { isBlocked: false };
+    } catch {
+      return { isBlocked: false };
+    }
+  };
+
   // Validate all URLs before submission
   const validateUrls = (): boolean => {
     const errors: Record<string, string> = {};
@@ -156,12 +217,38 @@ export default function AddGameDetailsModal({
         value: formData.virusTotalUrl,
         label: "VirusTotal URL",
       },
+      {
+        key: "communityAlternativeUrl",
+        value: formData.communityAlternativeUrl,
+        label: "Community Alternative Website URL",
+      },
+      {
+        key: "communityAlternativeDownloadLink",
+        value: formData.communityAlternativeDownloadLink,
+        label: "Community Alternative Download Link",
+      },
     ];
 
     urlFields.forEach(({ key, value, label }) => {
-      if (value && !isValidUrl(value)) {
-        errors[key] = `${label} must be a valid URL`;
-        hasErrors = true;
+      if (value) {
+        if (!isValidUrl(value)) {
+          errors[key] = `${label} must be a valid URL`;
+          hasErrors = true;
+        } else {
+          // Check domain-specific validation
+          const domainError = getUrlValidationError(key, value);
+          if (domainError) {
+            errors[key] = domainError;
+            hasErrors = true;
+          } else {
+            // Check blacklist
+            const blacklistCheck = checkUrlBlacklist(value);
+            if (blacklistCheck.isBlocked) {
+              errors[key] = blacklistCheck.reason || "This URL is not allowed";
+              hasErrors = true;
+            }
+          }
+        }
       }
     });
 
@@ -180,11 +267,38 @@ export default function AddGameDetailsModal({
 
   // Helper to validate URL on blur
   const handleUrlBlur = (key: string, value: string, label: string) => {
-    if (value && !isValidUrl(value)) {
-      setUrlErrors({
-        ...urlErrors,
-        [key]: `${label} must be a valid URL`,
-      });
+    if (value) {
+      if (!isValidUrl(value)) {
+        setUrlErrors({
+          ...urlErrors,
+          [key]: `${label} must be a valid URL`,
+        });
+      } else {
+        // Check domain-specific validation
+        const domainError = getUrlValidationError(key, value);
+        if (domainError) {
+          setUrlErrors({
+            ...urlErrors,
+            [key]: domainError,
+          });
+        } else {
+          // Check blacklist
+          const blacklistCheck = checkUrlBlacklist(value);
+          if (blacklistCheck.isBlocked) {
+            setUrlErrors({
+              ...urlErrors,
+              [key]: blacklistCheck.reason || "This URL is not allowed",
+            });
+          } else {
+            // Clear error if URL is valid and not blacklisted
+            if (urlErrors[key]) {
+              const newErrors = { ...urlErrors };
+              delete newErrors[key];
+              setUrlErrors(newErrors);
+            }
+          }
+        }
+      }
     }
   };
 
@@ -224,6 +338,24 @@ export default function AddGameDetailsModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // DMCA Protection: Prevent download links if game is still being sold
+    if (formData.downloadLink) {
+      if (formData.remasteredName) {
+        setError(
+          "Download links cannot be added for games with available remasters. This helps protect against DMCA issues. Please remove the remastered name or the download link."
+        );
+        setIsSubmitting(false);
+        return;
+      }
+      if (formData.purchaseLink) {
+        setError(
+          "Download links cannot be added when a purchase link exists. This helps protect against DMCA issues. Please remove the purchase link or the download link."
+        );
+        setIsSubmitting(false);
+        return;
+      }
+    }
 
     // Validate URLs before submission
     if (!validateUrls()) {
@@ -284,6 +416,10 @@ export default function AddGameDetailsModal({
             isUnplayable: formData.isUnplayable || undefined,
             communityAlternativeName:
               formData.communityAlternativeName || undefined,
+            communityAlternativeUrl:
+              formData.communityAlternativeUrl || undefined,
+            communityAlternativeDownloadLink:
+              formData.communityAlternativeDownloadLink || undefined,
             remasteredName: formData.remasteredName || undefined,
             remasteredPlatform: formData.remasteredPlatform || undefined,
           },
@@ -312,24 +448,26 @@ export default function AddGameDetailsModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 overflow-y-auto"
+      className="fixed inset-0 bg-black/40 dark:bg-black/70 flex items-center justify-center z-50 p-4 overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className="bg-[#1a1a1a] rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-[#2d2d2d] my-8"
+        className="bg-[rgb(var(--bg-card))] rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-[rgb(var(--border-color))] my-8"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-[#1a1a1a] border-b border-[#2d2d2d] p-6 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-[rgb(var(--bg-card))] border-b border-[rgb(var(--border-color))] p-6 flex items-center justify-between z-10">
           <div>
-            <h2 className="text-2xl font-bold text-white">Add Game Details</h2>
-            <p className="text-gray-400 text-sm mt-1">
+            <h2 className="text-2xl font-bold text-[rgb(var(--text-primary))]">
+              Add Game Details
+            </h2>
+            <p className="text-[rgb(var(--text-secondary))] text-sm mt-1">
               Help us fill in information for {game.title}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] transition-colors"
             aria-label="Close modal"
           >
             <FaTimes size={24} />
@@ -339,12 +477,19 @@ export default function AddGameDetailsModal({
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Info Box */}
-          <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
-            <p className="text-blue-300 text-sm">
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 rounded-lg p-4">
+            <p className="text-blue-800 dark:text-blue-300 text-sm">
               Fill in as much information as you can. All fields are optional.
               Your submission will be reviewed before being published.
             </p>
           </div>
+
+          {/* General Error */}
+          {error && (
+            <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4">
+              <p className="text-red-300 text-sm font-semibold">{error}</p>
+            </div>
+          )}
 
           {/* URL Validation Errors */}
           {Object.keys(urlErrors).length > 0 && (
@@ -364,12 +509,12 @@ export default function AddGameDetailsModal({
 
           {/* Basic Information */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-white border-b border-[#2d2d2d] pb-2">
+            <h3 className="text-lg font-semibold text-[rgb(var(--text-primary))] border-b border-[rgb(var(--border-color))] pb-2">
               Basic Information
             </h3>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                 Title
               </label>
               <input
@@ -378,13 +523,13 @@ export default function AddGameDetailsModal({
                 onChange={(e) =>
                   setFormData({ ...formData, title: e.target.value })
                 }
-                className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+                className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
                 placeholder="Game title"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                 Description
               </label>
               <textarea
@@ -393,14 +538,14 @@ export default function AddGameDetailsModal({
                   setFormData({ ...formData, description: e.target.value })
                 }
                 rows={4}
-                className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+                className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
                 placeholder="Brief description of the game"
               />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                   Release Date
                 </label>
                 <input
@@ -417,19 +562,19 @@ export default function AddGameDetailsModal({
                       setFormData({ ...formData, releaseDate: "" });
                     }
                   }}
-                  className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] [color-scheme:dark]"
+                  className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
                   min="1900-01-01"
                   max={new Date().toISOString().split("T")[0]}
                 />
                 {formData.releaseDate && (
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-xs text-[rgb(var(--text-secondary))] mt-1">
                     Selected: {formData.releaseDate}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                   Developer
                 </label>
                 <input
@@ -438,13 +583,13 @@ export default function AddGameDetailsModal({
                   onChange={(e) =>
                     setFormData({ ...formData, developer: e.target.value })
                   }
-                  className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+                  className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
                   placeholder="Developer name"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                   Publisher
                 </label>
                 <input
@@ -453,13 +598,13 @@ export default function AddGameDetailsModal({
                   onChange={(e) =>
                     setFormData({ ...formData, publisher: e.target.value })
                   }
-                  className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+                  className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
                   placeholder="Publisher name"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                   Image URL
                 </label>
                 <input
@@ -480,7 +625,7 @@ export default function AddGameDetailsModal({
                       });
                     }
                   }}
-                  className={`w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] ${
+                  className={`w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] ${
                     urlErrors.imageUrl ? "border border-red-500" : ""
                   }`}
                   placeholder="https://example.com/image.jpg"
@@ -490,16 +635,22 @@ export default function AddGameDetailsModal({
                     {urlErrors.imageUrl}
                   </p>
                 ) : (
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-[rgb(var(--text-muted))] mt-1">
                     High-quality box art or cover image
                   </p>
+                )}
+                {formData.imageUrl && (
+                  <UrlSafetyIndicator
+                    url={formData.imageUrl}
+                    className="mt-1"
+                  />
                 )}
               </div>
             </div>
 
             {/* Genres */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                 Genres
               </label>
               <div className="flex gap-2 mb-2">
@@ -513,7 +664,7 @@ export default function AddGameDetailsModal({
                       handleAddItem("genres", currentGenre, setCurrentGenre);
                     }
                   }}
-                  className="flex-1 bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+                  className="flex-1 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
                   placeholder="Add a genre"
                 />
                 <button
@@ -531,9 +682,11 @@ export default function AddGameDetailsModal({
                   {formData.genres.map((genre, index) => (
                     <div
                       key={index}
-                      className="bg-[#2d2d2d] rounded px-2.5 py-1 flex items-center gap-1.5"
+                      className="bg-[rgb(var(--bg-card-alt))] rounded px-2.5 py-1 flex items-center gap-1.5"
                     >
-                      <span className="text-white text-xs">{genre}</span>
+                      <span className="text-[rgb(var(--text-primary))] text-xs">
+                        {genre}
+                      </span>
                       <button
                         type="button"
                         onClick={() => handleRemoveItem("genres", index)}
@@ -550,7 +703,7 @@ export default function AddGameDetailsModal({
 
             {/* Platforms */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                 Platforms
               </label>
               <div className="flex gap-2 mb-2">
@@ -568,7 +721,7 @@ export default function AddGameDetailsModal({
                       );
                     }
                   }}
-                  className="flex-1 bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+                  className="flex-1 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
                   placeholder="Add a platform"
                 />
                 <button
@@ -590,9 +743,11 @@ export default function AddGameDetailsModal({
                   {formData.platforms.map((platform, index) => (
                     <div
                       key={index}
-                      className="bg-[#2d2d2d] rounded px-2.5 py-1 flex items-center gap-1.5"
+                      className="bg-[rgb(var(--bg-card-alt))] rounded px-2.5 py-1 flex items-center gap-1.5"
                     >
-                      <span className="text-white text-xs">{platform}</span>
+                      <span className="text-[rgb(var(--text-primary))] text-xs">
+                        {platform}
+                      </span>
                       <button
                         type="button"
                         onClick={() => handleRemoveItem("platforms", index)}
@@ -609,7 +764,7 @@ export default function AddGameDetailsModal({
 
             {/* Additional DRM */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                 Additional DRM
               </label>
               <select
@@ -645,7 +800,7 @@ export default function AddGameDetailsModal({
                     });
                   }
                 }}
-                className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+                className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
               >
                 <option value="">None</option>
                 <option value="Disc (SafeDisc/SecuROM/etc)">
@@ -675,14 +830,14 @@ export default function AddGameDetailsModal({
                       });
                     }}
                     placeholder="Enter custom DRM..."
-                    className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 mt-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+                    className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 mt-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
                   />
                 )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                   Activation Type
                 </label>
                 <select
@@ -696,7 +851,7 @@ export default function AddGameDetailsModal({
                         | "SSA",
                     })
                   }
-                  className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+                  className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
                 >
                   <option value="Legacy (5x5)">Legacy (5x5)</option>
                   <option value="Legacy (Per-Title)">Legacy (Per-Title)</option>
@@ -705,7 +860,7 @@ export default function AddGameDetailsModal({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                   Support Status
                 </label>
                 <select
@@ -719,7 +874,7 @@ export default function AddGameDetailsModal({
                         | "unsupported",
                     })
                   }
-                  className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+                  className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
                 >
                   <option value="supported">Supported</option>
                   <option value="testing">Testing</option>
@@ -731,13 +886,13 @@ export default function AddGameDetailsModal({
 
           {/* Links */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-white border-b border-[#2d2d2d] pb-2">
+            <h3 className="text-lg font-semibold text-[rgb(var(--text-primary))] border-b border-[rgb(var(--border-color))] pb-2">
               Links & Resources
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                   Discord Link
                 </label>
                 <input
@@ -749,7 +904,7 @@ export default function AddGameDetailsModal({
                   onBlur={(e) =>
                     handleUrlBlur("discordLink", e.target.value, "Discord Link")
                   }
-                  className={`w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] ${
+                  className={`w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] ${
                     urlErrors.discordLink ? "border border-red-500" : ""
                   }`}
                   placeholder="https://discord.gg/..."
@@ -762,7 +917,7 @@ export default function AddGameDetailsModal({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                   Reddit Link
                 </label>
                 <input
@@ -774,7 +929,7 @@ export default function AddGameDetailsModal({
                   onBlur={(e) =>
                     handleUrlBlur("redditLink", e.target.value, "Reddit Link")
                   }
-                  className={`w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] ${
+                  className={`w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] ${
                     urlErrors.redditLink ? "border border-red-500" : ""
                   }`}
                   placeholder="https://reddit.com/r/..."
@@ -787,7 +942,7 @@ export default function AddGameDetailsModal({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                   Wiki Link
                 </label>
                 <input
@@ -797,7 +952,7 @@ export default function AddGameDetailsModal({
                   onBlur={(e) =>
                     handleUrlBlur("wikiLink", e.target.value, "Wiki Link")
                   }
-                  className={`w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] ${
+                  className={`w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] ${
                     urlErrors.wikiLink ? "border border-red-500" : ""
                   }`}
                   placeholder="https://..."
@@ -810,7 +965,7 @@ export default function AddGameDetailsModal({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                   SteamDB Link
                 </label>
                 <input
@@ -822,7 +977,7 @@ export default function AddGameDetailsModal({
                   onBlur={(e) =>
                     handleUrlBlur("steamDBLink", e.target.value, "SteamDB Link")
                   }
-                  className={`w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] ${
+                  className={`w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] ${
                     urlErrors.steamDBLink ? "border border-red-500" : ""
                   }`}
                   placeholder="https://steamdb.info/app/..."
@@ -835,7 +990,7 @@ export default function AddGameDetailsModal({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                   Download Link
                 </label>
                 <input
@@ -851,20 +1006,41 @@ export default function AddGameDetailsModal({
                       "Download Link"
                     )
                   }
-                  className={`w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] ${
+                  className={`w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] ${
                     urlErrors.downloadLink ? "border border-red-500" : ""
                   }`}
                   placeholder="https://..."
+                  disabled={
+                    !!(formData.remasteredName || formData.purchaseLink)
+                  }
                 />
+                {(formData.remasteredName || formData.purchaseLink) && (
+                  <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+                    ⚠️ Download links are disabled when remasters or purchase
+                    links exist to protect against DMCA issues.
+                  </p>
+                )}
+                {formData.downloadLink && !formData.virusTotalUrl && (
+                  <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+                    ⚠️ Security: Consider adding a VirusTotal scan URL for this
+                    download link.
+                  </p>
+                )}
                 {urlErrors.downloadLink && (
                   <p className="text-xs text-red-400 mt-1">
                     {urlErrors.downloadLink}
                   </p>
                 )}
+                {formData.downloadLink && (
+                  <UrlSafetyIndicator
+                    url={formData.downloadLink}
+                    className="mt-1"
+                  />
+                )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                   Purchase Link
                 </label>
                 <input
@@ -880,7 +1056,7 @@ export default function AddGameDetailsModal({
                       "Purchase Link"
                     )
                   }
-                  className={`w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] ${
+                  className={`w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] ${
                     urlErrors.purchaseLink ? "border border-red-500" : ""
                   }`}
                   placeholder="https://..."
@@ -890,10 +1066,16 @@ export default function AddGameDetailsModal({
                     {urlErrors.purchaseLink}
                   </p>
                 )}
+                {formData.purchaseLink && (
+                  <UrlSafetyIndicator
+                    url={formData.purchaseLink}
+                    className="mt-1"
+                  />
+                )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                   GOG Dreamlist Link
                 </label>
                 <input
@@ -909,7 +1091,7 @@ export default function AddGameDetailsModal({
                       "GOG Dreamlist Link"
                     )
                   }
-                  className={`w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] ${
+                  className={`w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] ${
                     urlErrors.gogDreamlistLink ? "border border-red-500" : ""
                   }`}
                   placeholder="https://..."
@@ -922,7 +1104,7 @@ export default function AddGameDetailsModal({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                   VirusTotal URL
                 </label>
                 <input
@@ -938,7 +1120,7 @@ export default function AddGameDetailsModal({
                       "VirusTotal URL"
                     )
                   }
-                  className={`w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] ${
+                  className={`w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] ${
                     urlErrors.virusTotalUrl ? "border border-red-500" : ""
                   }`}
                   placeholder="https://virustotal.com/..."
@@ -954,13 +1136,13 @@ export default function AddGameDetailsModal({
 
           {/* Array Fields */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-white border-b border-[#2d2d2d] pb-2">
+            <h3 className="text-lg font-semibold text-[rgb(var(--text-primary))] border-b border-[rgb(var(--border-color))] pb-2">
               Additional Details
             </h3>
 
             {/* Instructions */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                 Installation Instructions
               </label>
               <div className="flex gap-2 mb-2">
@@ -978,7 +1160,7 @@ export default function AddGameDetailsModal({
                       );
                     }
                   }}
-                  className="flex-1 bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+                  className="flex-1 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
                   placeholder="Add an instruction step"
                 />
                 <button
@@ -1000,9 +1182,9 @@ export default function AddGameDetailsModal({
                   {formData.instructions.map((instruction, index) => (
                     <li
                       key={index}
-                      className="bg-[#2d2d2d] rounded-lg px-4 py-2 flex items-center justify-between"
+                      className="bg-[rgb(var(--bg-card-alt))] rounded-lg px-4 py-2 flex items-center justify-between"
                     >
-                      <span className="text-white text-sm">
+                      <span className="text-[rgb(var(--text-primary))] text-sm">
                         {index + 1}. {instruction}
                       </span>
                       <button
@@ -1020,7 +1202,7 @@ export default function AddGameDetailsModal({
 
             {/* Known Issues */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                 Known Issues
               </label>
               <div className="flex gap-2 mb-2">
@@ -1038,7 +1220,7 @@ export default function AddGameDetailsModal({
                       );
                     }
                   }}
-                  className="flex-1 bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+                  className="flex-1 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
                   placeholder="Add a known issue"
                 />
                 <button
@@ -1056,9 +1238,11 @@ export default function AddGameDetailsModal({
                   {formData.knownIssues.map((issue, index) => (
                     <li
                       key={index}
-                      className="bg-[#2d2d2d] rounded-lg px-4 py-2 flex items-center justify-between"
+                      className="bg-[rgb(var(--bg-card-alt))] rounded-lg px-4 py-2 flex items-center justify-between"
                     >
-                      <span className="text-white text-sm">{issue}</span>
+                      <span className="text-[rgb(var(--text-primary))] text-sm">
+                        {issue}
+                      </span>
                       <button
                         type="button"
                         onClick={() => handleRemoveItem("knownIssues", index)}
@@ -1074,7 +1258,7 @@ export default function AddGameDetailsModal({
 
             {/* Community Tips */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                 Community Tips
               </label>
               <div className="flex gap-2 mb-2">
@@ -1088,7 +1272,7 @@ export default function AddGameDetailsModal({
                       handleAddItem("communityTips", currentTip, setCurrentTip);
                     }
                   }}
-                  className="flex-1 bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+                  className="flex-1 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
                   placeholder="Add a community tip"
                 />
                 <button
@@ -1106,9 +1290,11 @@ export default function AddGameDetailsModal({
                   {formData.communityTips.map((tip, index) => (
                     <li
                       key={index}
-                      className="bg-[#2d2d2d] rounded-lg px-4 py-2 flex items-center justify-between"
+                      className="bg-[rgb(var(--bg-card-alt))] rounded-lg px-4 py-2 flex items-center justify-between"
                     >
-                      <span className="text-white text-sm">{tip}</span>
+                      <span className="text-[rgb(var(--text-primary))] text-sm">
+                        {tip}
+                      </span>
                       <button
                         type="button"
                         onClick={() => handleRemoveItem("communityTips", index)}
@@ -1125,12 +1311,12 @@ export default function AddGameDetailsModal({
 
           {/* Playability Status */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-white border-b border-[#2d2d2d] pb-2">
+            <h3 className="text-lg font-semibold text-[rgb(var(--text-primary))] border-b border-[rgb(var(--border-color))] pb-2">
               Playability Status
             </h3>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                 Playability Status
               </label>
               <select
@@ -1150,7 +1336,7 @@ export default function AddGameDetailsModal({
                         : formData.isUnplayable,
                   });
                 }}
-                className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+                className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
               >
                 <option value="">Select status...</option>
                 <option value="playable">Playable</option>
@@ -1175,40 +1361,100 @@ export default function AddGameDetailsModal({
                     isUnplayable: e.target.checked,
                   })
                 }
-                className="w-4 h-4 text-[#107c10] bg-[#2d2d2d] border-gray-600 rounded focus:ring-[#107c10] focus:ring-2"
+                className="w-4 h-4 text-[#107c10] bg-[rgb(var(--bg-card-alt))] border-[rgb(var(--border-color))] rounded focus:ring-[#107c10] focus:ring-2"
               />
               <label
                 htmlFor="isUnplayable"
-                className="ml-2 text-sm font-medium text-gray-300"
+                className="ml-2 text-sm font-medium text-[rgb(var(--text-primary))]"
               >
                 Original game is unplayable
               </label>
             </div>
 
             {formData.playabilityStatus === "community_alternative" && (
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Community Alternative Name
-                </label>
-                <input
-                  type="text"
-                  value={formData.communityAlternativeName}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      communityAlternativeName: e.target.value,
-                    })
-                  }
-                  placeholder="e.g., Project Name"
-                  className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
-                />
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
+                    Community Alternative Name
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.communityAlternativeName}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        communityAlternativeName: e.target.value,
+                      })
+                    }
+                    placeholder="e.g., Project Name"
+                    className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
+                    Website URL (Optional)
+                  </label>
+                  <input
+                    type="url"
+                    value={formData.communityAlternativeUrl}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        communityAlternativeUrl: e.target.value,
+                      })
+                    }
+                    placeholder="https://example.com"
+                    className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
+                  />
+                  <p className="text-gray-600 dark:text-[rgb(var(--text-secondary))] text-xs mt-1">
+                    Link to the community alternative&apos;s website or store
+                    page
+                  </p>
+                  {formData.communityAlternativeUrl && (
+                    <UrlSafetyIndicator
+                      url={formData.communityAlternativeUrl}
+                      className="mt-1"
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
+                    Direct Download Link (Optional)
+                  </label>
+                  <input
+                    type="url"
+                    value={formData.communityAlternativeDownloadLink}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        communityAlternativeDownloadLink: e.target.value,
+                      })
+                    }
+                    placeholder="https://example.com/download"
+                    className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
+                  />
+                  <p className="text-gray-600 dark:text-[rgb(var(--text-secondary))] text-xs mt-1">
+                    Direct download link for the community alternative (if
+                    available)
+                  </p>
+                  <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+                    ⚠️ Security: All download links are reviewed by admins.
+                    Malicious links will result in account bans.
+                  </p>
+                  {formData.communityAlternativeDownloadLink && (
+                    <UrlSafetyIndicator
+                      url={formData.communityAlternativeDownloadLink}
+                      className="mt-1"
+                    />
+                  )}
+                </div>
               </div>
             )}
 
             {formData.playabilityStatus === "remastered_available" && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                     Remastered Name
                   </label>
                   <input
@@ -1221,12 +1467,12 @@ export default function AddGameDetailsModal({
                       })
                     }
                     placeholder="e.g., Remastered Name"
-                    className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+                    className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
                     Remastered Platform
                   </label>
                   <input
@@ -1239,7 +1485,7 @@ export default function AddGameDetailsModal({
                       })
                     }
                     placeholder="e.g., Platform Name"
-                    className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+                    className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
                   />
                 </div>
               </div>
@@ -1248,7 +1494,7 @@ export default function AddGameDetailsModal({
 
           {/* Submitter Notes */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-[rgb(var(--text-primary))] mb-2">
               Additional Notes
             </label>
             <textarea
@@ -1257,7 +1503,7 @@ export default function AddGameDetailsModal({
                 setFormData({ ...formData, submitterNotes: e.target.value })
               }
               rows={3}
-              className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+              className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
               placeholder="Any additional information or context for reviewers..."
             />
           </div>
@@ -1267,7 +1513,7 @@ export default function AddGameDetailsModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-[#2d2d2d] hover:bg-[#3d3d3d] text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+              className="flex-1 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] font-semibold py-3 px-6 rounded-lg transition-colors border border-[rgb(var(--border-color))]"
               disabled={isSubmitting}
             >
               Cancel

@@ -126,8 +126,8 @@ export default function DisabledGamePrompt({
   const isAdmin = session?.user?.role === "admin";
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#1a1a1a] rounded-lg max-w-md w-full border border-[#2d2d2d] animate-fade-in">
+    <div className="fixed inset-0 bg-black/40 dark:bg-black/80 flex items-center justify-center z-50 p-4">
+      <div className="bg-[rgb(var(--bg-card))] rounded-lg max-w-md w-full border border-[rgb(var(--border-color))] animate-fade-in">
         <div className="p-6">
           {/* Header */}
           <div className="flex items-start gap-4 mb-4">
@@ -135,14 +135,14 @@ export default function DisabledGamePrompt({
               <FaExclamationTriangle className="text-yellow-400" size={24} />
             </div>
             <div className="flex-1">
-              <h2 className="text-xl font-bold text-white mb-1">
+              <h2 className="text-xl font-bold text-[rgb(var(--text-primary))] mb-1">
                 Game Not Available
               </h2>
-              <p className="text-gray-400 text-sm">{gameTitle}</p>
+              <p className="text-[rgb(var(--text-secondary))] text-sm">{gameTitle}</p>
             </div>
             <button
               onClick={handleClose}
-              className="text-gray-400 hover:text-white transition-colors flex-shrink-0"
+              className="text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] transition-colors flex-shrink-0"
               aria-label="Close"
             >
               <FaTimes size={20} />
@@ -151,14 +151,14 @@ export default function DisabledGamePrompt({
 
           {/* Content */}
           <div className="space-y-4 mb-6">
-            <p className="text-gray-300 text-sm leading-relaxed">
+            <p className="text-[rgb(var(--text-primary))] text-sm leading-relaxed">
               This game is currently hidden from public view because we don&apos;t
               have complete information yet.
             </p>
 
             {/* Game Status Information */}
             {gameStatus && (
-              <div className={`${gameStatus.hasRequiredFields ? 'bg-green-900/20 border-green-500/30' : 'bg-yellow-900/20 border-yellow-500/30'} border rounded-lg p-4`}>
+              <div className={`${gameStatus.hasRequiredFields ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-500/30' : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-500/30'} border rounded-lg p-4`}>
                 <div className="flex items-start gap-2 mb-3">
                   {gameStatus.hasRequiredFields ? (
                     <FaCheckCircle className="text-green-400 flex-shrink-0 mt-0.5" size={16} />
@@ -166,7 +166,7 @@ export default function DisabledGamePrompt({
                     <FaExclamationTriangle className="text-yellow-400 flex-shrink-0 mt-0.5" size={16} />
                   )}
                   <div>
-                    <p className={`${gameStatus.hasRequiredFields ? 'text-green-300' : 'text-yellow-300'} text-xs`}>
+                    <p className={`${gameStatus.hasRequiredFields ? 'text-green-800 dark:text-green-300' : 'text-yellow-800 dark:text-yellow-300'} text-xs`}>
                       {gameStatus.hasRequiredFields 
                         ? 'All required fields have been met. This game is waiting for an admin to publish it.'
                         : 'This game needs the following fields to be published:'}
@@ -182,7 +182,7 @@ export default function DisabledGamePrompt({
                     ) : (
                       <FaTimesIcon className="text-red-400 flex-shrink-0" size={12} />
                     )}
-                    <span className={`text-xs ${gameStatus.requiredFields.title ? 'text-gray-300' : 'text-gray-400'}`}>
+                    <span className={`text-xs ${gameStatus.requiredFields.title ? 'text-[rgb(var(--text-primary))]' : 'text-[rgb(var(--text-secondary))]'}`}>
                       Title
                     </span>
                   </div>
@@ -192,7 +192,7 @@ export default function DisabledGamePrompt({
                     ) : (
                       <FaTimesIcon className="text-red-400 flex-shrink-0" size={12} />
                     )}
-                    <span className={`text-xs ${gameStatus.requiredFields.releaseDate ? 'text-gray-300' : 'text-gray-400'}`}>
+                    <span className={`text-xs ${gameStatus.requiredFields.releaseDate ? 'text-[rgb(var(--text-primary))]' : 'text-[rgb(var(--text-secondary))]'}`}>
                       Release Date
                     </span>
                   </div>
@@ -202,7 +202,7 @@ export default function DisabledGamePrompt({
                     ) : (
                       <FaTimesIcon className="text-red-400 flex-shrink-0" size={12} />
                     )}
-                    <span className={`text-xs ${gameStatus.requiredFields.developer ? 'text-gray-300' : 'text-gray-400'}`}>
+                    <span className={`text-xs ${gameStatus.requiredFields.developer ? 'text-[rgb(var(--text-primary))]' : 'text-[rgb(var(--text-secondary))]'}`}>
                       Developer
                     </span>
                   </div>
@@ -212,7 +212,7 @@ export default function DisabledGamePrompt({
                     ) : (
                       <FaTimesIcon className="text-red-400 flex-shrink-0" size={12} />
                     )}
-                    <span className={`text-xs ${gameStatus.requiredFields.publisher ? 'text-gray-300' : 'text-gray-400'}`}>
+                    <span className={`text-xs ${gameStatus.requiredFields.publisher ? 'text-[rgb(var(--text-primary))]' : 'text-[rgb(var(--text-secondary))]'}`}>
                       Publisher
                     </span>
                   </div>
@@ -221,7 +221,7 @@ export default function DisabledGamePrompt({
             )}
 
             {status === "loading" && (
-              <div className="flex items-center gap-2 text-gray-400">
+              <div className="flex items-center gap-2 text-[rgb(var(--text-secondary))]">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
                 <span className="text-sm">Loading...</span>
               </div>
@@ -238,25 +238,25 @@ export default function DisabledGamePrompt({
             )}
 
             {session && (
-              <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4">
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-500/30 rounded-lg p-4">
                 {pendingSubmission?.hasPendingSubmission ? (
                   <>
-                    <p className="text-yellow-300 text-sm mb-2">
+                    <p className="text-yellow-800 dark:text-yellow-300 text-sm mb-2">
                       <strong>Submission Already Pending</strong>
                     </p>
-                    <p className="text-yellow-300/80 text-xs mb-3">
+                    <p className="text-yellow-700 dark:text-yellow-300/80 text-xs mb-3">
                       A submission for this game has already been submitted and is awaiting review.
                     </p>
                     <button
                       disabled
-                      className="inline-flex items-center gap-2 bg-gray-600 text-gray-400 font-semibold py-2 px-4 rounded-lg cursor-not-allowed text-sm"
+                      className="inline-flex items-center gap-2 bg-gray-300 dark:bg-gray-600 text-gray-600 dark:text-gray-400 font-semibold py-2 px-4 rounded-lg cursor-not-allowed text-sm"
                     >
                       Submission Already Pending
                     </button>
                   </>
                 ) : (
                   <>
-                    <p className="text-green-300 text-sm mb-3">
+                    <p className="text-green-800 dark:text-green-300 text-sm mb-3">
                       <strong>Help us out!</strong> You can add the missing game
                       details to help enable this game for the community.
                     </p>
@@ -322,7 +322,7 @@ export default function DisabledGamePrompt({
                 onClick={handleClose}
                 className={`${
                   session || status === "loading" ? "flex-1" : "flex-1"
-                } bg-[#2d2d2d] hover:bg-[#3d3d3d] text-white font-semibold py-2.5 px-4 rounded-lg transition-colors text-sm`}
+                } bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] font-semibold py-2.5 px-4 rounded-lg transition-colors text-sm border border-[rgb(var(--border-color))]`}
               >
                 Back to Games
               </button>

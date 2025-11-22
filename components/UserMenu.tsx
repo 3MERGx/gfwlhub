@@ -136,17 +136,17 @@ export default function UserMenu() {
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-64 bg-[#2d2d2d] rounded-lg shadow-xl border border-gray-700 py-2 z-50 animate-fade-in">
+        <div className="absolute right-0 mt-2 w-64 bg-[rgb(var(--bg-card))] rounded-lg shadow-xl border border-[rgb(var(--border-color))] py-2 z-50 animate-fade-in">
           {/* User Info */}
-          <div className="px-4 py-3 border-b border-gray-700">
-            <p className="text-white font-medium truncate">
+          <div className="px-4 py-3 border-b border-[rgb(var(--border-color))]">
+            <p className="text-[rgb(var(--text-primary))] font-medium truncate">
               {session.user.name}
             </p>
 
             {session.user.role && (
               <div className="mt-2 flex items-center gap-2">
                 {getRoleIcon()}
-                <span className="text-xs text-gray-400 capitalize">
+                <span className="text-xs text-[rgb(var(--text-secondary))] capitalize">
                   {session.user.role}
                 </span>
               </div>
@@ -159,7 +159,7 @@ export default function UserMenu() {
               session.user.role === "admin") && (
               <Link
                 href="/dashboard"
-                className="flex items-center gap-3 px-4 py-2 text-gray-300 hover:bg-[#3d3d3d] hover:text-white transition-colors"
+                className="flex items-center gap-3 px-4 py-2 text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--bg-card-alt))] hover:text-[rgb(var(--text-primary))] transition-colors"
                 onClick={() => setIsOpen(false)}
               >
                 <FaTachometerAlt size={16} />
@@ -169,7 +169,7 @@ export default function UserMenu() {
 
             <Link
               href={`/profile/${session.user.id}`}
-              className="flex items-center gap-3 px-4 py-2 text-gray-300 hover:bg-[#3d3d3d] hover:text-white transition-colors"
+              className="flex items-center gap-3 px-4 py-2 text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--bg-card-alt))] hover:text-[rgb(var(--text-primary))] transition-colors"
               onClick={() => setIsOpen(false)}
             >
               <FaUser size={16} />
@@ -178,7 +178,7 @@ export default function UserMenu() {
 
             <Link
               href="/settings"
-              className="flex items-center gap-3 px-4 py-2 text-gray-300 hover:bg-[#3d3d3d] hover:text-white transition-colors"
+              className="flex items-center gap-3 px-4 py-2 text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--bg-card-alt))] hover:text-[rgb(var(--text-primary))] transition-colors"
               onClick={() => setIsOpen(false)}
             >
               <FaCog size={16} />
@@ -187,10 +187,10 @@ export default function UserMenu() {
           </div>
 
           {/* Sign Out */}
-          <div className="border-t border-gray-700 pt-2">
+          <div className="border-t border-[rgb(var(--border-color))] pt-2">
             <button
               onClick={() => signOut({ callbackUrl: "/" })}
-              className="flex items-center gap-3 px-4 py-2 text-red-400 hover:bg-[#3d3d3d] hover:text-red-300 transition-colors w-full"
+              className="flex items-center gap-3 px-4 py-2 text-red-500 dark:text-red-400 hover:bg-[rgb(var(--bg-card-alt))] hover:text-red-600 dark:hover:text-red-300 transition-colors w-full"
             >
               <FaSignOutAlt size={16} />
               <span>Sign Out</span>

@@ -74,7 +74,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning className="h-full">
       <body
-        className={`h-full min-h-screen flex flex-col bg-[#121212] text-white ${inter.className}`}
+        className={`h-full min-h-screen flex flex-col bg-[rgb(var(--bg-primary))] text-[rgb(var(--text-primary))] ${inter.className}`}
       >
         <Providers>
           <ToastProvider>

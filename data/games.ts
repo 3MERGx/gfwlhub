@@ -40,6 +40,8 @@ export interface Game {
   playabilityStatus?: PlayabilityStatus; // Defaults to "playable" if not set
   isUnplayable?: boolean; // Marks if the original game is unplayable (independent of alternatives)
   communityAlternativeName?: string; // e.g., "Project Celeste"
+  communityAlternativeUrl?: string; // Website/store page URL for the community alternative
+  communityAlternativeDownloadLink?: string; // Direct download link (optional)
   remasteredName?: string; // e.g., "FlatOut: Ultimate Carnage Collector's Edition"
   remasteredPlatform?: string; // e.g., "Steam", "Epic Games", etc.
 }
