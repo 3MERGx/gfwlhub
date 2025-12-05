@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { getGameBySlug } from "@/lib/games-service";
+import { notifyGameSubmissionSubmitted } from "@/lib/discord-webhook";
 
 // GET - Fetch all game submissions (for reviewers/admins)
 export async function GET(request: NextRequest) {
@@ -178,9 +179,23 @@ export async function POST(request: NextRequest) {
       { $inc: { submissionsCount: 1 } }
     );
 
+    const submissionId = result.insertedId.toString();
+
+    // Send Discord notification (non-blocking)
+    notifyGameSubmissionSubmitted({
+      id: submissionId,
+      gameTitle,
+      gameSlug,
+      submittedByName,
+      proposedData,
+      submitterNotes,
+    }).catch((error) => {
+      console.error("Failed to send Discord notification:", error);
+    });
+
     return NextResponse.json({
       success: true,
-      submissionId: result.insertedId.toString(),
+      submissionId,
     });
   } catch (error) {
     console.error("Error creating game submission:", error);

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
+import { notifyGameSubmissionReviewed } from "@/lib/discord-webhook";
 
 // PATCH - Review a game submission (approve/reject)
 export async function PATCH(
@@ -181,6 +182,19 @@ export async function PATCH(
         );
       }
     }
+
+    // Send Discord notification (non-blocking)
+    notifyGameSubmissionReviewed({
+      id,
+      gameTitle: submission.gameTitle,
+      gameSlug: submission.gameSlug,
+      submittedByName: submission.submittedByName,
+      status: status as "approved" | "rejected",
+      reviewedByName: session.user.name || "Unknown",
+      reviewNotes: reviewNotes || undefined,
+    }).catch((error) => {
+      console.error("Failed to send Discord notification:", error);
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -10,6 +10,7 @@ import {
 } from "@/lib/crowdsource-service-mongodb";
 import { getGFWLDatabase } from "@/lib/mongodb";
 import { CorrectionStatus } from "@/types/crowdsource";
+import { notifyCorrectionReviewed } from "@/lib/discord-webhook";
 
 // POST - Review a correction (approve, reject, or modify)
 export async function POST(request: NextRequest) {
@@ -91,6 +92,26 @@ export async function POST(request: NextRequest) {
       reviewNotes,
       finalValue
     );
+
+    // Get updated correction for Discord notification
+    const updatedCorrection = await getCorrectionById(correctionId);
+
+    // Send Discord notification (non-blocking)
+    if (updatedCorrection) {
+      notifyCorrectionReviewed({
+        id: updatedCorrection.id,
+        gameTitle: updatedCorrection.gameTitle,
+        gameSlug: updatedCorrection.gameSlug,
+        field: updatedCorrection.field,
+        submittedByName: updatedCorrection.submittedByName,
+        status: updatedCorrection.status as "approved" | "rejected" | "modified",
+        reviewedByName: updatedCorrection.reviewedByName || user.name,
+        reviewNotes: updatedCorrection.reviewNotes,
+        finalValue: updatedCorrection.finalValue,
+      }).catch((error) => {
+        console.error("Failed to send Discord notification:", error);
+      });
+    }
 
     // If approved or modified, apply the change to the game
     if (status === "approved" || status === "modified") {

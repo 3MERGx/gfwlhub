@@ -8,6 +8,7 @@ import {
   canSubmitCorrections,
   getUserByEmail,
 } from "@/lib/crowdsource-service-mongodb";
+import { notifyCorrectionSubmitted } from "@/lib/discord-webhook";
 
 // POST - Submit a new correction
 export async function POST(request: NextRequest) {
@@ -94,6 +95,20 @@ export async function POST(request: NextRequest) {
       oldValue: oldValue === undefined ? null : oldValue,
       newValue,
       reason,
+    });
+
+    // Send Discord notification (non-blocking)
+    notifyCorrectionSubmitted({
+      id: correction.id,
+      gameTitle: correction.gameTitle,
+      gameSlug: correction.gameSlug,
+      field: correction.field,
+      submittedByName: correction.submittedByName,
+      reason: correction.reason,
+      oldValue: correction.oldValue,
+      newValue: correction.newValue,
+    }).catch((error) => {
+      console.error("Failed to send Discord notification:", error);
     });
 
     return NextResponse.json({ correction }, { status: 201 });
