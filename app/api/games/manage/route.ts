@@ -3,11 +3,20 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { getAllGames } from "@/lib/games-service";
 import { getGFWLDatabase } from "@/lib/mongodb";
+import { safeLog, rateLimiters, getClientIdentifier } from "@/lib/security";
 
 // GET - Fetch all games with management data (admin only)
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // Rate limiting
     const session = await getServerSession(authOptions);
+    const identifier = getClientIdentifier(request, session?.user?.id);
+    if (!rateLimiters.admin.isAllowed(identifier)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
 
     // Only admins can access this endpoint
     if (!session || session.user.role !== "admin") {
@@ -55,11 +64,18 @@ export async function GET() {
     // Sort by title
     gamesWithCounts.sort((a, b) => a.title.localeCompare(b.title));
 
-    return NextResponse.json(gamesWithCounts);
-  } catch (error) {
-    console.error("Error fetching games for management:", error);
     return NextResponse.json(
-      { error: "Failed to fetch games" },
+      gamesWithCounts,
+      {
+        headers: {
+          "Cache-Control": "private, no-cache, must-revalidate",
+        },
+      }
+    );
+  } catch (error) {
+    safeLog.error("Error fetching games for management:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

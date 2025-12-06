@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import {
   FaGoogle,
   FaGithub,
@@ -27,6 +28,9 @@ import Link from "next/link";
 import Image from "next/image";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useSession } from "next-auth/react";
+import { safeLog } from "@/lib/security";
+import { useToast } from "@/components/ui/toast-context";
+import { useCSRF } from "@/hooks/useCSRF";
 
 interface User {
   id: string;
@@ -54,6 +58,10 @@ const ITEMS_PER_PAGE = 20;
 
 export default function UsersPage() {
   const { data: session } = useSession();
+  const router = useRouter();
+  const pathname = usePathname();
+  const { showToast } = useToast();
+  const { csrfToken } = useCSRF();
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -85,7 +93,7 @@ export default function UsersPage() {
           const data = await response.json();
           setUsers(data);
         } else {
-          console.error("Failed to fetch users");
+          safeLog.error("Failed to fetch users");
         }
       } catch (error) {
         console.error("Error fetching users:", error);
@@ -251,7 +259,7 @@ export default function UsersPage() {
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
     } catch (err) {
-      console.error("Failed to copy:", err);
+      safeLog.error("Failed to copy:", err);
     }
   };
 
@@ -289,9 +297,10 @@ export default function UsersPage() {
     const beyondGracePeriod = daysSinceDeletion > 30;
 
     if (beyondGracePeriod && !isDeveloper()) {
-      alert(
-        `Cannot restore this account. Grace period (30 days) has expired.\n\n` +
-          `Deleted ${daysSinceDeletion} days ago. Contact a developer for admin override.`
+      showToast(
+        `Cannot restore this account. Grace period (30 days) has expired. Deleted ${daysSinceDeletion} days ago. Contact a developer for admin override.`,
+        6000,
+        "error"
       );
       return;
     }
@@ -317,6 +326,7 @@ export default function UsersPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken || "",
         },
         body: JSON.stringify({
           adminOverride: beyondGracePeriod,
@@ -347,11 +357,18 @@ export default function UsersPage() {
       setSuccessMessage(successMsg);
       setTimeout(() => setSuccessMessage(null), 4000);
     } catch (error) {
-      console.error("Error restoring user:", error);
-      alert(
+      safeLog.error("Error restoring user:", error);
+      
+      // Refresh UI
+      if (pathname === "/dashboard/users") {
+        router.refresh();
+      }
+      showToast(
         error instanceof Error
           ? error.message
-          : "Failed to restore user account"
+          : "Failed to restore user account",
+        5000,
+        "error"
       );
     }
   };
@@ -367,7 +384,7 @@ export default function UsersPage() {
 
     // Require reason if demoting
     if (isDemoting && !roleChangeReason.trim()) {
-      alert("Please provide a reason for demoting this user.");
+      showToast("Please provide a reason for demoting this user.", 4000, "error");
       return;
     }
 
@@ -376,6 +393,7 @@ export default function UsersPage() {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken || "",
         },
         body: JSON.stringify({ 
           role: newRole,
@@ -396,20 +414,31 @@ export default function UsersPage() {
         setFilteredUsers(data);
       }
 
+      // Refresh UI
+      if (pathname === "/dashboard/users") {
+        router.refresh();
+      }
+
       // If updating the current user's role, show a message that they need to refresh
       if (selectedUser.id === session?.user?.id) {
-        alert(
-          "Your role has been updated. Please refresh the page to see the changes."
+        showToast(
+          "Your role has been updated. Please refresh the page to see the changes.",
+          5000,
+          "success"
         );
+      } else {
+        showToast(`User role updated to ${newRole}`, 3000, "success");
       }
 
       setShowRoleModal(false);
       setSelectedUser(null);
       setRoleChangeReason("");
     } catch (error) {
-      console.error("Error updating user role:", error);
-      alert(
-        error instanceof Error ? error.message : "Failed to update user role"
+      safeLog.error("Error updating user role:", error);
+      showToast(
+        error instanceof Error ? error.message : "Failed to update user role",
+        5000,
+        "error"
       );
     }
   };
@@ -419,7 +448,7 @@ export default function UsersPage() {
 
     // Require reason for all moderation actions except restore
     if (days !== -1 && !suspendReason.trim()) {
-      alert("Please provide a reason for this moderation action.");
+      showToast("Please provide a reason for this moderation action.", 4000, "error");
       return;
     }
 
@@ -430,6 +459,7 @@ export default function UsersPage() {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
+            "X-CSRF-Token": csrfToken || "",
           },
           body: JSON.stringify({
             status: "active",
@@ -467,6 +497,7 @@ export default function UsersPage() {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
+            "X-CSRF-Token": csrfToken || "",
           },
           body: JSON.stringify({
             status: "restricted",
@@ -529,6 +560,7 @@ export default function UsersPage() {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken || "",
         },
         body: JSON.stringify(updateBody),
       });
@@ -563,9 +595,16 @@ export default function UsersPage() {
       }
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (error) {
-      console.error("Error updating user status:", error);
-      alert(
-        error instanceof Error ? error.message : "Failed to update user status"
+      safeLog.error("Error updating user status:", error);
+      
+      // Refresh UI
+      if (pathname === "/dashboard/users") {
+        router.refresh();
+      }
+      showToast(
+        error instanceof Error ? error.message : "Failed to update user status",
+        5000,
+        "error"
       );
     }
   };

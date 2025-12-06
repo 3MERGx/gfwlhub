@@ -1,5 +1,6 @@
 // import { MetadataRoute } from "next"; // Keep commented if it causes errors
 import { getAllGames } from "@/lib/games-service";
+import { safeLog } from "@/lib/security";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://gfwl-hub.vercel.app";
 
@@ -71,7 +72,7 @@ export default async function sitemap(): Promise<Sitemap> {
   } catch (error) {
     // If MongoDB is unavailable, just return static routes
     // This allows the sitemap to be generated even if the database is down
-    console.warn("Failed to fetch games for sitemap:", error);
+    safeLog.warn("Failed to fetch games for sitemap:", error);
   }
 
   return [...staticRoutes, ...gameRoutes];

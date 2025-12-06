@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+import { useCSRF } from "@/hooks/useCSRF";
 import { useState, useEffect } from "react";
+import { safeLog } from "@/lib/security";
 import {
   FaBell,
   FaLock,
@@ -28,6 +30,8 @@ interface UserSettings {
 export default function SettingsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
+  const { csrfToken } = useCSRF();
   let theme: "dark" | "light" = "dark";
   let setTheme: (theme: "dark" | "light") => void = () => {};
   try {
@@ -87,7 +91,7 @@ export default function SettingsPage() {
             );
           }
         } catch (error) {
-          console.error("Error fetching provider info:", error);
+          safeLog.error("Error fetching provider info:", error);
         }
       }
     };
@@ -100,13 +104,13 @@ export default function SettingsPage() {
       if (response.ok) {
         const data = await response.json();
         setSettings(data);
-        // Apply theme from settings
-        if (data.theme && (data.theme === "dark" || data.theme === "light")) {
-          setTheme(data.theme);
-        }
+        // Don't apply theme from database on page load - let ThemeProvider manage it
+        // The database theme is only used to display the current preference in the UI
+        // The actual theme is managed by ThemeProvider via localStorage
+        // This prevents unwanted theme switches when navigating to settings page
       }
     } catch (error) {
-      console.error("Error fetching settings:", error);
+      safeLog.error("Error fetching settings:", error);
     } finally {
       setLoading(false);
     }
@@ -129,7 +133,10 @@ export default function SettingsPage() {
     try {
       const response = await fetch(`/api/users/${session?.user?.id}/settings`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken || "",
+        },
         body: JSON.stringify({ [key]: value }),
       });
 
@@ -139,6 +146,11 @@ export default function SettingsPage() {
           text: "Settings saved successfully!",
         });
         setTimeout(() => setSaveMessage(null), 3000);
+        
+        // Refresh UI
+        if (pathname === "/settings") {
+          router.refresh();
+        }
       } else {
         throw new Error("Failed to save settings");
       }
@@ -443,21 +455,51 @@ export default function SettingsPage() {
             </div>
             <div className="space-y-4">
               <div>
-                <label className="text-[rgb(var(--text-primary))] font-medium mb-2 block">
+                <label className="text-[rgb(var(--text-primary))] font-medium mb-3 block">
                   Theme
                 </label>
-                <select
-                  value={theme}
-                  onChange={(e) => updateSetting("theme", e.target.value)}
-                  disabled={saving}
-                  className="w-full md:w-auto px-4 py-2 bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-white rounded-lg border border-gray-300 dark:border-gray-700 focus:border-[#107c10] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <option value="dark">Dark</option>
-                  <option value="light">Light</option>
-                </select>
-                <p className="text-gray-700 dark:text-[rgb(var(--text-secondary))] text-xs mt-2">
-                  Choose your preferred color scheme. Dark mode is our preferred
-                  theme.
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <button
+                    onClick={() => updateSetting("theme", "dark")}
+                    disabled={saving || theme === "dark"}
+                    className={`relative flex flex-col items-center justify-center p-4 rounded-lg border-2 transition-all ${
+                      theme === "dark"
+                        ? "border-[#107c10] bg-[#107c10]/10 dark:bg-[#107c10]/20"
+                        : "border-[rgb(var(--border-color))] bg-[rgb(var(--bg-card-alt))] hover:border-[#107c10]/50 hover:bg-[#107c10]/5"
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    <div className="w-full h-20 rounded bg-gray-900 border-2 border-gray-700 mb-2 flex items-center justify-center">
+                      <div className="w-3 h-3 rounded-full bg-[#107c10]"></div>
+                    </div>
+                    <span className="text-[rgb(var(--text-primary))] font-medium text-sm">Dark</span>
+                    {theme === "dark" && (
+                      <div className="absolute top-2 right-2">
+                        <FaCheckCircle className="text-[#107c10]" size={16} />
+                      </div>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => updateSetting("theme", "light")}
+                    disabled={saving || theme === "light"}
+                    className={`relative flex flex-col items-center justify-center p-4 rounded-lg border-2 transition-all ${
+                      theme === "light"
+                        ? "border-[#107c10] bg-[#107c10]/10 dark:bg-[#107c10]/20"
+                        : "border-[rgb(var(--border-color))] bg-[rgb(var(--bg-card-alt))] hover:border-[#107c10]/50 hover:bg-[#107c10]/5"
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    <div className="w-full h-20 rounded bg-white border-2 border-gray-300 mb-2 flex items-center justify-center">
+                      <div className="w-3 h-3 rounded-full bg-[#107c10]"></div>
+                    </div>
+                    <span className="text-[rgb(var(--text-primary))] font-medium text-sm">Light</span>
+                    {theme === "light" && (
+                      <div className="absolute top-2 right-2">
+                        <FaCheckCircle className="text-[#107c10]" size={16} />
+                      </div>
+                    )}
+                  </button>
+                </div>
+                <p className="text-gray-700 dark:text-[rgb(var(--text-secondary))] text-xs">
+                  Choose your preferred color scheme. Changes apply immediately and are saved to your account.
                 </p>
               </div>
             </div>

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import DashboardLayout from "@/components/DashboardLayout";
+import { safeLog } from "@/lib/security";
 import {
   FaTrophy,
   FaMedal,
@@ -82,10 +83,10 @@ export default function LeaderboardPage() {
           setFilteredUsers(rankedData);
         } else if (response.status === 403) {
           // Not reviewer or admin - will be handled by DashboardLayout
-          console.error("Access denied");
+          safeLog.error("Access denied");
         }
       } catch (error) {
-        console.error("Error fetching leaderboard:", error);
+        safeLog.error("Error fetching leaderboard:", error);
       } finally {
         setLoading(false);
       }

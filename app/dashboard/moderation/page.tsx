@@ -17,6 +17,7 @@ import {
 } from "react-icons/fa";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
+import { safeLog } from "@/lib/security";
 
 interface ModerationLog {
   id: string;
@@ -60,7 +61,7 @@ export default function ModerationPage() {
           setFilteredLogs(data.logs || []);
         }
       } catch (error) {
-        console.error("Error fetching moderation logs:", error);
+        safeLog.error("Error fetching moderation logs:", error);
       }
     };
 

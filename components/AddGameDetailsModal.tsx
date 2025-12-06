@@ -1,10 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { FaTimes, FaPlus, FaTrash } from "react-icons/fa";
 import { Game } from "@/data/games";
 import UrlSafetyIndicator from "@/components/UrlSafetyIndicator";
 import { getUrlValidationError } from "@/lib/url-validation";
+import { safeLog } from "@/lib/security";
+import { useToast } from "@/components/ui/toast-context";
+import { useCSRF } from "@/hooks/useCSRF";
 
 interface AddGameDetailsModalProps {
   game: Game;
@@ -21,6 +25,10 @@ export default function AddGameDetailsModal({
   userId,
   userName,
 }: AddGameDetailsModalProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { showToast } = useToast();
+  const { csrfToken } = useCSRF();
   const [formData, setFormData] = useState({
     title: game.title || "",
     description: game.description || "",
@@ -339,6 +347,15 @@ export default function AddGameDetailsModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Prevent duplicate submissions
+    if (isSubmitting) {
+      showToast("Please wait, submission in progress...", 2000, "error");
+      return;
+    }
+
+    // Clear previous errors
+    setError("");
+
     // DMCA Protection: Prevent download links if game is still being sold
     if (formData.downloadLink) {
       if (formData.remasteredName) {
@@ -371,9 +388,18 @@ export default function AddGameDetailsModal({
         ? formatDate(datePickerValue)
         : formData.releaseDate || undefined;
 
+      if (!csrfToken) {
+        showToast("Security token not ready. Please wait...", 3000, "error");
+        setIsSubmitting(false);
+        return;
+      }
+
       const response = await fetch("/api/game-submissions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken,
+        },
         body: JSON.stringify({
           gameSlug: game.slug,
           gameTitle: game.title,
@@ -434,12 +460,21 @@ export default function AddGameDetailsModal({
 
       onSubmit();
       onClose();
+      
+      // Refresh UI
+      if (pathname === "/dashboard/games" || pathname === "/dashboard/game-submissions") {
+        router.refresh();
+      }
+      router.refresh();
+      showToast("Game details submitted successfully!", 3000, "success");
     } catch (error) {
-      console.error("Error submitting game details:", error);
-      alert(
+      safeLog.error("Error submitting game details:", error);
+      showToast(
         error instanceof Error
           ? error.message
-          : "Failed to submit game details. Please try again."
+          : "Failed to submit game details. Please try again.",
+        5000,
+        "error"
       );
     } finally {
       setIsSubmitting(false);

@@ -7,6 +7,7 @@ import { ToastProvider } from "@/components/ui/toast-context";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Providers } from "@/components/Providers";
+import SessionExpirationWarning from "@/components/SessionExpirationWarning";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -78,6 +79,7 @@ export default function RootLayout({
       >
         <Providers>
           <ToastProvider>
+            <SessionExpirationWarning />
             <Header />
             <main className="flex-1 flex flex-col">{children}</main>
             <Footer />

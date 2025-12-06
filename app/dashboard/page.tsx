@@ -15,6 +15,7 @@ import {
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useSession } from "next-auth/react";
+import { safeLog } from "@/lib/security";
 
 interface Stats {
   totalUsers: number;
@@ -43,10 +44,10 @@ export default function AdminPanel() {
         } else if (response.status === 403) {
           // User doesn't have permission - this is expected for regular users
           // Don't set error state, just leave stats as null
-          console.log("User doesn't have permission to view stats");
+          safeLog.log("User doesn't have permission to view stats");
           setStats(null);
         } else {
-          console.error("Failed to fetch stats");
+          safeLog.error("Failed to fetch stats");
           // Set defaults on error
           setStats({
             totalUsers: 0,
@@ -61,7 +62,7 @@ export default function AdminPanel() {
           });
         }
       } catch (error) {
-        console.error("Error fetching stats:", error);
+        safeLog.error("Error fetching stats:", error);
         // Set defaults on error
         setStats({
           totalUsers: 0,

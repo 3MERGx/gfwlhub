@@ -3,6 +3,7 @@
 import { FaCheckCircle, FaTimesCircle, FaSpinner } from "react-icons/fa";
 import { useEffect, useState } from "react";
 import { isTrustedUrl } from "@/lib/url-whitelist";
+import { safeLog } from "@/lib/security";
 
 interface UrlSafetyIndicatorProps {
   url: string;
@@ -57,7 +58,7 @@ export default function UrlSafetyIndicator({
 
         if (!response.ok) {
           const data = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-          console.error("Safe Browsing API error:", data);
+          safeLog.error("Safe Browsing API error:", data);
           setError(data.error || `Failed to check URL (${response.status})`);
           setIsSafe(null);
         } else {
@@ -66,7 +67,7 @@ export default function UrlSafetyIndicator({
           setThreatType(data.threatType || null);
         }
       } catch (err) {
-        console.error("Safe Browsing check error:", err);
+        safeLog.error("Safe Browsing check error:", err);
         setError(err instanceof Error ? err.message : "Failed to check URL");
         setIsSafe(null);
       } finally {

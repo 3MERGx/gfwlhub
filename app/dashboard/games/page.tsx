@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+import { safeLog } from "@/lib/security";
+import { useToast } from "@/components/ui/toast-context";
+import { useCSRF } from "@/hooks/useCSRF";
 import Link from "next/link";
 import {
   FaArrowLeft,
@@ -15,6 +18,7 @@ import {
 import DashboardLayout from "@/components/DashboardLayout";
 import DisabledGamePrompt from "@/app/games/[slug]/DisabledGamePrompt";
 import AddGameDetailsModal from "@/components/AddGameDetailsModal";
+import { ListSkeleton } from "@/components/ui/loading-skeleton";
 
 interface Game {
   id?: string;
@@ -53,6 +57,9 @@ const hasMinimumFields = (game: Game): boolean => {
 function GamesManagementPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
+  const { showToast } = useToast();
+  const { csrfToken } = useCSRF();
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -88,7 +95,7 @@ function GamesManagementPage() {
         setGames(data);
       }
     } catch (error) {
-      console.error("Error fetching games:", error);
+      safeLog.error("Error fetching games:", error);
     } finally {
       setLoading(false);
     }
@@ -99,7 +106,10 @@ function GamesManagementPage() {
     try {
       const response = await fetch(`/api/games/${slug}/toggle-feature`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken || "",
+        },
         body: JSON.stringify({ featureEnabled: !currentValue }),
       });
 
@@ -110,12 +120,19 @@ function GamesManagementPage() {
             g.slug === slug ? { ...g, featureEnabled: !currentValue } : g
           )
         );
+        showToast(`Game ${!currentValue ? "enabled" : "disabled"} successfully`, 3000, "success");
       } else {
-        alert("Failed to update game");
+        const errorData = await response.json();
+        showToast(errorData.error || "Failed to update game", 5000, "error");
+      }
+      
+      // Refresh UI
+      if (pathname === "/dashboard/games") {
+        router.refresh();
       }
     } catch (error) {
-      console.error("Error updating game:", error);
-      alert("Failed to update game");
+      safeLog.error("Error updating game:", error);
+      showToast("Failed to update game", 5000, "error");
     } finally {
       setUpdating(null);
     }
@@ -146,7 +163,13 @@ function GamesManagementPage() {
   if (loading || status === "loading") {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="text-center text-[rgb(var(--text-primary))]">Loading...</div>
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-6">
+            <div className="h-8 w-64 bg-[rgb(var(--bg-card-alt))] rounded animate-pulse mb-2" />
+            <div className="h-4 w-96 bg-[rgb(var(--bg-card-alt))] rounded animate-pulse" />
+          </div>
+          <ListSkeleton items={5} />
+        </div>
       </div>
     );
   }

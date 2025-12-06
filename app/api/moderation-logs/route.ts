@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
+import { safeLog, rateLimiters, getClientIdentifier } from "@/lib/security";
 
 interface ModerationLog {
   id: string;
@@ -22,9 +23,17 @@ interface ModerationLog {
   newStatus?: string;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // Rate limiting
     const session = await getServerSession(authOptions);
+    const identifier = getClientIdentifier(request, session?.user?.id);
+    if (!rateLimiters.admin.isAllowed(identifier)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
 
     // Only admins can view moderation logs
     if (!session || session.user.role !== "admin") {
@@ -75,11 +84,18 @@ export async function GET() {
       return timeB - timeA;
     });
 
-    return NextResponse.json({ logs: allModerationLogs });
-  } catch (error) {
-    console.error("Error fetching moderation logs:", error);
     return NextResponse.json(
-      { error: "Failed to fetch moderation logs" },
+      { logs: allModerationLogs },
+      {
+        headers: {
+          "Cache-Control": "private, no-cache, must-revalidate",
+        },
+      }
+    );
+  } catch (error) {
+    safeLog.error("Error fetching moderation logs:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

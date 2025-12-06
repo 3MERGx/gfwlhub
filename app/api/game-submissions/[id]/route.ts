@@ -4,6 +4,9 @@ import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { notifyGameSubmissionReviewed } from "@/lib/discord-webhook";
+import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { revalidatePath } from "next/cache";
+import { validateCSRFToken } from "@/lib/csrf";
 
 // PATCH - Review a game submission (approve/reject)
 export async function PATCH(
@@ -11,7 +14,15 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Rate limiting
     const session = await getServerSession(authOptions);
+    const identifier = getClientIdentifier(request, session?.user?.id);
+    if (!rateLimiters.admin.isAllowed(identifier)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
 
     // Only reviewers and admins can review submissions
     if (
@@ -21,13 +32,35 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params;
+    // CSRF protection
     const body = await request.json();
+    const csrfToken = request.headers.get("X-CSRF-Token") || body._csrf;
+    if (!(await validateCSRFToken(csrfToken))) {
+      return NextResponse.json(
+        { error: "Invalid CSRF token" },
+        { status: 403 }
+      );
+    }
+    
+    // Remove CSRF token from body if present
+    delete body._csrf;
+
+    const { id } = await params;
     const { status, reviewNotes } = body;
 
+    // Sanitize and validate inputs
+    const sanitizedId = sanitizeString(String(id || ""), 50);
+    const sanitizedStatus = sanitizeString(String(status || ""), 50);
+    const sanitizedReviewNotes = reviewNotes ? sanitizeString(String(reviewNotes), 2000) : undefined;
+
     // Validate status
-    if (!status || !["approved", "rejected"].includes(status)) {
+    if (!sanitizedStatus || !["approved", "rejected"].includes(sanitizedStatus)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+    }
+
+    // Validate ID is a valid ObjectId
+    if (!sanitizedId || !ObjectId.isValid(sanitizedId)) {
+      return NextResponse.json({ error: "Invalid submission ID" }, { status: 400 });
     }
 
     const db = await getGFWLDatabase();
@@ -37,7 +70,7 @@ export async function PATCH(
 
     // Get submission
     const submission = await submissionsCollection.findOne({
-      _id: new ObjectId(id),
+      _id: new ObjectId(sanitizedId),
     });
 
     if (!submission) {
@@ -64,20 +97,20 @@ export async function PATCH(
 
     // Update submission
     await submissionsCollection.updateOne(
-      { _id: new ObjectId(id) },
+      { _id: new ObjectId(sanitizedId) },
       {
         $set: {
-          status,
+          status: sanitizedStatus,
           reviewedBy: session.user.id,
           reviewedByName: session.user.name || "Unknown",
           reviewedAt: new Date(),
-          reviewNotes: reviewNotes || undefined,
+          reviewNotes: sanitizedReviewNotes || undefined,
         },
       }
     );
 
     // If approved, update user's approved count
-    if (status === "approved") {
+    if (sanitizedStatus === "approved") {
       // Validate submittedBy is a valid ObjectId before using it
       if (submission.submittedBy && ObjectId.isValid(submission.submittedBy)) {
         await usersCollection.updateOne(
@@ -150,7 +183,7 @@ export async function PATCH(
           },
           fields: updatedFields,
           updateType: "gameSubmission" as const,
-          notes: reviewNotes,
+          notes: sanitizedReviewNotes,
         };
 
         updateData.updatedAt = new Date();
@@ -169,7 +202,7 @@ export async function PATCH(
     }
 
     // If rejected, update user's rejected count
-    if (status === "rejected") {
+    if (sanitizedStatus === "rejected") {
       // Validate submittedBy is a valid ObjectId before using it
       if (submission.submittedBy && ObjectId.isValid(submission.submittedBy)) {
         await usersCollection.updateOne(
@@ -177,30 +210,35 @@ export async function PATCH(
           { $inc: { rejectedCount: 1 } }
         );
       } else {
-        console.warn(
-          `Invalid submittedBy for submission ${id}: ${submission.submittedBy}`
+        safeLog.warn(
+          `Invalid submittedBy for submission ${sanitizedId}: ${submission.submittedBy}`
         );
       }
     }
 
     // Send Discord notification (non-blocking)
     notifyGameSubmissionReviewed({
-      id,
+      id: sanitizedId,
       gameTitle: submission.gameTitle,
       gameSlug: submission.gameSlug,
       submittedByName: submission.submittedByName,
-      status: status as "approved" | "rejected",
+      status: sanitizedStatus as "approved" | "rejected",
       reviewedByName: session.user.name || "Unknown",
-      reviewNotes: reviewNotes || undefined,
+      reviewNotes: sanitizedReviewNotes || undefined,
     }).catch((error) => {
-      console.error("Failed to send Discord notification:", error);
+      safeLog.error("Failed to send Discord notification:", error);
     });
+
+    // Revalidate paths
+    revalidatePath("/dashboard/game-submissions");
+    revalidatePath(`/games/${submission.gameSlug}`);
+    revalidatePath("/");
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error reviewing game submission:", error);
+    safeLog.error("Error reviewing game submission:", error);
     return NextResponse.json(
-      { error: "Failed to review submission" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

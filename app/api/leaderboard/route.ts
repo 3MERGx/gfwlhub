@@ -2,11 +2,21 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import clientPromise from "@/lib/mongodb";
+import { safeLog, rateLimiters, getClientIdentifier } from "@/lib/security";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Check authentication
+    // Rate limiting
     const session = await getServerSession(authOptions);
+    const identifier = getClientIdentifier(request, session?.user?.id);
+    if (!rateLimiters.api.isAllowed(identifier)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
+
+    // Check authentication
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -66,11 +76,18 @@ export async function GET() {
       return b.submissionsCount - a.submissionsCount;
     });
 
-    return NextResponse.json(leaderboardData);
-  } catch (error) {
-    console.error("Error fetching leaderboard:", error);
     return NextResponse.json(
-      { error: "Failed to fetch leaderboard data" },
+      leaderboardData,
+      {
+        headers: {
+          "Cache-Control": "private, no-cache, must-revalidate",
+        },
+      }
+    );
+  } catch (error) {
+    safeLog.error("Error fetching leaderboard:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

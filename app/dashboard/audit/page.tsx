@@ -17,6 +17,7 @@ import {
 } from "react-icons/fa";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
+import { safeLog } from "@/lib/security";
 
 interface AuditLog {
   id: string;
@@ -60,7 +61,7 @@ export default function AuditPage() {
           setFilteredLogs(data.logs || []);
         }
       } catch (error) {
-        console.error("Error fetching audit logs:", error);
+        safeLog.error("Error fetching audit logs:", error);
       }
     };
 

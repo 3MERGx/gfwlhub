@@ -1,23 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
+import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 
 export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const imageUrl = searchParams.get("url");
-
-  if (!imageUrl) {
-    return NextResponse.json(
-      { error: "Missing url parameter" },
-      { status: 400 }
-    );
-  }
-
-  // Validate that it's a valid URL
-  let url: URL;
   try {
-    url = new URL(imageUrl);
-  } catch {
-    return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
-  }
+    // Rate limiting
+    const identifier = getClientIdentifier(request);
+    if (!rateLimiters.api.isAllowed(identifier)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
+
+    const searchParams = request.nextUrl.searchParams;
+    const imageUrl = searchParams.get("url");
+
+    // Sanitize and validate URL
+    const sanitizedImageUrl = imageUrl ? sanitizeString(String(imageUrl), 2000) : "";
+
+    if (!sanitizedImageUrl) {
+      return NextResponse.json(
+        { error: "Missing url parameter" },
+        { status: 400 }
+      );
+    }
+
+    // Validate that it's a valid URL
+    let url: URL;
+    try {
+      url = new URL(sanitizedImageUrl);
+    } catch {
+      return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
+    }
 
   const hostname = url.hostname.toLowerCase();
 
@@ -77,9 +91,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Domain not allowed" }, { status: 403 });
   }
 
-  try {
     // Fetch the image
-    const imageResponse = await fetch(imageUrl, {
+    const imageResponse = await fetch(sanitizedImageUrl, {
       headers: {
         "User-Agent": "Mozilla/5.0 (compatible; GFWLHub/1.0)",
       },
@@ -107,9 +120,9 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error proxying image:", error);
+    safeLog.error("Error proxying image:", error);
     return NextResponse.json(
-      { error: "Failed to proxy image" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

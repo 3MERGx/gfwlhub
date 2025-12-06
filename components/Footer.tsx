@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FaDiscord, FaReddit, FaHeart } from "react-icons/fa";
+import { FaDiscord, FaReddit } from "react-icons/fa";
 
 const Footer = () => {
   return (
@@ -10,10 +10,6 @@ const Footer = () => {
             <p>© {new Date().getFullYear()} GFWL Hub. All rights reserved.</p>
           </div>
           <div className="flex flex-col sm:flex-row items-center gap-4">
-            <p className="text-sm text-[rgb(var(--text-secondary))] text-center">
-              Made with <FaHeart className="inline text-[#107c10]" /> by the
-              community
-            </p>
             <div className="flex items-center gap-4">
               <Link
                 href="https://discord.gg/PR75T8xMWS"

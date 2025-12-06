@@ -1,11 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkUrlSafety } from "@/lib/google-safe-browsing";
+import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting
+    const identifier = getClientIdentifier(request);
+    if (!rateLimiters.api.isAllowed(identifier)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     const { url } = await request.json();
 
-    if (!url || typeof url !== "string") {
+    // Sanitize and validate URL
+    const sanitizedUrl = sanitizeString(String(url || ""), 2000);
+    if (!sanitizedUrl || typeof url !== "string") {
       return NextResponse.json(
         { error: "URL is required" },
         { status: 400 }
@@ -14,7 +26,7 @@ export async function POST(request: NextRequest) {
 
     const apiKey = process.env.GOOGLE_SAFE_BROWSING_API_KEY;
     if (!apiKey) {
-      console.error("Google Safe Browsing API key not found in environment variables");
+      safeLog.error("Google Safe Browsing API key not found in environment variables");
       return NextResponse.json(
         { error: "Google Safe Browsing API key not configured. Please add GOOGLE_SAFE_BROWSING_API_KEY to your .env.local file." },
         { status: 500 }
@@ -23,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     // Validate URL format
     try {
-      new URL(url);
+      new URL(sanitizedUrl);
     } catch {
       return NextResponse.json(
         { error: "Invalid URL format" },
@@ -31,10 +43,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await checkUrlSafety(url, apiKey);
+    const result = await checkUrlSafety(sanitizedUrl, apiKey);
 
     if (!result.success) {
-      console.error("Google Safe Browsing check failed:", result.error);
+      safeLog.error("Google Safe Browsing check failed:", result.error);
       
       // Check if it's a permission/restriction error
       if (result.error?.includes("403") || result.error?.includes("PERMISSION_DENIED") || result.error?.includes("referer")) {
@@ -58,7 +70,7 @@ export async function POST(request: NextRequest) {
       threatType: result.threatType,
     });
   } catch (error) {
-    console.error("Google Safe Browsing check error:", error);
+    safeLog.error("Google Safe Browsing check error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

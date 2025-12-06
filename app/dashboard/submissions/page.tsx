@@ -18,6 +18,7 @@ import {
 } from "react-icons/fa";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
+import { useCSRF } from "@/hooks/useCSRF";
 import Image from "next/image";
 
 // Image Preview Component
@@ -533,8 +534,7 @@ export default function SubmissionsPage() {
               correction={selectedCorrection}
               onClose={() => setSelectedCorrection(null)}
               getFieldDisplayName={getFieldDisplayName}
-              onReview={async (action) => {
-                console.log("Review action:", action, selectedCorrection.id);
+              onReview={async () => {
                 setSelectedCorrection(null);
                 // Refresh the list after closing modal
                 await fetchCorrections();
@@ -705,6 +705,7 @@ function ReviewModal({
   getFieldDisplayName,
   onReview,
 }: ReviewModalProps) {
+  const { csrfToken } = useCSRF();
   const [reviewNotes, setReviewNotes] = useState("");
   const [modifiedValue, setModifiedValue] = useState(
     typeof correction.newValue === "string" &&
@@ -752,6 +753,7 @@ function ReviewModal({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken || "",
         },
         body: JSON.stringify({
           correctionId: correction.id,
@@ -782,6 +784,7 @@ function ReviewModal({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken || "",
         },
         body: JSON.stringify({
           correctionId: correction.id,
@@ -835,6 +838,7 @@ function ReviewModal({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken || "",
         },
         body: JSON.stringify({
           correctionId: correction.id,

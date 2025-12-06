@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { FaBars, FaTimes } from "react-icons/fa";
 import { useSession } from "next-auth/react";
 import UserMenu from "./UserMenu";
+import { safeLog } from "@/lib/security";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -45,7 +46,7 @@ export default function Header() {
         }
       } catch (error) {
         if (isMounted) {
-          console.error("Error fetching pending corrections count:", error);
+          safeLog.error("Error fetching pending corrections count:", error);
         }
       }
     };
@@ -111,7 +112,7 @@ export default function Header() {
         }
       } catch (error) {
         if (isMounted) {
-          console.error(
+          safeLog.error(
             "Error fetching pending game submissions count:",
             error
           );
