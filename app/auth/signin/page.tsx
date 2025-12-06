@@ -15,6 +15,7 @@ import {
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { safeLog } from "@/lib/security";
 
 function SignInContent() {
   const [isLoading, setIsLoading] = useState<string | null>(null);
@@ -119,7 +120,7 @@ function SignInContent() {
 
       await signIn(provider, { callbackUrl });
     } catch (error) {
-      console.error("Sign in error:", error);
+      safeLog.error("Sign in error:", error);
       setIsLoading(null);
     }
   };

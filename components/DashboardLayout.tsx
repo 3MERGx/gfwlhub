@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, ReactNode, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { safeLog } from "@/lib/security";
 import {
   FaHome,
   FaUsers,
@@ -82,7 +83,7 @@ export default function DashboardLayout({
         }
       } catch (error) {
         if (isMounted) {
-          console.error("Error fetching pending corrections count:", error);
+          safeLog.error("Error fetching pending corrections count:", error);
         }
       }
     };
@@ -149,7 +150,7 @@ export default function DashboardLayout({
         }
       } catch (error) {
         if (isMounted) {
-          console.error(
+          safeLog.error(
             "Error fetching pending game submissions count:",
             error
           );

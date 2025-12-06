@@ -7,11 +7,20 @@ import {
   canManageUsers,
   getUserByEmail,
 } from "@/lib/crowdsource-service-mongodb";
+import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 
 // GET - Fetch audit logs (with optional filters)
 export async function GET(request: NextRequest) {
   try {
+    // Rate limiting
     const session = await getServerSession(authOptions);
+    const identifier = getClientIdentifier(request, session?.user?.id);
+    if (!rateLimiters.admin.isAllowed(identifier)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
 
     if (!session || !session.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -32,22 +41,35 @@ export async function GET(request: NextRequest) {
     }
 
     const searchParams = request.nextUrl.searchParams;
-    const gameSlug = searchParams.get("gameSlug");
-    const limit = searchParams.get("limit");
+    const gameSlug = sanitizeString(searchParams.get("gameSlug") || "", 200);
+    const limitParam = searchParams.get("limit");
+    const limit = limitParam ? parseInt(sanitizeString(limitParam, 10), 10) : undefined;
 
     if (gameSlug) {
       const logs = await getAuditLogsByGame(gameSlug);
-      return NextResponse.json({ logs });
+      return NextResponse.json(
+        { logs },
+        {
+          headers: {
+            "Cache-Control": "private, no-cache, must-revalidate",
+          },
+        }
+      );
     }
 
-    const logs = await getAllAuditLogs(
-      limit ? parseInt(limit, 10) : undefined
-    );
-    return NextResponse.json({ logs });
-  } catch (error) {
-    console.error("Error fetching audit logs:", error);
+    const logs = await getAllAuditLogs(limit);
     return NextResponse.json(
-      { error: "Failed to fetch audit logs" },
+      { logs },
+      {
+        headers: {
+          "Cache-Control": "private, no-cache, must-revalidate",
+        },
+      }
+    );
+  } catch (error) {
+    safeLog.error("Error fetching audit logs:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

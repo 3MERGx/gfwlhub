@@ -11,11 +11,22 @@ import {
 import { getGFWLDatabase } from "@/lib/mongodb";
 import { CorrectionStatus } from "@/types/crowdsource";
 import { notifyCorrectionReviewed } from "@/lib/discord-webhook";
+import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { revalidatePath } from "next/cache";
+import { validateCSRFToken } from "@/lib/csrf";
 
 // POST - Review a correction (approve, reject, or modify)
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting
     const session = await getServerSession(authOptions);
+    const identifier = getClientIdentifier(request, session?.user?.id);
+    if (!rateLimiters.admin.isAllowed(identifier)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
 
     if (!session || !session.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -35,11 +46,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // CSRF protection
     const body = await request.json();
+    const csrfToken = request.headers.get("X-CSRF-Token") || body._csrf;
+    if (!(await validateCSRFToken(csrfToken))) {
+      return NextResponse.json(
+        { error: "Invalid CSRF token" },
+        { status: 403 }
+      );
+    }
+    
+    // Remove CSRF token from body if present
+    delete body._csrf;
+    
     const { correctionId, status, reviewNotes, finalValue } = body;
 
+    // Sanitize and validate inputs
+    const sanitizedCorrectionId = sanitizeString(String(correctionId || ""), 50);
+    const sanitizedStatus = sanitizeString(String(status || ""), 50);
+    const sanitizedReviewNotes = reviewNotes ? sanitizeString(String(reviewNotes), 2000) : undefined;
+
     // Validate required fields
-    if (!correctionId || !status) {
+    if (!sanitizedCorrectionId || !sanitizedStatus) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -47,12 +75,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate status
-    if (!["approved", "rejected", "modified"].includes(status)) {
+    if (!["approved", "rejected", "modified"].includes(sanitizedStatus)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
 
     // Get the correction
-    const correction = await getCorrectionById(correctionId);
+    const correction = await getCorrectionById(sanitizedCorrectionId);
     if (!correction) {
       return NextResponse.json(
         { error: "Correction not found" },
@@ -83,18 +111,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Sanitize finalValue if it's a string
+    let sanitizedFinalValue = finalValue;
+    if (typeof finalValue === "string") {
+      sanitizedFinalValue = sanitizeString(finalValue, 5000);
+    } else if (Array.isArray(finalValue)) {
+      sanitizedFinalValue = finalValue.map((item) => 
+        typeof item === "string" ? sanitizeString(item, 500) : item
+      );
+    }
+
     // Review the correction
     await reviewCorrection(
-      correctionId,
+      sanitizedCorrectionId,
       user.id,
       user.name,
-      status as CorrectionStatus,
-      reviewNotes,
-      finalValue
+      sanitizedStatus as CorrectionStatus,
+      sanitizedReviewNotes,
+      sanitizedFinalValue
     );
 
     // Get updated correction for Discord notification
-    const updatedCorrection = await getCorrectionById(correctionId);
+    const updatedCorrection = await getCorrectionById(sanitizedCorrectionId);
 
     // Send Discord notification (non-blocking)
     if (updatedCorrection) {
@@ -109,14 +147,14 @@ export async function POST(request: NextRequest) {
         reviewNotes: updatedCorrection.reviewNotes,
         finalValue: updatedCorrection.finalValue,
       }).catch((error) => {
-        console.error("Failed to send Discord notification:", error);
+        safeLog.error("Failed to send Discord notification:", error);
       });
     }
 
     // If approved or modified, apply the change to the game
-    if (status === "approved" || status === "modified") {
+    if (sanitizedStatus === "approved" || sanitizedStatus === "modified") {
       const valueToApply =
-        status === "modified" ? finalValue : correction.newValue;
+        sanitizedStatus === "modified" ? sanitizedFinalValue : correction.newValue;
 
       try {
         const db = await getGFWLDatabase();
@@ -139,7 +177,7 @@ export async function POST(request: NextRequest) {
           },
           field: correction.field,
           updateType: "correction" as const,
-          notes: reviewNotes || (valueToApply === null || valueToApply === "" ? "Field cleared" : undefined),
+          notes: sanitizedReviewNotes || (valueToApply === null || valueToApply === "" ? "Field cleared" : undefined),
         };
 
         // Build update operation - use $unset if clearing, $set if setting
@@ -199,25 +237,30 @@ export async function POST(request: NextRequest) {
           changedByName: user.name,
           changedByRole: user.role,
           correctionId: correction.id,
-          notes: reviewNotes,
+          notes: sanitizedReviewNotes,
           // Include submitter information
           submittedBy: correction.submittedBy,
           submittedByName: correction.submittedByName,
         });
       } catch (error) {
-        console.error("Error applying correction to game:", error);
+        safeLog.error("Error applying correction to game:", error);
         return NextResponse.json(
-          { error: "Failed to apply correction to game" },
+          { error: "Internal server error" },
           { status: 500 }
         );
       }
     }
 
+    // Revalidate paths
+    revalidatePath("/dashboard/submissions");
+    revalidatePath(`/games/${correction.gameSlug}`);
+    revalidatePath("/");
+
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error reviewing correction:", error);
+    safeLog.error("Error reviewing correction:", error);
     return NextResponse.json(
-      { error: "Failed to review correction" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

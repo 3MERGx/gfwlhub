@@ -2,11 +2,21 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
+import { safeLog, rateLimiters, getClientIdentifier } from "@/lib/security";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Check authentication - only reviewers and admins can access
+    // Rate limiting
     const session = await getServerSession(authOptions);
+    const identifier = getClientIdentifier(request, session?.user?.id);
+    if (!rateLimiters.admin.isAllowed(identifier)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
+
+    // Check authentication - only reviewers and admins can access
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -46,11 +56,18 @@ export async function GET() {
       totalChanges: totalChanges,
     };
 
-    return NextResponse.json(stats);
-  } catch (error) {
-    console.error("Error fetching dashboard stats:", error);
     return NextResponse.json(
-      { error: "Failed to fetch stats" },
+      stats,
+      {
+        headers: {
+          "Cache-Control": "private, no-cache, must-revalidate",
+        },
+      }
+    );
+  } catch (error) {
+    safeLog.error("Error fetching dashboard stats:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

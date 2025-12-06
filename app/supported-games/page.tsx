@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Game } from "@/data/games";
 import { useToast } from "@/components/ui/toast-context";
 import { useSession } from "next-auth/react";
+import { safeLog } from "@/lib/security";
 import {
   FaSort,
   FaSortUp,
@@ -49,12 +50,12 @@ export default function SupportedGames() {
           const data = await response.json();
           setGames(data);
         } else if (isMounted) {
-          console.error("Failed to fetch games");
+          safeLog.error("Failed to fetch games");
           showToast("Failed to load games. Please try again later.");
         }
       } catch (error) {
         if (isMounted) {
-          console.error("Error fetching games:", error);
+          safeLog.error("Error fetching games:", error);
           showToast("Error loading games. Please try again later.");
         }
       } finally {

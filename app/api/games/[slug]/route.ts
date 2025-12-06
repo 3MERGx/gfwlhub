@@ -1,16 +1,35 @@
 import { NextResponse } from "next/server";
 import { getGFWLDatabase } from "@/lib/mongodb";
+import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
+    // Rate limiting
+    const identifier = getClientIdentifier(request);
+    if (!rateLimiters.api.isAllowed(identifier)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     const { slug } = await params;
+    const sanitizedSlug = sanitizeString(String(slug || ""), 200);
+    
+    if (!sanitizedSlug) {
+      return NextResponse.json(
+        { error: "Invalid game slug" },
+        { status: 400 }
+      );
+    }
+
     const db = await getGFWLDatabase();
     const gamesCollection = db.collection("Games");
     
-    const game = await gamesCollection.findOne({ slug });
+    const game = await gamesCollection.findOne({ slug: sanitizedSlug });
     
     if (!game) {
       return NextResponse.json(
@@ -25,11 +44,18 @@ export async function GET(
       id: game._id.toString(),
     };
     
-    return NextResponse.json(formattedGame);
-  } catch (error) {
-    console.error("Error fetching game:", error);
     return NextResponse.json(
-      { error: "Failed to fetch game" },
+      formattedGame,
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+        },
+      }
+    );
+  } catch (error) {
+    safeLog.error("Error fetching game:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

@@ -8,12 +8,24 @@ import {
   canSubmitCorrections,
   getUserByEmail,
 } from "@/lib/crowdsource-service-mongodb";
+import { CorrectionField } from "@/types/crowdsource";
 import { notifyCorrectionSubmitted } from "@/lib/discord-webhook";
+import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { revalidatePath } from "next/cache";
+import { validateCSRFToken } from "@/lib/csrf";
 
 // POST - Submit a new correction
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting
     const session = await getServerSession(authOptions);
+    const identifier = getClientIdentifier(request, session?.user?.id);
+    if (!rateLimiters.api.isAllowed(identifier)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
 
     if (!session || !session.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -37,7 +49,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // CSRF protection
     const body = await request.json();
+    const csrfToken = request.headers.get("X-CSRF-Token") || body._csrf;
+    if (!(await validateCSRFToken(csrfToken))) {
+      return NextResponse.json(
+        { error: "Invalid CSRF token" },
+        { status: 403 }
+      );
+    }
+    
+    // Remove CSRF token from body if present
+    delete body._csrf;
     const {
       gameId,
       gameSlug,
@@ -48,15 +71,20 @@ export async function POST(request: NextRequest) {
       reason,
     } = body;
 
+    // Sanitize and validate inputs
+    const sanitizedGameId = sanitizeString(String(gameId || ""), 50);
+    const sanitizedGameSlug = sanitizeString(String(gameSlug || ""), 200);
+    const sanitizedGameTitle = sanitizeString(String(gameTitle || ""), 500);
+    const sanitizedField = sanitizeString(String(field || ""), 100);
+    const sanitizedReason = sanitizeString(String(reason || ""), 2000);
+
     // Validate required fields
     if (
-      !gameId ||
-      !gameSlug ||
-      !gameTitle ||
-      !field ||
-      reason === undefined ||
-      reason === null ||
-      reason.trim() === ""
+      !sanitizedGameId ||
+      !sanitizedGameSlug ||
+      !sanitizedGameTitle ||
+      !sanitizedField ||
+      !sanitizedReason
     ) {
       return NextResponse.json(
         { error: "Missing required fields" },
@@ -67,10 +95,10 @@ export async function POST(request: NextRequest) {
     // Validate newValue based on field type
     // Required fields (title, status, activationType) cannot be null/empty
     const requiredFields = ["title", "status", "activationType"];
-    if (requiredFields.includes(field)) {
+    if (requiredFields.includes(sanitizedField)) {
       if (newValue === undefined || newValue === null || newValue === "") {
         return NextResponse.json(
-          { error: `Field "${field}" is required and cannot be cleared` },
+          { error: `Field "${sanitizedField}" is required and cannot be cleared` },
           { status: 400 }
         );
       }
@@ -84,17 +112,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Sanitize newValue if it's a string
+    let sanitizedNewValue = newValue;
+    if (typeof newValue === "string") {
+      sanitizedNewValue = sanitizeString(newValue, 5000);
+    } else if (Array.isArray(newValue)) {
+      sanitizedNewValue = newValue.map((item) => 
+        typeof item === "string" ? sanitizeString(item, 500) : item
+      );
+    }
+
     // Create correction
     const correction = await createCorrection({
-      gameId,
-      gameSlug,
-      gameTitle,
+      gameId: sanitizedGameId,
+      gameSlug: sanitizedGameSlug,
+      gameTitle: sanitizedGameTitle,
       submittedBy: user.id,
       submittedByName: user.name,
-      field,
+      field: sanitizedField as CorrectionField,
       oldValue: oldValue === undefined ? null : oldValue,
-      newValue,
-      reason,
+      newValue: sanitizedNewValue,
+      reason: sanitizedReason,
     });
 
     // Send Discord notification (non-blocking)
@@ -108,14 +146,19 @@ export async function POST(request: NextRequest) {
       oldValue: correction.oldValue,
       newValue: correction.newValue,
     }).catch((error) => {
-      console.error("Failed to send Discord notification:", error);
+      safeLog.error("Failed to send Discord notification:", error);
     });
+
+    // Revalidate paths
+    revalidatePath("/dashboard/submissions");
+    revalidatePath(`/games/${sanitizedGameSlug}`);
+    revalidatePath("/");
 
     return NextResponse.json({ correction }, { status: 201 });
   } catch (error) {
-    console.error("Error submitting correction:", error);
+    safeLog.error("Error submitting correction:", error);
     return NextResponse.json(
-      { error: "Failed to submit correction" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
@@ -124,7 +167,15 @@ export async function POST(request: NextRequest) {
 // GET - Fetch corrections (with optional filters)
 export async function GET(request: NextRequest) {
   try {
+    // Rate limiting
     const session = await getServerSession(authOptions);
+    const identifier = getClientIdentifier(request, session?.user?.id);
+    if (!rateLimiters.api.isAllowed(identifier)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
 
     if (!session || !session.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -137,9 +188,9 @@ export async function GET(request: NextRequest) {
     }
 
     const searchParams = request.nextUrl.searchParams;
-    const status = searchParams.get("status");
-    const gameSlug = searchParams.get("gameSlug");
-    const userId = searchParams.get("userId");
+    const status = sanitizeString(searchParams.get("status") || "", 50);
+    const gameSlug = sanitizeString(searchParams.get("gameSlug") || "", 200);
+    const userId = sanitizeString(searchParams.get("userId") || "", 50);
 
     // Only reviewers and admins can see all corrections
     // Regular users can only see their own
@@ -176,11 +227,18 @@ export async function GET(request: NextRequest) {
 
     // Return all corrections by default for reviewers/admins (for stats and full view)
     const corrections = await getAllCorrections();
-    return NextResponse.json({ corrections });
-  } catch (error) {
-    console.error("Error fetching corrections:", error);
     return NextResponse.json(
-      { error: "Failed to fetch corrections" },
+      { corrections },
+      {
+        headers: {
+          "Cache-Control": "private, no-cache, must-revalidate",
+        },
+      }
+    );
+  } catch (error) {
+    safeLog.error("Error fetching corrections:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

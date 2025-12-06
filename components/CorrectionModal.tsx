@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { FaTimes, FaCheck, FaEdit, FaPlus, FaTrash } from "react-icons/fa";
 import { Game } from "@/data/games";
 import { CorrectionField } from "@/types/crowdsource";
 import UrlSafetyIndicator from "@/components/UrlSafetyIndicator";
 import { getUrlValidationError } from "@/lib/url-validation";
+import { useCSRF } from "@/hooks/useCSRF";
 
 interface CorrectionModalProps {
   game: Game;
@@ -22,6 +24,9 @@ export default function CorrectionModal({
   userEmail,
   userName,
 }: CorrectionModalProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { csrfToken } = useCSRF();
   const [field, setField] = useState<CorrectionField | "">("");
   const [newValue, setNewValue] = useState("");
   const [reason, setReason] = useState("");
@@ -337,6 +342,15 @@ export default function CorrectionModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Prevent duplicate submissions
+    if (isSubmitting) {
+      return;
+    }
+
+    // Clear previous errors
+    setError("");
+    setUrlError("");
+
     if (!field) {
       setError("Please select a field to correct");
       return;
@@ -481,10 +495,17 @@ export default function CorrectionModal({
         processedNewValue = newValue.trim() || null;
       }
 
+      if (!csrfToken) {
+        setError("Security token not ready. Please wait...");
+        setIsSubmitting(false);
+        return;
+      }
+
       const response = await fetch("/api/corrections", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken,
         },
         body: JSON.stringify({
           gameId: game.id,
@@ -506,6 +527,12 @@ export default function CorrectionModal({
 
       onSubmit();
       onClose();
+      
+      // Refresh UI
+      if (pathname === "/dashboard/submissions" || pathname?.startsWith("/games/")) {
+        router.refresh();
+      }
+      router.refresh();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to submit correction"

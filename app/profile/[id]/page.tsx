@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { safeLog } from "@/lib/security";
 import {
   FaUser,
   FaCalendar,
@@ -67,17 +68,31 @@ export default function ProfilePage({
   const [submissionsLoading, setSubmissionsLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true; // Prevent state updates if component unmounts
+
     const fetchUser = async () => {
       try {
         const response = await fetch(`/api/users/${resolvedParams.id}`);
+        if (response.status === 429) {
+          // Rate limited - retry after a delay
+          safeLog.warn("Rate limited, retrying user fetch after delay...");
+          setTimeout(() => {
+            if (isMounted) fetchUser();
+          }, 2000);
+          return;
+        }
         if (response.ok) {
           const data = await response.json();
-          setProfileUser(data);
+          if (isMounted) {
+            setProfileUser(data);
+          }
         }
       } catch (error) {
-        console.error("Error fetching user:", error);
+        safeLog.error("Error fetching user:", error);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
@@ -86,20 +101,32 @@ export default function ProfilePage({
         const response = await fetch(
           `/api/corrections?userId=${resolvedParams.id}`
         );
+        if (response.status === 429) {
+          // Rate limited - retry after a delay
+          safeLog.warn("Rate limited, retrying submissions fetch after delay...");
+          setTimeout(() => {
+            if (isMounted) fetchSubmissions();
+          }, 2000);
+          return;
+        }
         if (response.ok) {
           const data = await response.json();
           const corrections = data.corrections || [];
-          // Get recent 5 submissions
-          setRecentSubmissions(corrections.slice(0, 5));
-          // Count pending
-          setPendingCount(
-            corrections.filter((c: Correction) => c.status === "pending").length
-          );
+          if (isMounted) {
+            // Get recent 5 submissions
+            setRecentSubmissions(corrections.slice(0, 5));
+            // Count pending
+            setPendingCount(
+              corrections.filter((c: Correction) => c.status === "pending").length
+            );
+          }
         }
       } catch (error) {
-        console.error("Error fetching submissions:", error);
+        safeLog.error("Error fetching submissions:", error);
       } finally {
-        setSubmissionsLoading(false);
+        if (isMounted) {
+          setSubmissionsLoading(false);
+        }
       }
     };
 
@@ -110,6 +137,10 @@ export default function ProfilePage({
         setIsOwnProfile(true);
       }
     }
+
+    return () => {
+      isMounted = false; // Cleanup on unmount
+    };
   }, [session, resolvedParams.id]);
 
   if (status === "loading" || loading) {

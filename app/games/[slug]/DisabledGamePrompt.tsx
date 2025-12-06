@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { FaExclamationTriangle, FaTimes, FaRocket, FaCheckCircle, FaCheck, FaTimes as FaTimesIcon } from "react-icons/fa";
 import Link from "next/link";
 import ConfirmPublishModal from "@/components/ConfirmPublishModal";
 import { useToast } from "@/components/ui/toast-context";
+import { safeLog } from "@/lib/security";
 
 interface DisabledGamePromptProps {
   gameTitle: string;
@@ -33,8 +34,9 @@ export default function DisabledGamePrompt({
   onClose,
   onAddDetails,
 }: DisabledGamePromptProps) {
-  const { data: session, status } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
+  const { data: session, status } = useSession();
   const { showToast } = useToast();
   const [showModal, setShowModal] = useState(true);
   const [gameStatus, setGameStatus] = useState<GameStatus | null>(null);
@@ -57,7 +59,7 @@ export default function DisabledGamePrompt({
           setGameStatus(data);
         }
       } catch (error) {
-        console.error("Error fetching game status:", error);
+        safeLog.error("Error fetching game status:", error);
       }
     };
 
@@ -70,7 +72,7 @@ export default function DisabledGamePrompt({
           setPendingSubmission(data);
         }
       } catch (error) {
-        console.error("Error fetching pending submission:", error);
+        safeLog.error("Error fetching pending submission:", error);
       }
     };
 
@@ -102,6 +104,11 @@ export default function DisabledGamePrompt({
 
       if (response.ok) {
         showToast(`${gameTitle} has been published successfully!`, 5000, "success");
+        
+        // Refresh UI
+        if (pathname?.startsWith("/games/")) {
+          router.refresh();
+        }
         setTimeout(() => {
           window.location.reload();
         }, 1000);
@@ -110,7 +117,7 @@ export default function DisabledGamePrompt({
         showToast(`Failed to publish game: ${error.error || "Unknown error"}`, 5000, "error");
       }
     } catch (error) {
-      console.error("Error publishing game:", error);
+      safeLog.error("Error publishing game:", error);
       showToast("Failed to publish game", 5000, "error");
     } finally {
       setIsPublishing(false);

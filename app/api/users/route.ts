@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
+import { safeLog, rateLimiters, getClientIdentifier } from "@/lib/security";
 
 // Helper to convert MongoDB user to our User format
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -34,10 +35,19 @@ function toUser(doc: any) {
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Check authentication
+    // Rate limiting
     const session = await getServerSession(authOptions);
+    const identifier = getClientIdentifier(request, session?.user?.id);
+    if (!rateLimiters.admin.isAllowed(identifier)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
+
+    // Check authentication
     if (!session || session.user.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -50,11 +60,18 @@ export async function GET() {
     // Map users (provider is already in user document)
     const usersWithProvider = users.map((user) => toUser(user));
 
-    return NextResponse.json(usersWithProvider);
-  } catch (error) {
-    console.error("Error fetching users:", error);
     return NextResponse.json(
-      { error: "Failed to fetch users" },
+      usersWithProvider,
+      {
+        headers: {
+          "Cache-Control": "private, no-cache, must-revalidate",
+        },
+      }
+    );
+  } catch (error) {
+    safeLog.error("Error fetching users:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

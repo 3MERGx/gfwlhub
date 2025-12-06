@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
+import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { revalidatePath } from "next/cache";
+import { validateCSRFToken } from "@/lib/csrf";
 
 // PATCH - Toggle featureEnabled for a game (admin only)
 export async function PATCH(
@@ -9,16 +12,46 @@ export async function PATCH(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
+    // Rate limiting
     const session = await getServerSession(authOptions);
+    const identifier = getClientIdentifier(request, session?.user?.id);
+    if (!rateLimiters.admin.isAllowed(identifier)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
 
     // Only admins can toggle features
     if (!session || session.user.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { slug } = await params;
+    // CSRF protection
     const body = await request.json();
+    const csrfToken = request.headers.get("X-CSRF-Token") || body._csrf;
+    if (!(await validateCSRFToken(csrfToken))) {
+      return NextResponse.json(
+        { error: "Invalid CSRF token" },
+        { status: 403 }
+      );
+    }
+    
+    // Remove CSRF token from body if present
+    delete body._csrf;
+
+    const { slug } = await params;
     const { featureEnabled } = body;
+
+    // Sanitize inputs
+    const sanitizedSlug = sanitizeString(String(slug || ""), 200);
+
+    if (!sanitizedSlug) {
+      return NextResponse.json(
+        { error: "Invalid game slug" },
+        { status: 400 }
+      );
+    }
 
     // Validate featureEnabled
     if (typeof featureEnabled !== "boolean") {
@@ -53,7 +86,7 @@ export async function PATCH(
 
     // Update existing game document with featureEnabled flag and update history
     await gamesCollection.updateOne(
-      { slug },
+      { slug: sanitizedSlug },
       {
         $set: {
           featureEnabled,
@@ -68,11 +101,16 @@ export async function PATCH(
       }
     );
 
+    // Revalidate paths
+    revalidatePath("/dashboard/games");
+    revalidatePath(`/games/${sanitizedSlug}`);
+    revalidatePath("/");
+
     return NextResponse.json({ success: true, featureEnabled });
   } catch (error) {
-    console.error("Error toggling game feature:", error);
+    safeLog.error("Error toggling game feature:", error);
     return NextResponse.json(
-      { error: "Failed to toggle game feature" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

@@ -18,6 +18,7 @@ import { games as staticGames } from "@/data/games";
 import MakeCorrectionButton from "./MakeCorrectionButton";
 import DisabledGameBanner from "./DisabledGameBanner";
 import { redirect } from "next/navigation";
+import { safeLog } from "@/lib/security";
 import UnplayableGameBanner from "@/components/UnplayableGameBanner";
 import CommunityAlternativeCard from "@/components/CommunityAlternativeCard";
 import RemasteredVersionCard from "@/components/RemasteredVersionCard";
@@ -47,7 +48,7 @@ export async function generateStaticParams() {
   } catch (error) {
     // Fall back to static games array if MongoDB is unavailable during build
     // This allows the build to succeed even if MongoDB connection fails
-    console.warn(
+    safeLog.warn(
       "MongoDB unavailable during build, using static games array:",
       error
     );

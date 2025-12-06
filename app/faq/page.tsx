@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/components/ui/toast-context";
 import Accordion from "@/components/Accordion";
+import { sanitizeMarkdownHtml } from "@/lib/security";
+import { useCSRF } from "@/hooks/useCSRF";
 import {
   FaEdit,
   FaTrash,
@@ -29,6 +31,7 @@ interface FAQ {
 export default function FAQ() {
   const { data: session } = useSession();
   const { showToast } = useToast();
+  const { csrfToken } = useCSRF();
   const [faqs, setFaqs] = useState<FAQ[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -88,7 +91,10 @@ export default function FAQ() {
     try {
       const response = await fetch("/api/faqs", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken || "",
+        },
         body: JSON.stringify({
           id: editingId,
           question: editingQuestion,
@@ -119,6 +125,9 @@ export default function FAQ() {
     try {
       const response = await fetch(`/api/faqs?id=${id}`, {
         method: "DELETE",
+        headers: {
+          "X-CSRF-Token": csrfToken || "",
+        },
       });
 
       if (response.ok) {
@@ -146,7 +155,10 @@ export default function FAQ() {
       const maxOrder = faqs.length > 0 ? Math.max(...faqs.map((f) => f.order)) : 0;
       const response = await fetch("/api/faqs", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken || "",
+        },
         body: JSON.stringify({
           question: newQuestion,
           answer: newAnswer,
@@ -213,7 +225,10 @@ export default function FAQ() {
       // Batch update all FAQs with new orders in a single API call
       const response = await fetch("/api/faqs/reorder", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken || "",
+        },
         body: JSON.stringify({
           faqs: orderedFaqs.map((faq) => ({
             id: faq._id,
@@ -358,6 +373,7 @@ export default function FAQ() {
     // Also handle existing HTML, so we need to be careful
     let processedAnswer = answer;
     
+    // Sanitize and process answer
     // If the answer doesn't contain HTML tags, convert \n to <br>
     if (!/<[^>]+>/.test(answer)) {
       processedAnswer = answer.replace(/\n/g, '<br>');
@@ -366,10 +382,13 @@ export default function FAQ() {
       processedAnswer = answer.replace(/\n/g, '<br>');
     }
     
+    // Sanitize HTML to prevent XSS
+    const sanitizedAnswer = sanitizeMarkdownHtml(processedAnswer);
+    
     return (
       <div
         className="[&_a]:text-blue-500 [&_a:hover]:underline [&_p]:mb-2 [&_p:last-child]:mb-0 [&_br]:mb-2"
-        dangerouslySetInnerHTML={{ __html: processedAnswer }}
+        dangerouslySetInnerHTML={{ __html: sanitizedAnswer }}
       />
     );
   };

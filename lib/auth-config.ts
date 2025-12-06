@@ -5,6 +5,7 @@ import GoogleProvider from "next-auth/providers/google";
 import { MongoDBAdapter } from "@/lib/mongodb-adapter";
 import clientPromise from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
+import { safeLog } from "@/lib/security";
 
 const adminEmails =
   process.env.DEVELOPER_EMAILS?.split(",").map((email) => email.trim()) || [];
@@ -50,12 +51,28 @@ export const authOptions: NextAuthOptions = {
 
       // When user signs in (initial login)
       if (user) {
-        // For GitHub, email might be null - try to find by provider account ID instead
+        // user.id from adapter is always a valid MongoDB ObjectId string
+        // Try to find user by ID first (most reliable), then by email/provider
         let dbUser = null;
-        if (user.email) {
+        
+        // First, try to find by ID (works for both new and existing users)
+        if (user.id && ObjectId.isValid(user.id)) {
+          try {
+            dbUser = await usersCollection.findOne({
+              _id: new ObjectId(user.id),
+            });
+          } catch (error) {
+            safeLog.error("JWT callback: Error finding user by ID:", error);
+          }
+        }
+        
+        // If not found by ID, try by email (for existing users)
+        if (!dbUser && user.email) {
           dbUser = await usersCollection.findOne({ email: user.email });
-        } else if (account) {
-          // Try to find by provider account ID if email is missing
+        }
+        
+        // If still not found, try by provider account ID (for GitHub users with null email)
+        if (!dbUser && account) {
           dbUser = await usersCollection.findOne({
             "providerInfo.provider": account.provider,
             "providerInfo.providerAccountId": account.providerAccountId,
@@ -63,12 +80,14 @@ export const authOptions: NextAuthOptions = {
         }
 
         if (dbUser) {
+          // Existing user found - use database values
           token.id = dbUser._id.toString();
           token.role = dbUser.role || "user";
           token.status = dbUser.status || "active";
           token.submissionsCount = dbUser.submissionsCount || 0;
           token.approvedCount = dbUser.approvedCount || 0;
           token.rejectedCount = dbUser.rejectedCount || 0;
+          token.lastActivity = Math.floor(Date.now() / 1000); // Set initial activity time
 
           // Always use fresh name and image from database (updated on sign-in from OAuth)
           if (dbUser.name) {
@@ -83,7 +102,8 @@ export const authOptions: NextAuthOptions = {
             token.email = dbUser.email;
           }
         } else {
-          // New user - set defaults
+          // New user - user was just created by adapter but not yet in our query
+          // Use user.id from adapter (which is a valid ObjectId string)
           token.id = user.id;
           token.role =
             user.email && adminEmails.includes(user.email) ? "admin" : "user";
@@ -91,6 +111,7 @@ export const authOptions: NextAuthOptions = {
           token.submissionsCount = 0;
           token.approvedCount = 0;
           token.rejectedCount = 0;
+          token.lastActivity = Math.floor(Date.now() / 1000); // Set initial activity time
 
           // Set name and image from OAuth provider
           if (user.name) {
@@ -104,12 +125,72 @@ export const authOptions: NextAuthOptions = {
         // On subsequent requests, refresh user data from database
         // This ensures role/status changes are reflected immediately
         // Also updates name and image from OAuth provider (updated on sign-in)
-        const dbUser = await usersCollection.findOne({
-          _id: new ObjectId(token.id as string),
-        });
+        
+        // Validate that token.id is a valid MongoDB ObjectId
+        let dbUser = null;
+        try {
+          // Check if token.id is a valid ObjectId format
+          if (ObjectId.isValid(token.id as string)) {
+            dbUser = await usersCollection.findOne({
+              _id: new ObjectId(token.id as string),
+            });
+          } else {
+            safeLog.warn(`JWT callback: Invalid ObjectId format for token.id=${token.id}`);
+            // If token.id is not a valid ObjectId, keep existing token (don't invalidate)
+            return token;
+          }
+        } catch (error) {
+          safeLog.error(`JWT callback: Error querying user ${token.id}:`, error);
+          // On error, keep existing token (don't invalidate)
+          return token;
+        }
 
         if (dbUser) {
-          token.role = dbUser.role || "user";
+          // Session rotation on privilege escalation
+          // If role changed, invalidate session to force re-authentication
+          // Only check if we have a previous role (skip on first request after sign-in)
+          const previousRole = token.role as string | undefined;
+          const currentRole = dbUser.role || "user";
+          
+          // Only invalidate if:
+          // 1. We have a previous role (not undefined/empty - means not first request)
+          // 2. The role actually changed
+          // This prevents invalidating on initial sign-in where token.role might not be set yet
+          if (previousRole && previousRole.trim() !== "" && previousRole !== currentRole) {
+            // Role changed - invalidate session
+            safeLog.warn(`Session invalidated: role changed from ${previousRole} to ${currentRole} for user ${token.id}`);
+            return {
+              ...token,
+              error: "SessionInvalidated",
+              role: currentRole, // Update role but mark as invalidated
+            };
+          }
+
+          // Session timeout check (inactivity timeout)
+          const now = Math.floor(Date.now() / 1000);
+          const INACTIVITY_TIMEOUT = 30 * 60; // 30 minutes in seconds
+          
+          // Ensure lastActivity is set (should be set on sign-in, but handle edge case)
+          if (!token.lastActivity) {
+            token.lastActivity = now;
+          } else {
+            // Check timeout only if we have a valid previous activity timestamp
+            const lastActivity = token.lastActivity as number;
+            // Only expire if inactivity exceeds timeout (not on first request)
+            if (lastActivity > 0 && now - lastActivity > INACTIVITY_TIMEOUT) {
+              // Session expired due to inactivity
+              safeLog.warn(`Session expired: inactivity timeout exceeded for user ${token.id}`);
+              return {
+                ...token,
+                error: "SessionExpired",
+              };
+            }
+          }
+
+          // Update last activity timestamp on every request
+          token.lastActivity = now;
+
+          token.role = currentRole;
           token.status = dbUser.status || "active";
           token.submissionsCount = dbUser.submissionsCount || 0;
           token.approvedCount = dbUser.approvedCount || 0;
@@ -130,12 +211,37 @@ export const authOptions: NextAuthOptions = {
           ) {
             token.email = dbUser.email;
           }
+        } else {
+          // User not found in database - this shouldn't happen after sign-in
+          // but if it does, log it and keep the token as-is (don't invalidate)
+          safeLog.warn(`JWT callback: User ${token.id} not found in database, keeping existing token`);
         }
       }
 
       return token;
     },
     async session({ session, token }) {
+      // Check if session was invalidated or expired
+      // Instead of returning null, we'll return session without user data
+      // NextAuth will handle this as an unauthenticated session
+      if (token.error === "SessionInvalidated" || token.error === "SessionExpired") {
+        safeLog.warn(`Session callback: Session ${token.error} for token.id=${token.id}`);
+        // Return session without user data - this will be treated as unauthenticated
+        return session;
+      }
+
+      // If token doesn't have an ID, session is not valid (shouldn't happen, but safety check)
+      if (!token.id) {
+        safeLog.warn("Session callback: token.id is missing");
+        return session;
+      }
+
+      // If session is missing, something went wrong
+      if (!session) {
+        safeLog.warn("Session callback: session is null/undefined");
+        return session;
+      }
+
       // Add custom user data to session from JWT token
       if (session?.user) {
         session.user.id = token.id as string;
@@ -480,6 +586,24 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt", // JWT strategy doesn't require sessions collection
+    maxAge: 30 * 24 * 60 * 60, // 30 days absolute timeout
+    updateAge: 24 * 60 * 60, // Update session if older than 24 hours
+  },
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === "production" 
+        ? `__Secure-next-auth.session-token`
+        : `next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax", // CSRF protection - allows OAuth redirects
+        path: "/",
+        secure: process.env.NODE_ENV === "production", // HTTPS only in production
+      },
+    },
+  },
+  jwt: {
+    maxAge: 30 * 24 * 60 * 60, // 30 days - match session maxAge
   },
   secret: process.env.NEXTAUTH_SECRET,
 };

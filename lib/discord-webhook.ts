@@ -4,6 +4,8 @@
  * Uses webhooks for efficiency and to avoid rate limiting issues
  */
 
+import { safeLog } from "./security";
+
 interface DiscordEmbed {
   title?: string;
   description?: string;
@@ -49,7 +51,7 @@ export async function sendDiscordWebhook(
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "Unknown error");
-      console.error(
+      safeLog.error(
         `Discord webhook failed: ${response.status} ${response.statusText}`,
         errorText
       );
@@ -57,7 +59,7 @@ export async function sendDiscordWebhook(
   } catch (error) {
     // Fail silently to not disrupt the main flow
     // Log error for debugging
-    console.error("Error sending Discord webhook:", error);
+    safeLog.error("Error sending Discord webhook:", error);
   }
 }
 

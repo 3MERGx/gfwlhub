@@ -4,6 +4,8 @@
  * No billing/credit card required
  */
 
+import { safeLog } from "./security";
+
 export interface SafeBrowsingResponse {
   matches?: Array<{
     threatType: string;
@@ -72,10 +74,10 @@ export async function checkUrlSafety(
       try {
         const errorData = (await response.json()) as SafeBrowsingError;
         errorMessage = errorData.error?.message || errorMessage;
-        console.error("Google Safe Browsing API error:", errorData);
+        safeLog.error("Google Safe Browsing API error:", errorData);
       } catch {
         const text = await response.text();
-        console.error("Google Safe Browsing API error (non-JSON):", text);
+        safeLog.error("Google Safe Browsing API error (non-JSON):", text);
         errorMessage = text || errorMessage;
       }
       return {

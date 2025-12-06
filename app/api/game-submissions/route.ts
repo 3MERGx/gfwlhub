@@ -5,11 +5,21 @@ import { getGFWLDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { getGameBySlug } from "@/lib/games-service";
 import { notifyGameSubmissionSubmitted } from "@/lib/discord-webhook";
+import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { revalidatePath } from "next/cache";
 
 // GET - Fetch all game submissions (for reviewers/admins)
 export async function GET(request: NextRequest) {
   try {
+    // Rate limiting
     const session = await getServerSession(authOptions);
+    const identifier = getClientIdentifier(request, session?.user?.id);
+    if (!rateLimiters.api.isAllowed(identifier)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
 
     // Check if user is authenticated
     if (!session) {
@@ -21,8 +31,8 @@ export async function GET(request: NextRequest) {
 
     // Get query parameters
     const searchParams = request.nextUrl.searchParams;
-    const status = searchParams.get("status");
-    const gameSlug = searchParams.get("gameSlug");
+    const status = sanitizeString(searchParams.get("status") || "", 50);
+    const gameSlug = sanitizeString(searchParams.get("gameSlug") || "", 200);
 
     // Build query
     const query: Record<string, unknown> = {};
@@ -87,11 +97,18 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    return NextResponse.json(transformedSubmissions);
-  } catch (error) {
-    console.error("Error fetching game submissions:", error);
     return NextResponse.json(
-      { error: "Failed to fetch game submissions" },
+      transformedSubmissions,
+      {
+        headers: {
+          "Cache-Control": "private, no-cache, must-revalidate",
+        },
+      }
+    );
+  } catch (error) {
+    safeLog.error("Error fetching game submissions:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
@@ -100,7 +117,15 @@ export async function GET(request: NextRequest) {
 // POST - Create a new game submission
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting
     const session = await getServerSession(authOptions);
+    const identifier = getClientIdentifier(request, session?.user?.id);
+    if (!rateLimiters.api.isAllowed(identifier)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -128,8 +153,15 @@ export async function POST(request: NextRequest) {
       submitterNotes,
     } = body;
 
+    // Sanitize and validate inputs
+    const sanitizedGameSlug = sanitizeString(String(gameSlug || ""), 200);
+    const sanitizedGameTitle = sanitizeString(String(gameTitle || ""), 500);
+    const sanitizedSubmittedBy = sanitizeString(String(submittedBy || ""), 50);
+    const sanitizedSubmittedByName = sanitizeString(String(submittedByName || ""), 200);
+    const sanitizedSubmitterNotes = submitterNotes ? sanitizeString(String(submitterNotes), 2000) : undefined;
+
     // Validate required fields
-    if (!gameSlug || !gameTitle || !submittedBy || !submittedByName) {
+    if (!sanitizedGameSlug || !sanitizedGameTitle || !sanitizedSubmittedBy || !sanitizedSubmittedByName) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -148,11 +180,27 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate submittedBy is a valid ObjectId
-    if (!submittedBy || !ObjectId.isValid(submittedBy)) {
+    if (!sanitizedSubmittedBy || !ObjectId.isValid(sanitizedSubmittedBy)) {
       return NextResponse.json(
         { error: "Invalid user ID" },
         { status: 400 }
       );
+    }
+
+    // Sanitize proposedData
+    const sanitizedProposedData: Record<string, unknown> = {};
+    if (proposedData && typeof proposedData === "object") {
+      for (const [key, value] of Object.entries(proposedData)) {
+        if (typeof value === "string") {
+          sanitizedProposedData[sanitizeString(key, 100)] = sanitizeString(value, 5000);
+        } else if (Array.isArray(value)) {
+          sanitizedProposedData[sanitizeString(key, 100)] = value.map((item) => 
+            typeof item === "string" ? sanitizeString(item, 500) : item
+          );
+        } else {
+          sanitizedProposedData[sanitizeString(key, 100)] = value;
+        }
+      }
     }
 
     const db = await getGFWLDatabase();
@@ -161,21 +209,21 @@ export async function POST(request: NextRequest) {
 
     // Create submission
     const submission = {
-      gameSlug,
-      gameTitle,
-      submittedBy,
-      submittedByName,
+      gameSlug: sanitizedGameSlug,
+      gameTitle: sanitizedGameTitle,
+      submittedBy: sanitizedSubmittedBy,
+      submittedByName: sanitizedSubmittedByName,
       submittedAt: new Date(),
       status: "pending",
-      proposedData,
-      submitterNotes,
+      proposedData: sanitizedProposedData,
+      submitterNotes: sanitizedSubmitterNotes,
     };
 
     const result = await submissionsCollection.insertOne(submission);
 
     // Update user's submission count
     await usersCollection.updateOne(
-      { _id: new ObjectId(submittedBy) },
+      { _id: new ObjectId(sanitizedSubmittedBy) },
       { $inc: { submissionsCount: 1 } }
     );
 
@@ -184,23 +232,28 @@ export async function POST(request: NextRequest) {
     // Send Discord notification (non-blocking)
     notifyGameSubmissionSubmitted({
       id: submissionId,
-      gameTitle,
-      gameSlug,
-      submittedByName,
-      proposedData,
-      submitterNotes,
+      gameTitle: sanitizedGameTitle,
+      gameSlug: sanitizedGameSlug,
+      submittedByName: sanitizedSubmittedByName,
+      proposedData: sanitizedProposedData,
+      submitterNotes: sanitizedSubmitterNotes,
     }).catch((error) => {
-      console.error("Failed to send Discord notification:", error);
+      safeLog.error("Failed to send Discord notification:", error);
     });
+
+    // Revalidate paths
+    revalidatePath("/dashboard/game-submissions");
+    revalidatePath(`/games/${sanitizedGameSlug}`);
+    revalidatePath("/");
 
     return NextResponse.json({
       success: true,
       submissionId,
     });
   } catch (error) {
-    console.error("Error creating game submission:", error);
+    safeLog.error("Error creating game submission:", error);
     return NextResponse.json(
-      { error: "Failed to create game submission" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

@@ -12,6 +12,7 @@ import {
 } from "react-icons/fa";
 import Accordion from "@/components/Accordion";
 import { Game } from "@/data/games";
+import { safeLog } from "@/lib/security";
 
 export default function Contact() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -29,10 +30,10 @@ export default function Contact() {
           const data = await response.json();
           setGames(data);
         } else {
-          console.error("Failed to fetch games");
+          safeLog.error("Failed to fetch games");
         }
       } catch (error) {
-        console.error("Error fetching games:", error);
+        safeLog.error("Error fetching games:", error);
       } finally {
         setLoading(false);
       }
