@@ -18,6 +18,7 @@ import {
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import { safeLog } from "@/lib/security";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface AuditLog {
   id: string;
@@ -49,19 +50,28 @@ export default function AuditPage() {
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  const [loading, setLoading] = useState(true);
+
+  // Debounce search query
+  const debouncedSearchQuery = useDebounce(searchQuery, 400);
 
   // Fetch real audit logs from API
   useEffect(() => {
     const fetchLogs = async () => {
+      setLoading(true);
       try {
         const response = await fetch("/api/audit-logs");
         if (response.ok) {
           const data = await response.json();
           setLogs(data.logs || []);
           setFilteredLogs(data.logs || []);
+        } else {
+          safeLog.error("Failed to fetch audit logs");
         }
       } catch (error) {
         safeLog.error("Error fetching audit logs:", error);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -72,17 +82,17 @@ export default function AuditPage() {
   useEffect(() => {
     let filtered = [...logs];
 
-    // Search filter
-    if (searchQuery) {
+    // Search filter (using debounced value)
+    if (debouncedSearchQuery) {
       filtered = filtered.filter(
         (log) =>
-          log.gameTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          log.changedByName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          log.gameTitle.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+          log.changedByName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
           (log.submittedByName &&
             log.submittedByName
               .toLowerCase()
-              .includes(searchQuery.toLowerCase())) ||
-          log.field.toLowerCase().includes(searchQuery.toLowerCase())
+              .includes(debouncedSearchQuery.toLowerCase())) ||
+          log.field.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
       );
     }
 
@@ -129,7 +139,7 @@ export default function AuditPage() {
     setFilteredLogs(filtered);
     // Reset to page 1 when filters change
     setCurrentPage(1);
-  }, [logs, searchQuery, roleFilter, fieldFilter, sortBy, sortOrder]);
+  }, [logs, debouncedSearchQuery, roleFilter, fieldFilter, sortBy, sortOrder]);
 
   // Calculate pagination
   const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
@@ -378,7 +388,12 @@ export default function AuditPage() {
 
           {/* Audit Log Table - Desktop */}
           <div className="hidden lg:block bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] overflow-hidden">
-            {paginatedLogs.length === 0 ? (
+            {loading ? (
+              <div className="p-12 text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#107c10] mx-auto mb-4"></div>
+                <p className="text-[rgb(var(--text-secondary))]">Loading audit logs...</p>
+              </div>
+            ) : paginatedLogs.length === 0 ? (
               <div className="p-8 text-center">
                 <FaHistory className="mx-auto text-[rgb(var(--text-muted))] mb-4" size={48} />
                 <p className="text-[rgb(var(--text-secondary))]">No audit logs found</p>
@@ -586,7 +601,12 @@ export default function AuditPage() {
 
           {/* Audit Log List - Mobile/Tablet */}
           <div className="lg:hidden space-y-3 mb-6">
-            {paginatedLogs.length === 0 ? (
+            {loading ? (
+              <div className="bg-[rgb(var(--bg-card))] rounded-lg p-12 text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#107c10] mx-auto mb-4"></div>
+                <p className="text-[rgb(var(--text-secondary))]">Loading audit logs...</p>
+              </div>
+            ) : paginatedLogs.length === 0 ? (
               <div className="bg-[rgb(var(--bg-card))] rounded-lg p-8 text-center">
                 <FaHistory className="mx-auto text-[rgb(var(--text-muted))] mb-4" size={48} />
                 <p className="text-[rgb(var(--text-secondary))]">No audit logs found</p>

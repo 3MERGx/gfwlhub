@@ -91,34 +91,77 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Domain not allowed" }, { status: 403 });
   }
 
-    // Fetch the image
-    const imageResponse = await fetch(sanitizedImageUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; GFWLHub/1.0)",
-      },
-    });
+    // Fetch the image with timeout (10 seconds)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-    if (!imageResponse.ok) {
+    try {
+      const imageResponse = await fetch(sanitizedImageUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; GFWLHub/1.0)",
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!imageResponse.ok) {
+        return NextResponse.json(
+          { error: "Failed to fetch image" },
+          { status: imageResponse.status }
+        );
+      }
+
+      // Check content-length header for file size (max 10MB)
+      const contentLength = imageResponse.headers.get("content-length");
+      const maxSizeBytes = 10 * 1024 * 1024; // 10MB
+      if (contentLength && parseInt(contentLength, 10) > maxSizeBytes) {
+        return NextResponse.json(
+          { error: "Image file too large. Maximum size is 10MB" },
+          { status: 413 }
+        );
+      }
+
+      // Get the image data
+      const imageBuffer = await imageResponse.arrayBuffer();
+      
+      // Double-check actual size (in case content-length was missing)
+      if (imageBuffer.byteLength > maxSizeBytes) {
+        return NextResponse.json(
+          { error: "Image file too large. Maximum size is 10MB" },
+          { status: 413 }
+        );
+      }
+
+      // Validate image dimensions (optional - can be expensive, so we'll skip for now)
+      // For production, consider using sharp or similar to validate dimensions
+      
+      const contentType =
+        imageResponse.headers.get("content-type") || "image/jpeg";
+
+      // Return the image with appropriate headers
+      return new NextResponse(imageBuffer, {
+        status: 200,
+        headers: {
+          "Content-Type": contentType,
+          "Cache-Control": "public, max-age=31536000, immutable",
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
+    } catch (error: unknown) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === "AbortError") {
+        return NextResponse.json(
+          { error: "Image fetch timeout. Please try again." },
+          { status: 408 }
+        );
+      }
+      safeLog.error("Error proxying image:", error);
       return NextResponse.json(
-        { error: "Failed to fetch image" },
-        { status: imageResponse.status }
+        { error: "Internal server error" },
+        { status: 500 }
       );
     }
-
-    // Get the image data
-    const imageBuffer = await imageResponse.arrayBuffer();
-    const contentType =
-      imageResponse.headers.get("content-type") || "image/jpeg";
-
-    // Return the image with appropriate headers
-    return new NextResponse(imageBuffer, {
-      status: 200,
-      headers: {
-        "Content-Type": contentType,
-        "Cache-Control": "public, max-age=31536000, immutable",
-        "Access-Control-Allow-Origin": "*",
-      },
-    });
   } catch (error) {
     safeLog.error("Error proxying image:", error);
     return NextResponse.json(

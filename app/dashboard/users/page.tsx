@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import {
   FaGoogle,
   FaGithub,
@@ -31,6 +32,7 @@ import { useSession } from "next-auth/react";
 import { safeLog } from "@/lib/security";
 import { useToast } from "@/components/ui/toast-context";
 import { useCSRF } from "@/hooks/useCSRF";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface User {
   id: string;
@@ -83,10 +85,31 @@ export default function UsersPage() {
   const [userToRestore, setUserToRestore] = useState<User | null>(null);
   const [suspendReason, setSuspendReason] = useState<string>("");
   const [roleChangeReason, setRoleChangeReason] = useState<string>("");
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
+  const [confirmDialogProps, setConfirmDialogProps] = useState<{
+    title: string;
+    message: string;
+    variant: "danger" | "warning" | "info";
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Helper to show confirmation dialog
+  const showConfirmation = (
+    title: string,
+    message: string,
+    variant: "danger" | "warning" | "info",
+    onConfirm: () => void
+  ) => {
+    setConfirmDialogProps({ title, message, variant });
+    setConfirmAction(() => onConfirm);
+    setShowConfirmDialog(true);
+  };
 
   // Fetch users from API
   useEffect(() => {
     async function fetchUsers() {
+      setLoading(true);
       try {
         const response = await fetch("/api/users");
         if (response.ok) {
@@ -97,10 +120,16 @@ export default function UsersPage() {
         }
       } catch (error) {
         console.error("Error fetching users:", error);
+        showToast("Failed to load users. Please try again.", 5000, "error");
+      } finally {
+        setLoading(false);
       }
     }
     fetchUsers();
-  }, []);
+  }, [showToast]);
+
+  // Debounce search query
+  const debouncedSearchQuery = useDebounce(searchQuery, 400);
 
   // Filter and sort users
   useEffect(() => {
@@ -111,12 +140,12 @@ export default function UsersPage() {
       // Hide deleted users and apply other filters
       filtered = filtered.filter((u) => u.status !== "deleted");
 
-      // Search filter
-      if (searchQuery) {
+      // Search filter (using debounced value)
+      if (debouncedSearchQuery) {
         filtered = filtered.filter(
           (u) =>
-            u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            u.email.toLowerCase().includes(searchQuery.toLowerCase())
+            u.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+            u.email.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
         );
       }
 
@@ -133,12 +162,12 @@ export default function UsersPage() {
       // When showing deleted users, show ONLY deleted users (ignore other filters)
       filtered = filtered.filter((u) => u.status === "deleted");
 
-      // Still allow search on deleted users
-      if (searchQuery) {
+      // Still allow search on deleted users (using debounced value)
+      if (debouncedSearchQuery) {
         filtered = filtered.filter(
           (u) =>
-            u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            u.email.toLowerCase().includes(searchQuery.toLowerCase())
+            u.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+            u.email.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
         );
       }
     }
@@ -185,7 +214,7 @@ export default function UsersPage() {
     setCurrentPage(1); // Reset to first page when filters change
   }, [
     users,
-    searchQuery,
+    debouncedSearchQuery,
     roleFilter,
     statusFilter,
     sortBy,
@@ -199,14 +228,14 @@ export default function UsersPage() {
   const endIndex = startIndex + ITEMS_PER_PAGE;
   const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
 
-  const handleSort = (column: string) => {
+  const handleSort = useCallback((column: string) => {
     if (sortBy === column) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     } else {
       setSortBy(column);
       setSortOrder("desc");
     }
-  };
+  }, [sortBy, sortOrder]);
 
   const getProviderIcon = (provider: string): React.ReactElement | null => {
     switch (provider) {
@@ -387,6 +416,23 @@ export default function UsersPage() {
       showToast("Please provide a reason for demoting this user.", 4000, "error");
       return;
     }
+
+    // Show confirmation for role changes
+    const roleNames: Record<string, string> = { user: "User", reviewer: "Reviewer", admin: "Admin" };
+    const action = isDemoting ? "demote" : "promote";
+    showConfirmation(
+      `Confirm Role Change`,
+      `Are you sure you want to ${action} ${selectedUser.name} from ${roleNames[selectedUser.role]} to ${roleNames[newRole]}?${isDemoting ? " This action requires a reason." : ""}`,
+      isDemoting ? "warning" : "info",
+      async () => {
+        setShowConfirmDialog(false);
+        await executeRoleChange(newRole);
+      }
+    );
+  };
+
+  const executeRoleChange = async (newRole: string) => {
+    if (!selectedUser) return;
 
     try {
       const response = await fetch(`/api/users/${selectedUser.id}`, {
@@ -638,10 +684,12 @@ export default function UsersPage() {
     column,
     label,
     className = "",
+    title,
   }: {
     column: string;
     label: string;
     className?: string;
+    title?: string;
   }) => {
     const isActive = sortBy === column;
     return (
@@ -650,6 +698,8 @@ export default function UsersPage() {
         className={`flex items-center gap-2 hover:text-[rgb(var(--text-primary))] transition-colors ${className} ${
           isActive ? "text-[rgb(var(--text-primary))]" : "text-[rgb(var(--text-secondary))]"
         }`}
+        title={title || `Sort by ${label}`}
+        aria-label={`Sort by ${label}`}
       >
         <span>{label}</span>
         {isActive ? (
@@ -823,7 +873,12 @@ export default function UsersPage() {
 
             {/* Table Rows */}
             <div className="divide-y divide-gray-700/30">
-              {paginatedUsers.length === 0 ? (
+              {loading ? (
+                <div className="p-12 text-center text-[rgb(var(--text-secondary))]">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#107c10] mx-auto mb-4"></div>
+                  <p>Loading users...</p>
+                </div>
+              ) : paginatedUsers.length === 0 ? (
                 <div className="p-12 text-center text-[rgb(var(--text-secondary))]">
                   <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[rgb(var(--bg-card-alt))] mb-4">
                     <FaUsers size={28} className="text-[rgb(var(--text-muted))]" />
@@ -857,6 +912,7 @@ export default function UsersPage() {
                             width={44}
                             height={44}
                             className="w-11 h-11 rounded-full ring-2 ring-gray-700/50 group-hover:ring-[#107c10]/30 transition-all object-cover"
+                            loading="lazy"
                             unoptimized
                           />
                         ) : (
@@ -1036,7 +1092,14 @@ export default function UsersPage() {
                               )
                             }
                             className="p-2.5 hover:bg-[#107c10]/20 rounded-lg transition-all border border-transparent hover:border-[#107c10]/30"
-                            aria-label="User actions"
+                            aria-label={`Actions for ${user.name}`}
+                            aria-expanded={openMenuId === user.id}
+                            aria-haspopup="true"
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape" && openMenuId === user.id) {
+                                setOpenMenuId(null);
+                              }
+                            }}
                           >
                             <FaEllipsisV className="text-[rgb(var(--text-secondary))] group-hover:text-[rgb(var(--text-primary))]" />
                           </button>
@@ -1128,7 +1191,12 @@ export default function UsersPage() {
 
           {/* Mobile/Tablet Card View (XL screens use table) */}
           <div className="xl:hidden space-y-3">
-            {paginatedUsers.length === 0 ? (
+            {loading ? (
+              <div className="bg-[rgb(var(--bg-card))] rounded-lg p-12 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#107c10] mx-auto mb-4"></div>
+                <p className="text-[rgb(var(--text-secondary))]">Loading users...</p>
+              </div>
+            ) : paginatedUsers.length === 0 ? (
               <div className="bg-[rgb(var(--bg-card))] rounded-lg p-8 text-center text-[rgb(var(--text-secondary))]">
                 No users found
               </div>
@@ -1159,6 +1227,7 @@ export default function UsersPage() {
                               width={48}
                               height={48}
                               className="w-12 h-12 rounded-full"
+                              loading="lazy"
                               unoptimized
                             />
                           ) : (
@@ -1424,10 +1493,16 @@ export default function UsersPage() {
                 disabled={currentPage === 1}
                 className="p-2.5 sm:p-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10] transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                 aria-label="Previous page"
+                aria-disabled={currentPage === 1}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowLeft" && currentPage > 1) {
+                    setCurrentPage((p) => p - 1);
+                  }
+                }}
               >
                 <FaChevronLeft size={14} />
               </button>
-              <span className="text-[rgb(var(--text-secondary))] text-xs sm:text-sm px-3 sm:px-4">
+              <span className="text-[rgb(var(--text-secondary))] text-xs sm:text-sm px-3 sm:px-4" aria-live="polite" aria-atomic="true">
                 Page {currentPage} of {totalPages}
               </span>
               <button
@@ -1437,6 +1512,12 @@ export default function UsersPage() {
                 disabled={currentPage === totalPages}
                 className="p-2.5 sm:p-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10] transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                 aria-label="Next page"
+                aria-disabled={currentPage === totalPages}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowRight" && currentPage < totalPages) {
+                    setCurrentPage((p) => p + 1);
+                  }
+                }}
               >
                 <FaChevronRight size={14} />
               </button>
@@ -1781,13 +1862,41 @@ export default function UsersPage() {
               <button
                 onClick={() => {
                   if (suspendDays === -1) {
-                    // Restore to active
+                    // Restore to active - less destructive, no confirmation needed
                     handleSuspend(-1);
                   } else if (suspendDays === -2) {
-                    // Permanent restriction
-                    handleSuspend(-2);
+                    // Permanent restriction - show confirmation
+                    showConfirmation(
+                      "Confirm Permanent Restriction",
+                      `Are you sure you want to permanently restrict ${selectedUser.name}? They will be able to sign in but cannot submit corrections.`,
+                      "warning",
+                      () => {
+                        setShowSuspendModal(false);
+                        handleSuspend(-2);
+                      }
+                    );
+                  } else if (suspendDays === 0) {
+                    // Permanent ban - show confirmation
+                    showConfirmation(
+                      "Confirm Permanent Ban",
+                      `Are you sure you want to permanently ban ${selectedUser.name}? They will be unable to sign in and their provider will be added to the ban list. This action cannot be easily undone.`,
+                      "danger",
+                      () => {
+                        setShowSuspendModal(false);
+                        handleSuspend(null);
+                      }
+                    );
                   } else {
-                    handleSuspend(suspendDays === 0 ? null : suspendDays);
+                    // Temporary suspension - show confirmation
+                    showConfirmation(
+                      "Confirm Suspension",
+                      `Are you sure you want to suspend ${selectedUser.name} for ${suspendDays} day${suspendDays !== 1 ? "s" : ""}?`,
+                      "warning",
+                      () => {
+                        setShowSuspendModal(false);
+                        handleSuspend(suspendDays);
+                      }
+                    );
                   }
                 }}
                 className={`flex-1 px-4 py-2.5 rounded-lg transition-colors font-medium ${
@@ -1920,6 +2029,27 @@ export default function UsersPage() {
             <span className="font-medium">{successMessage}</span>
           </div>
         </div>
+      )}
+
+      {/* Confirmation Dialog */}
+      {showConfirmDialog && confirmDialogProps && confirmAction && (
+        <ConfirmDialog
+          isOpen={showConfirmDialog}
+          title={confirmDialogProps.title}
+          message={confirmDialogProps.message}
+          variant={confirmDialogProps.variant}
+          onConfirm={() => {
+            confirmAction();
+            setShowConfirmDialog(false);
+            setConfirmAction(null);
+            setConfirmDialogProps(null);
+          }}
+          onCancel={() => {
+            setShowConfirmDialog(false);
+            setConfirmAction(null);
+            setConfirmDialogProps(null);
+          }}
+        />
       )}
     </DashboardLayout>
   );

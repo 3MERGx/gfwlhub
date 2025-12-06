@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useSession } from "next-auth/react";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useToast } from "@/components/ui/toast-context";
 import Accordion from "@/components/Accordion";
 import { sanitizeMarkdownHtml } from "@/lib/security";
@@ -46,6 +47,7 @@ export default function FAQ() {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 400);
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
@@ -393,15 +395,17 @@ export default function FAQ() {
     );
   };
 
-  // Filter FAQs based on search query
-  const filteredFaqs = faqs.filter((faq) => {
-    if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase();
-    const question = faq.question.toLowerCase();
-    // Strip HTML tags from answer for searching
-    const answerText = faq.answer.replace(/<[^>]+>/g, '').toLowerCase();
-    return question.includes(query) || answerText.includes(query);
-  });
+  // Filter FAQs based on debounced search query
+  const filteredFaqs = useMemo(() => {
+    return faqs.filter((faq) => {
+      if (!debouncedSearchQuery.trim()) return true;
+      const query = debouncedSearchQuery.toLowerCase();
+      const question = faq.question.toLowerCase();
+      // Strip HTML tags from answer for searching
+      const answerText = faq.answer.replace(/<[^>]+>/g, '').toLowerCase();
+      return question.includes(query) || answerText.includes(query);
+    });
+  }, [faqs, debouncedSearchQuery]);
 
   if (loading) {
     return (
@@ -472,8 +476,8 @@ export default function FAQ() {
               {filteredFaqs.length === 0 ? (
                 <div className="text-center py-12 text-[rgb(var(--text-secondary))]">
                   <p>
-                    {searchQuery
-                      ? `No FAQs found matching "${searchQuery}"`
+                    {debouncedSearchQuery
+                      ? `No FAQs found matching "${debouncedSearchQuery}"`
                       : faqs.length === 0
                       ? `No FAQs found. ${isAdmin ? "Click 'Add FAQ' to create one!" : ""}`
                       : "No FAQs match your search"}

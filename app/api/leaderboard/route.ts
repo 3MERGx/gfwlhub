@@ -34,11 +34,31 @@ export async function GET(request: Request) {
     const usersCollection = db.collection("users");
 
     // Get only active and suspended users with submissions (exclude restricted, blocked, and deleted)
+    // Optimize: Use projection to only fetch needed fields and add index hint
+    // Recommended indexes: { status: 1, submissionsCount: 1 } and { submissionsCount: 1, approvedCount: 1, rejectedCount: 1 }
     const users = await usersCollection
-      .find({
-        status: { $in: ["active", "suspended"] }, // Only active and suspended users
-        submissionsCount: { $gt: 0 }, // Only users with submissions
-      })
+      .find(
+        {
+          status: { $in: ["active", "suspended"] }, // Only active and suspended users
+          submissionsCount: { $gt: 0 }, // Only users with submissions
+        },
+        {
+          projection: {
+            _id: 1,
+            name: 1,
+            email: 1,
+            image: 1,
+            role: 1,
+            status: 1,
+            submissionsCount: 1,
+            approvedCount: 1,
+            rejectedCount: 1,
+            createdAt: 1,
+            lastLoginAt: 1,
+          },
+        }
+      )
+      .hint({ status: 1, submissionsCount: 1 }) // Use index hint for better performance
       .toArray();
 
     // Calculate leaderboard data

@@ -184,6 +184,7 @@ export default function Header() {
                 <Link
                   href="/supported-games"
                   className="hover:text-gray-200 transition-colors"
+                  prefetch={true}
                 >
                   Supported Games
                 </Link>
@@ -192,6 +193,7 @@ export default function Header() {
                 <Link
                   href="/faq"
                   className="hover:text-gray-200 transition-colors"
+                  prefetch={true}
                 >
                   FAQ
                 </Link>
@@ -212,6 +214,7 @@ export default function Header() {
                     <Link
                       href="/dashboard"
                       className="hover:text-gray-200 transition-colors"
+                      prefetch={true}
                     >
                       Dashboard
                     </Link>

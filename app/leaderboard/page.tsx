@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import DashboardLayout from "@/components/DashboardLayout";
 import { safeLog } from "@/lib/security";
+import { useDebounce } from "@/hooks/useDebounce";
 import {
   FaTrophy,
   FaMedal,
@@ -48,6 +49,14 @@ export default function LeaderboardPage() {
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
+  
+  // Pagination
+  const totalPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
 
   const clearFilters = () => {
     setSearchQuery("");
@@ -55,6 +64,9 @@ export default function LeaderboardPage() {
     setSortField("approvalRate");
     setSortOrder("desc");
   };
+
+  // Debounce search query
+  const debouncedSearchQuery = useDebounce(searchQuery, 400);
 
   // Fetch leaderboard data and assign ranks
   useEffect(() => {
@@ -120,11 +132,11 @@ export default function LeaderboardPage() {
     }
     // If role filter is "all", use original ranks from users array
 
-    // Apply search filter (ranks stay the same)
-    if (searchQuery) {
+    // Apply search filter (ranks stay the same) - using debounced value
+    if (debouncedSearchQuery) {
       filtered = filtered.filter((user) =>
-        user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchQuery.toLowerCase())
+        user.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        user.email.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
       );
     }
 
@@ -154,7 +166,7 @@ export default function LeaderboardPage() {
     });
 
     setFilteredUsers(filtered);
-  }, [users, roleFilter, searchQuery, sortField, sortOrder]);
+  }, [users, roleFilter, debouncedSearchQuery, sortField, sortOrder]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -386,7 +398,8 @@ export default function LeaderboardPage() {
 
           {/* Results Count */}
           <div className="text-[rgb(var(--text-secondary))] text-xs sm:text-sm mb-3 sm:mb-4">
-            Showing {filteredUsers.length} of {users.length} contributors
+            Showing {startIndex + 1}-{Math.min(endIndex, filteredUsers.length)} of {filteredUsers.length} contributors
+            {filteredUsers.length !== users.length && ` (filtered from ${users.length} total)`}
           </div>
 
           {/* Desktop Table (hidden on mobile) */}
@@ -412,14 +425,14 @@ export default function LeaderboardPage() {
 
             {/* Table Rows */}
             <div className="divide-y divide-[rgb(var(--border-color))]">
-              {filteredUsers.length === 0 ? (
+              {paginatedUsers.length === 0 ? (
                 <div className="p-12 text-center text-[rgb(var(--text-secondary))]">
                   <FaUsers size={48} className="mx-auto mb-4 text-[rgb(var(--text-muted))]" />
                   <p className="text-lg">No contributors found</p>
                   <p className="text-sm text-[rgb(var(--text-muted))] mt-1">Try adjusting your filters</p>
                 </div>
               ) : (
-                filteredUsers.map((user) => {
+                paginatedUsers.map((user) => {
                   return (
                     <div
                       key={user.id}
@@ -442,6 +455,7 @@ export default function LeaderboardPage() {
                             width={40}
                             height={40}
                             className="w-10 h-10 rounded-full ring-2 ring-gray-700/50 group-hover:ring-[#107c10]/30 transition-all object-cover"
+                            loading="lazy"
                             unoptimized
                           />
                         ) : (
@@ -503,14 +517,14 @@ export default function LeaderboardPage() {
 
           {/* Mobile Card View */}
           <div className="lg:hidden space-y-3">
-            {filteredUsers.length === 0 ? (
+            {paginatedUsers.length === 0 ? (
               <div className="bg-[rgb(var(--bg-card))] rounded-lg p-8 text-center text-[rgb(var(--text-secondary))] border border-[rgb(var(--border-color))]">
                 <FaUsers size={48} className="mx-auto mb-4 text-[rgb(var(--text-muted))]" />
                 <p className="text-base">No contributors found</p>
                 <p className="text-sm text-[rgb(var(--text-muted))] mt-1">Try adjusting your filters</p>
               </div>
             ) : (
-              filteredUsers.map((user) => {
+              paginatedUsers.map((user) => {
                 return (
                   <div
                     key={user.id}
@@ -533,6 +547,7 @@ export default function LeaderboardPage() {
                           width={48}
                           height={48}
                           className="w-12 h-12 rounded-full ring-2 ring-gray-700"
+                          loading="lazy"
                           unoptimized
                         />
                       ) : (
@@ -591,6 +606,60 @@ export default function LeaderboardPage() {
               })
             )}
           </div>
+
+          {/* Pagination - Only show if more than 100 entries */}
+          {filteredUsers.length > 100 && totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
+              <div className="text-sm text-[rgb(var(--text-secondary))]">
+                Page {currentPage} of {totalPages}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Previous page"
+                >
+                  Previous
+                </button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum: number;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`px-3 py-2 rounded-lg border transition-colors ${
+                          currentPage === pageNum
+                            ? "bg-[#107c10] text-white border-[#107c10]"
+                            : "bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] border-[rgb(var(--border-color))] hover:border-[#107c10]"
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Next page"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </DashboardLayout>

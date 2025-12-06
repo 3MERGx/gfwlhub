@@ -55,7 +55,30 @@ export async function GET(request: Request) {
     const db = await getGFWLDatabase();
     
     // Get all users - provider info is stored directly in user document
-    const users = await db.collection("users").find({}).toArray();
+    // Optimize: Only fetch necessary fields and add index hint for better performance
+    const users = await db
+      .collection("users")
+      .find({}, {
+        projection: {
+          _id: 1,
+          name: 1,
+          email: 1,
+          image: 1,
+          role: 1,
+          status: 1,
+          providerInfo: 1,
+          createdAt: 1,
+          lastLoginAt: 1,
+          submissionsCount: 1,
+          approvedCount: 1,
+          rejectedCount: 1,
+          suspendedUntil: 1,
+          deletedAt: 1,
+          anonymizedAt: 1,
+          archivedName: 1,
+        },
+      })
+      .toArray();
 
     // Map users (provider is already in user document)
     const usersWithProvider = users.map((user) => toUser(user));

@@ -168,3 +168,48 @@ export function getClientIdentifier(request: Request, userId?: string): string {
   return `ip:${ip}`;
 }
 
+/**
+ * Validates request body size to prevent DoS attacks via large payloads
+ * @param request - Next.js request object
+ * @param maxSizeBytes - Maximum allowed size in bytes (default: 1MB for JSON)
+ * @returns Object with isValid flag and error message if invalid
+ */
+export function validateRequestBodySize(
+  request: Request,
+  maxSizeBytes: number = 1024 * 1024 // 1MB default
+): { isValid: boolean; error?: string } {
+  const contentLength = request.headers.get("content-length");
+  
+  if (contentLength) {
+    const size = parseInt(contentLength, 10);
+    if (isNaN(size) || size > maxSizeBytes) {
+      return {
+        isValid: false,
+        error: `Request body too large. Maximum size is ${Math.round(maxSizeBytes / 1024)}KB`,
+      };
+    }
+  }
+  
+  return { isValid: true };
+}
+
+/**
+ * Safely parses JSON from request body with size validation
+ * @param request - Next.js request object
+ * @param maxSizeBytes - Maximum allowed size in bytes (default: 1MB)
+ * @returns Parsed JSON object or throws error
+ */
+export async function parseRequestBody<T = unknown>(
+  request: Request,
+  maxSizeBytes: number = 1024 * 1024 // 1MB default
+): Promise<T> {
+  // Validate size before parsing
+  const validation = validateRequestBodySize(request, maxSizeBytes);
+  if (!validation.isValid) {
+    throw new Error(validation.error);
+  }
+  
+  // Parse JSON
+  return await request.json();
+}
+

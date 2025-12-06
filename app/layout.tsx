@@ -8,6 +8,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Providers } from "@/components/Providers";
 import SessionExpirationWarning from "@/components/SessionExpirationWarning";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -78,14 +79,16 @@ export default function RootLayout({
         className={`h-full min-h-screen flex flex-col bg-[rgb(var(--bg-primary))] text-[rgb(var(--text-primary))] ${inter.className}`}
       >
         <Providers>
-          <ToastProvider>
-            <SessionExpirationWarning />
-            <Header />
-            <main className="flex-1 flex flex-col">{children}</main>
-            <Footer />
-            <SpeedInsights />
-            <Analytics />
-          </ToastProvider>
+          <ErrorBoundary>
+            <ToastProvider>
+              <SessionExpirationWarning />
+              <Header />
+              <main className="flex-1 flex flex-col">{children}</main>
+              <Footer />
+              <SpeedInsights />
+              <Analytics />
+            </ToastProvider>
+          </ErrorBoundary>
         </Providers>
       </body>
     </html>
