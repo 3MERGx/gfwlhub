@@ -226,7 +226,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Return all corrections by default for reviewers/admins (for stats and full view)
-    const corrections = await getAllCorrections();
+    // Limit to 1000 corrections to prevent memory issues
+    const corrections = await getAllCorrections(1000);
     return NextResponse.json(
       { corrections },
       {

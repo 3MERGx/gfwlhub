@@ -19,6 +19,7 @@ import {
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useCSRF } from "@/hooks/useCSRF";
+import { useDebounce } from "@/hooks/useDebounce";
 import Image from "next/image";
 
 // Image Preview Component
@@ -120,6 +121,7 @@ function ImagePreview({ imageUrl, label }: ImagePreviewProps) {
           } ${imageLoaded ? "opacity-100" : "opacity-0"}`}
           onError={() => setImageError(true)}
           onLoad={() => setImageLoaded(true)}
+          loading="lazy"
           draggable={false}
           unoptimized
         />
@@ -181,9 +183,11 @@ export default function SubmissionsPage() {
     useState<Correction | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  const [loading, setLoading] = useState(true);
 
   // Fetch real corrections from API
   const fetchCorrections = async () => {
+    setLoading(true);
     try {
       const response = await fetch("/api/corrections");
       if (response.ok) {
@@ -191,11 +195,18 @@ export default function SubmissionsPage() {
         const correctionsData = data.corrections || [];
         setCorrections(correctionsData);
         // Filtered corrections will be updated by the useEffect that watches corrections
+      } else {
+        console.error("Failed to fetch corrections");
       }
     } catch (error) {
       console.error("Error fetching corrections:", error);
+    } finally {
+      setLoading(false);
     }
   };
+
+  // Debounce search query
+  const debouncedSearchQuery = useDebounce(searchQuery, 400);
 
   useEffect(() => {
     fetchCorrections();
@@ -205,13 +216,13 @@ export default function SubmissionsPage() {
   useEffect(() => {
     let filtered = [...corrections];
 
-    // Search filter
-    if (searchQuery) {
+    // Search filter (using debounced value)
+    if (debouncedSearchQuery) {
       filtered = filtered.filter(
         (c) =>
-          c.gameTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          c.submittedByName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          c.field.toLowerCase().includes(searchQuery.toLowerCase())
+          c.gameTitle.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+          c.submittedByName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+          c.field.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
       );
     }
 
@@ -247,7 +258,7 @@ export default function SubmissionsPage() {
     setFilteredCorrections(filtered);
     // Reset to page 1 when filters change
     setCurrentPage(1);
-  }, [corrections, searchQuery, statusFilter, fieldFilter, sortBy, sortOrder]);
+  }, [corrections, debouncedSearchQuery, statusFilter, fieldFilter, sortBy, sortOrder]);
 
   // Calculate pagination
   const totalPages = Math.ceil(filteredCorrections.length / itemsPerPage);
@@ -440,7 +451,14 @@ export default function SubmissionsPage() {
 
           {/* Submissions List */}
           <div className="space-y-3 mb-6">
-            {paginatedCorrections.length === 0 ? (
+            {loading ? (
+              <div className="bg-[rgb(var(--bg-card))] rounded-lg p-12 text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#107c10] mx-auto mb-4"></div>
+                <p className="text-[rgb(var(--text-secondary))]">
+                  Loading submissions...
+                </p>
+              </div>
+            ) : paginatedCorrections.length === 0 ? (
               <div className="bg-[rgb(var(--bg-card))] rounded-lg p-8 text-center">
                 <FaClock
                   className="mx-auto text-[rgb(var(--text-muted))] mb-4"
@@ -472,8 +490,8 @@ export default function SubmissionsPage() {
             )}
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
+          {/* Pagination - Only show if more than 50 items */}
+          {filteredCorrections.length > 50 && totalPages > 1 && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
               <div className="text-sm text-[rgb(var(--text-secondary))]">
                 Page {currentPage} of {totalPages}

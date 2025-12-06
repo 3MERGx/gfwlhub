@@ -221,7 +221,7 @@ export default function DashboardLayout({
             <p className="text-[rgb(var(--text-secondary))] mb-4">
               You don&apos;t have permission to access this page.
             </p>
-            <Link href="/dashboard" className="text-[#107c10] hover:underline">
+            <Link href="/dashboard" className="text-[#107c10] hover:underline" prefetch={true}>
               Return to Dashboard
             </Link>
           </div>

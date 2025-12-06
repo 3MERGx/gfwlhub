@@ -215,14 +215,25 @@ export async function getCorrectionsByUser(
   return corrections.map(toCorrection);
 }
 
-export async function getAllCorrections(): Promise<Correction[]> {
+export async function getAllCorrections(limit?: number): Promise<Correction[]> {
   const client = await clientPromise;
   const db = client.db("GFWL");
-  const corrections = await db
+  // Optimize: Add limit parameter and use index hint
+  // Recommended index: { submittedAt: -1 } and { status: 1, submittedAt: -1 }
+  const query = db
     .collection("corrections")
     .find({})
     .sort({ submittedAt: -1 })
-    .toArray();
+    .hint({ submittedAt: -1 }); // Use index hint
+
+  // Default limit of 1000 if not specified
+  if (limit) {
+    query.limit(limit);
+  } else {
+    query.limit(1000); // Prevent loading too many at once
+  }
+
+  const corrections = await query.toArray();
   return corrections.map(toCorrection);
 }
 
@@ -307,11 +318,17 @@ export async function getAuditLogsByGame(
 export async function getAllAuditLogs(limit?: number): Promise<AuditLog[]> {
   const client = await clientPromise;
   const db = client.db("GFWL");
-  const query = db.collection("auditLogs").find({}).sort({ changedAt: -1 });
+  // Optimize: Add default limit to prevent loading too many logs at once
+  // Recommended index: { changedAt: -1 }
+  const query = db
+    .collection("auditLogs")
+    .find({})
+    .sort({ changedAt: -1 })
+    .hint({ changedAt: -1 }); // Use index hint
 
-  if (limit) {
-    query.limit(limit);
-  }
+  // Default limit of 1000 if not specified to prevent memory issues
+  const effectiveLimit = limit || 1000;
+  query.limit(effectiveLimit);
 
   const logs = await query.toArray();
   return logs.map(toAuditLog);

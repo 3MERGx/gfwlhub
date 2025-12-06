@@ -62,10 +62,12 @@ export default function ProfilePage({
   const resolvedParams = use(params);
   const [isOwnProfile, setIsOwnProfile] = useState(false);
   const [profileUser, setProfileUser] = useState<User | null>(null);
-  const [recentSubmissions, setRecentSubmissions] = useState<Correction[]>([]);
+  const [allSubmissions, setAllSubmissions] = useState<Correction[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [submissionsLoading, setSubmissionsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
 
   useEffect(() => {
     let isMounted = true; // Prevent state updates if component unmounts
@@ -113,8 +115,8 @@ export default function ProfilePage({
           const data = await response.json();
           const corrections = data.corrections || [];
           if (isMounted) {
-            // Get recent 5 submissions
-            setRecentSubmissions(corrections.slice(0, 5));
+            // Store all submissions
+            setAllSubmissions(corrections);
             // Count pending
             setPendingCount(
               corrections.filter((c: Correction) => c.status === "pending").length
@@ -369,6 +371,12 @@ export default function ProfilePage({
     });
   };
 
+  // Calculate pagination for submissions
+  const totalPages = Math.ceil(allSubmissions.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedSubmissions = allSubmissions.slice(startIndex, endIndex);
+
   return (
     <div className="container mx-auto px-4 py-6 md:py-8">
       <div className="max-w-5xl mx-auto">
@@ -403,6 +411,7 @@ export default function ProfilePage({
                 width={120}
                 height={120}
                 className="w-28 h-28 rounded-full border-4 border-[#107c10] object-cover shadow-lg"
+                loading="lazy"
                 unoptimized
               />
             ) : (
@@ -629,7 +638,7 @@ export default function ProfilePage({
                           Loading submissions...
                         </p>
                       </div>
-                    ) : recentSubmissions.length === 0 ? (
+                    ) : allSubmissions.length === 0 ? (
                       <div className="text-center py-8">
                         <FaEdit
                           className="mx-auto text-gray-600 mb-4"
@@ -638,8 +647,9 @@ export default function ProfilePage({
                         <p className="text-gray-400">No submissions yet</p>
                       </div>
                     ) : (
-                      <div className="space-y-3">
-                        {recentSubmissions.map((submission) => (
+                      <>
+                        <div className="space-y-3">
+                          {paginatedSubmissions.map((submission) => (
                           <Link
                             key={submission.id}
                             href={`/games/${submission.gameSlug}`}
@@ -680,7 +690,61 @@ export default function ProfilePage({
                             </div>
                           </Link>
                         ))}
-                      </div>
+                        </div>
+                        {/* Pagination */}
+                        {totalPages > 1 && (
+                          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
+                            <div className="text-sm text-[rgb(var(--text-secondary))]">
+                              Showing {startIndex + 1}-{Math.min(endIndex, allSubmissions.length)} of {allSubmissions.length} submissions
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                                disabled={currentPage === 1}
+                                className="px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                aria-label="Previous page"
+                              >
+                                Previous
+                              </button>
+                              <div className="flex items-center gap-1">
+                                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                  let pageNum: number;
+                                  if (totalPages <= 5) {
+                                    pageNum = i + 1;
+                                  } else if (currentPage <= 3) {
+                                    pageNum = i + 1;
+                                  } else if (currentPage >= totalPages - 2) {
+                                    pageNum = totalPages - 4 + i;
+                                  } else {
+                                    pageNum = currentPage - 2 + i;
+                                  }
+                                  return (
+                                    <button
+                                      key={pageNum}
+                                      onClick={() => setCurrentPage(pageNum)}
+                                      className={`px-3 py-2 rounded-lg border transition-colors ${
+                                        currentPage === pageNum
+                                          ? "bg-[#107c10] text-white border-[#107c10]"
+                                          : "bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] border-[rgb(var(--border-color))] hover:border-[#107c10]"
+                                      }`}
+                                    >
+                                      {pageNum}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <button
+                                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                                disabled={currentPage === totalPages}
+                                className="px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                aria-label="Next page"
+                              >
+                                Next
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
                     )}
                   </>
                 )}

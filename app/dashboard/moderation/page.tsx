@@ -18,6 +18,7 @@ import {
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import { safeLog } from "@/lib/security";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface ModerationLog {
   id: string;
@@ -49,19 +50,28 @@ export default function ModerationPage() {
   const [selectedLog, setSelectedLog] = useState<ModerationLog | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  const [loading, setLoading] = useState(true);
+
+  // Debounce search query
+  const debouncedSearchQuery = useDebounce(searchQuery, 400);
 
   // Fetch moderation logs from API
   useEffect(() => {
     const fetchLogs = async () => {
+      setLoading(true);
       try {
         const response = await fetch("/api/moderation-logs");
         if (response.ok) {
           const data = await response.json();
           setLogs(data.logs || []);
           setFilteredLogs(data.logs || []);
+        } else {
+          safeLog.error("Failed to fetch moderation logs");
         }
       } catch (error) {
         safeLog.error("Error fetching moderation logs:", error);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -72,16 +82,16 @@ export default function ModerationPage() {
   useEffect(() => {
     let filtered = [...logs];
 
-    // Search filter
-    if (searchQuery) {
+    // Search filter (using debounced value)
+    if (debouncedSearchQuery) {
       filtered = filtered.filter(
         (log) =>
           log.moderatedUser.name
             .toLowerCase()
-            .includes(searchQuery.toLowerCase()) ||
-          log.moderator.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          log.reason.toLowerCase().includes(searchQuery.toLowerCase())
+            .includes(debouncedSearchQuery.toLowerCase()) ||
+          log.moderator.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+          log.action.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+          log.reason.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
       );
     }
 
@@ -134,7 +144,7 @@ export default function ModerationPage() {
     setFilteredLogs(filtered);
     // Reset to page 1 when filters change
     setCurrentPage(1);
-  }, [logs, searchQuery, actionFilter, sortBy, sortOrder]);
+  }, [logs, debouncedSearchQuery, actionFilter, sortBy, sortOrder]);
 
   // Pagination
   const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
@@ -346,7 +356,12 @@ export default function ModerationPage() {
 
           {/* Moderation Log Table - Desktop */}
           <div className="hidden lg:block bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] overflow-hidden">
-            {paginatedLogs.length === 0 ? (
+            {loading ? (
+              <div className="p-12 text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#107c10] mx-auto mb-4"></div>
+                <p className="text-[rgb(var(--text-secondary))]">Loading moderation logs...</p>
+              </div>
+            ) : paginatedLogs.length === 0 ? (
               <div className="p-8 text-center">
                 <FaUserShield className="mx-auto text-[rgb(var(--text-muted))] mb-4" size={48} />
                 <p className="text-[rgb(var(--text-secondary))]">No moderation logs found</p>
@@ -566,7 +581,12 @@ export default function ModerationPage() {
 
           {/* Moderation Log Cards - Mobile */}
           <div className="lg:hidden space-y-4">
-            {paginatedLogs.length === 0 ? (
+            {loading ? (
+              <div className="bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] p-12 text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#107c10] mx-auto mb-4"></div>
+                <p className="text-[rgb(var(--text-secondary))]">Loading moderation logs...</p>
+              </div>
+            ) : paginatedLogs.length === 0 ? (
               <div className="bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] p-8 text-center">
                 <FaUserShield className="mx-auto text-[rgb(var(--text-muted))] mb-4" size={48} />
                 <p className="text-[rgb(var(--text-secondary))]">No moderation logs found</p>

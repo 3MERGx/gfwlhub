@@ -62,6 +62,7 @@ export default function GameImage({
       height={height}
       className={className}
       priority={priority}
+      loading={priority ? undefined : "lazy"}
       onError={() => setImageError(true)}
     />
   );

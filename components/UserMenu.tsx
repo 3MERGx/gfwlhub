@@ -161,6 +161,8 @@ export default function UserMenu() {
                 href="/dashboard"
                 className="flex items-center gap-3 px-4 py-2 text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--bg-card-alt))] hover:text-[rgb(var(--text-primary))] transition-colors"
                 onClick={() => setIsOpen(false)}
+                prefetch={true}
+                aria-label="Go to dashboard"
               >
                 <FaTachometerAlt size={16} />
                 <span>Dashboard</span>
@@ -171,6 +173,8 @@ export default function UserMenu() {
               href={`/profile/${session.user.id}`}
               className="flex items-center gap-3 px-4 py-2 text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--bg-card-alt))] hover:text-[rgb(var(--text-primary))] transition-colors"
               onClick={() => setIsOpen(false)}
+              prefetch={true}
+              aria-label="View your profile"
             >
               <FaUser size={16} />
               <span>Profile</span>
@@ -180,6 +184,8 @@ export default function UserMenu() {
               href="/settings"
               className="flex items-center gap-3 px-4 py-2 text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--bg-card-alt))] hover:text-[rgb(var(--text-primary))] transition-colors"
               onClick={() => setIsOpen(false)}
+              prefetch={true}
+              aria-label="Go to settings"
             >
               <FaCog size={16} />
               <span>Settings</span>
