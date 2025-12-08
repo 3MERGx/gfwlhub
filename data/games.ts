@@ -1,5 +1,10 @@
 export type ActivationType = "Legacy (5x5)" | "Legacy (Per-Title)" | "SSA";
 export type SupportStatus = "supported" | "testing" | "unsupported";
+export type PlayabilityStatus =
+  | "playable" // Normal state - playable with GFWL
+  | "unplayable" // Completely unplayable (original form)
+  | "community_alternative" // Has community project/alternative
+  | "remastered_available"; // Has official remaster/GFWL-free version
 
 export interface Game {
   id: string;
@@ -17,7 +22,11 @@ export interface Game {
   discordLink?: string;
   redditLink?: string;
   wikiLink?: string;
+  steamDBLink?: string;
   featureEnabled?: boolean;
+  readyToPublish?: boolean;
+  publishedAt?: Date;
+  publishedBy?: string;
   downloadLink?: string;
   fileName?: string;
   purchaseLink?: string;
@@ -26,6 +35,15 @@ export interface Game {
   virusTotalUrl?: string;
   knownIssues?: string[];
   communityTips?: string[];
+  additionalDRM?: string;
+  // New playability fields
+  playabilityStatus?: PlayabilityStatus; // Defaults to "playable" if not set
+  isUnplayable?: boolean; // Marks if the original game is unplayable (independent of alternatives)
+  communityAlternativeName?: string; // e.g., "Project Celeste"
+  communityAlternativeUrl?: string; // Website/store page URL for the community alternative
+  communityAlternativeDownloadLink?: string; // Direct download link (optional)
+  remasteredName?: string; // e.g., "FlatOut: Ultimate Carnage Collector's Edition"
+  remasteredPlatform?: string; // e.g., "Steam", "Epic Games", etc.
 }
 
 export const games: Game[] = [
@@ -59,6 +77,7 @@ export const games: Game[] = [
       "Join our Discord server to share and find more tips from other players!",
     ],
     wikiLink: "https://www.pcgamingwiki.com/wiki/Shadowrun",
+
     gogDreamlistLink: "https://www.gog.com/dreamlist/game/shadowrun-2007",
   },
   {
@@ -125,6 +144,8 @@ export const games: Game[] = [
     downloadLink: "https://www.projectceleste.com/",
     fileName: "Project Celeste - Age of Empires Online",
     wikiLink: "https://www.pcgamingwiki.com/wiki/Age_of_Empires_Online",
+    playabilityStatus: "community_alternative",
+    communityAlternativeName: "Project Celeste",
   },
   {
     id: "afl-live",
@@ -180,6 +201,7 @@ export const games: Game[] = [
     imageUrl:
       "https://thumbnails.pcgamingwiki.com/e/e0/Batman_Arkham_City_cover.jpg/300px-Batman_Arkham_City_cover.jpg",
     wikiLink: "https://www.pcgamingwiki.com/wiki/Batman:_Arkham_City",
+    steamDBLink: "https://steamdb.info/app/57400/",
     purchaseLink:
       "https://store.steampowered.com/app/200260/Batman_Arkham_City__Game_of_the_Year_Edition/",
     knownIssues: [
@@ -563,6 +585,9 @@ export const games: Game[] = [
     purchaseLink:
       "https://store.steampowered.com/app/12360/FlatOut_Ultimate_Carnage_Collectors_Edition/",
     wikiLink: "https://www.pcgamingwiki.com/wiki/FlatOut:_Ultimate_Carnage",
+    playabilityStatus: "remastered_available",
+    remasteredName: "FlatOut: Ultimate Carnage Collector's Edition",
+    remasteredPlatform: "Steam",
   },
   {
     id: "fuel",

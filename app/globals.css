@@ -45,44 +45,58 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* Light mode colors */
+  --background: oklch(0.98 0 0);
+  --foreground: oklch(0.15 0 0);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.15 0 0);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.15 0 0);
   --primary: oklch(0.205 0 0);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.95 0 0);
+  --secondary-foreground: oklch(0.15 0 0);
+  --muted: oklch(0.96 0 0);
+  --muted-foreground: oklch(0.45 0 0);
+  --accent: oklch(0.96 0 0);
+  --accent-foreground: oklch(0.15 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(0.9 0 0);
+  --input: oklch(0.95 0 0);
+  --ring: oklch(0.5 0 0);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar: oklch(0.98 0 0);
+  --sidebar-foreground: oklch(0.15 0 0);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-  --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 20, 20, 20;
-  --background-end-rgb: 30, 30, 30;
+  --sidebar-accent: oklch(0.95 0 0);
+  --sidebar-accent-foreground: oklch(0.15 0 0);
+  --sidebar-border: oklch(0.9 0 0);
+  --sidebar-ring: oklch(0.5 0 0);
+  --foreground-rgb: 20, 20, 20;
+  --background-start-rgb: 250, 250, 250;
+  --background-end-rgb: 240, 240, 240;
   --gfwl-green: 16, 124, 16;
+  /* Light mode specific */
+  --bg-primary: 250, 250, 250;
+  --bg-secondary: 255, 255, 255;
+  --bg-card: 255, 255, 255;
+  --bg-card-alt: 245, 245, 245;
+  --bg-dashboard: 250, 250, 250;
+  --bg-sidebar: 248, 248, 248;
+  --text-primary: 20, 20, 20;
+  --text-secondary: 80, 80, 80;
+  --text-muted: 120, 120, 120;
+  --border-color: 220, 220, 220;
+  --border-hover: 180, 180, 180;
 }
 
 .dark {
+  /* Dark mode colors - your current theme */
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -114,6 +128,21 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 20, 20, 20;
+  --background-end-rgb: 30, 30, 30;
+  /* Dark mode specific */
+  --bg-primary: 18, 18, 18;
+  --bg-secondary: 45, 45, 45;
+  --bg-card: 45, 45, 45;
+  --bg-card-alt: 26, 26, 26;
+  --bg-dashboard: 18, 18, 18;
+  --bg-sidebar: 26, 26, 26;
+  --text-primary: 255, 255, 255;
+  --text-secondary: 180, 180, 180;
+  --text-muted: 150, 150, 150;
+  --border-color: 60, 60, 60;
+  --border-hover: 80, 80, 80;
 }
 
 @layer base {
@@ -122,7 +151,7 @@
   }
   body {
     @apply bg-background text-foreground;
-    color: rgb(var(--foreground-rgb));
+    color: rgb(var(--text-primary));
     background: linear-gradient(
         to bottom,
         rgb(var(--background-start-rgb)),
@@ -132,13 +161,42 @@
   }
 }
 
-/* Custom scrollbar for the Xbox/GFWL feel */
+/* Theme-aware utility classes */
+.bg-primary {
+  background-color: rgb(var(--bg-primary));
+}
+
+.bg-secondary {
+  background-color: rgb(var(--bg-secondary));
+}
+
+.bg-card {
+  background-color: rgb(var(--bg-card));
+}
+
+.bg-card-alt {
+  background-color: rgb(var(--bg-card-alt));
+}
+
+.text-primary {
+  color: rgb(var(--text-primary));
+}
+
+.text-secondary {
+  color: rgb(var(--text-secondary));
+}
+
+.border-theme {
+  border-color: rgb(var(--border-color));
+}
+
+/* Custom scrollbar for the Xbox/GFWL feel - green in both themes */
 ::-webkit-scrollbar {
   width: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #202020;
+  background: rgb(var(--bg-card-alt));
 }
 
 ::-webkit-scrollbar-thumb {
@@ -148,4 +206,66 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #0e6b0e;
+}
+
+/* Fade-in animation for dropdowns */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Smooth transitions for theme switching and modals */
+* {
+  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Faster transitions for interactive elements */
+button, a, input, select, textarea {
+  transition-duration: 100ms;
+}
+
+/* Smooth modal transitions */
+.modal-enter {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.modal-enter-active {
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
+}
+
+.modal-exit {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.modal-exit-active {
+  opacity: 0;
+  transform: scale(0.95);
+  transition: opacity 150ms ease-in, transform 150ms ease-in;
+}
+
+/* Smooth theme transition */
+html {
+  transition: background-color 300ms ease, color 300ms ease;
+}
+
+/* Override for elements that shouldn't transition */
+.no-transition,
+.no-transition * {
+  transition: none !important;
 }

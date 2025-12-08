@@ -6,6 +6,9 @@ import { Inter } from "next/font/google";
 import { ToastProvider } from "@/components/ui/toast-context";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Providers } from "@/components/Providers";
+import SessionExpirationWarning from "@/components/SessionExpirationWarning";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -15,7 +18,7 @@ export const metadata: Metadata = {
     template: "%s | GFWL Hub",
   },
   description:
-    "Community hub for Games for Windows LIVE (GFWL) games. Resources, troubleshooting guides, and tools to get your GFWL games working on modern Windows.",
+    "Community-driven resource for Games for Windows LIVE (GFWL) games. Find fixes, patches, and support for GFWL titles on Windows 10/11. Get your classic games working again.",
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL || "https://gfwl-hub.vercel.app"
   ),
@@ -40,13 +43,13 @@ export const metadata: Metadata = {
     siteName: "GFWL Hub",
     title: "GFWL Hub - Games for Windows LIVE Community & Support",
     description:
-      "Community hub for Games for Windows LIVE (GFWL) games. Find patches, fixes, and resources for Microsoft's discontinued service.",
+      "Community-driven resource for Games for Windows LIVE (GFWL) games. Find fixes, patches, and support for GFWL titles on Windows 10/11. Get your classic games working again.",
   },
   twitter: {
     card: "summary_large_image",
     title: "GFWL Hub - Games for Windows LIVE Community & Support",
     description:
-      "Community hub for Games for Windows LIVE (GFWL) games. Find patches, fixes, and resources for Microsoft's discontinued service.",
+      "Community-driven resource for Games for Windows LIVE (GFWL) games. Find fixes, patches, and support for GFWL titles on Windows 10/11. Get your classic games working again.",
     images: ["https://gfwl-hub.vercel.app/twitter-image.jpg"],
   },
   robots: {
@@ -71,17 +74,43 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning className="h-full">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  const theme = localStorage.getItem('theme');
+                  if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    document.documentElement.classList.add('dark');
+                  } else {
+                    document.documentElement.classList.remove('dark');
+                  }
+                } catch (e) {
+                  // Fallback to dark if localStorage is not available
+                  document.documentElement.classList.add('dark');
+                }
+              })();
+            `,
+          }}
+        />
+      </head>
       <body
-        className={`min-h-screen flex flex-col bg-[#121212] text-white ${inter.className}`}
+        className={`h-full min-h-screen flex flex-col bg-[rgb(var(--bg-primary))] text-[rgb(var(--text-primary))] ${inter.className}`}
       >
-        <ToastProvider>
-          <Header />
-          <main className="flex-grow">{children}</main>
-          <Footer />
-          <SpeedInsights />
-          <Analytics />
-        </ToastProvider>
+        <Providers>
+          <ErrorBoundary>
+            <ToastProvider>
+              <SessionExpirationWarning />
+              <Header />
+              <main className="flex-1 flex flex-col">{children}</main>
+              <Footer />
+              <SpeedInsights />
+              <Analytics />
+            </ToastProvider>
+          </ErrorBoundary>
+        </Providers>
       </body>
     </html>
   );

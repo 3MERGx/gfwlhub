@@ -3,7 +3,7 @@ import { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Download GFWL Keygen - Fix for Games for Windows LIVE Activations",
   description:
-    "Download the community-made GFWL Keygen (Beta 0.5.7) to fix Games for Windows LIVE activation issues on Windows 10/11. Free tool for GTA 4, Fallout 3, Shadowrun, and other GFWL games.",
+    "Download the community-made GFWL Keygen to fix Games for Windows LIVE activation issues on Windows 10/11. Free tool for GTA 4, Fallout 3, Shadowrun, and other GFWL games.",
   keywords: [
     "GFWL Keygen",
     "Games for Windows LIVE fix",

@@ -36,6 +36,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# downloads - allow the directory but ignore other large files
+/public/downloads/*.tmp
+/public/downloads/*.log
+/public/downloads/.DS_Store
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

@@ -11,12 +11,35 @@ import {
   FaChevronRight,
 } from "react-icons/fa";
 import Accordion from "@/components/Accordion";
-import { games } from "@/data/games";
+import { Game } from "@/data/games";
+import { safeLog } from "@/lib/security";
 
 export default function Contact() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentCommunityPage, setCurrentCommunityPage] = useState(1);
+  const [games, setGames] = useState<Game[]>([]);
+  const [loading, setLoading] = useState(true);
   const communitiesPerPage = 5; // Or any number you prefer
+
+  // Fetch games from MongoDB
+  useEffect(() => {
+    async function fetchGames() {
+      try {
+        const response = await fetch("/api/games");
+        if (response.ok) {
+          const data = await response.json();
+          setGames(data);
+        } else {
+          safeLog.error("Failed to fetch games");
+        }
+      } catch (error) {
+        safeLog.error("Error fetching games:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchGames();
+  }, []);
 
   // Filter games that have community links
   const gamesWithCommunities = games.filter(
@@ -54,20 +77,32 @@ export default function Contact() {
     setCurrentCommunityPage(1);
   }, [searchQuery]);
 
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-[rgb(var(--bg-card))] p-8 rounded-lg shadow-xl">
+            <div className="text-center text-[rgb(var(--text-primary))]">Loading...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
-        <div className="bg-[#202020] p-8 rounded-lg shadow-xl mb-8">
-          <h1 className="text-3xl font-bold mb-6 text-center text-white">
+        <div className="bg-[rgb(var(--bg-card))] p-8 rounded-lg shadow-xl mb-8">
+          <h1 className="text-3xl font-bold mb-6 text-center text-[rgb(var(--text-primary))]">
             Contact & Community
           </h1>
 
           <section className="mb-12">
-            <div className="bg-[#2d2d2d] p-6 rounded-lg shadow-md border border-[#107c10]">
-              <h2 className="text-2xl font-bold mb-4 text-white">
+            <div className="bg-[rgb(var(--bg-card-alt))] p-6 rounded-lg shadow-md border border-[#107c10]">
+              <h2 className="text-2xl font-bold mb-4 text-[rgb(var(--text-primary))]">
                 GFWL Hub Discord
               </h2>
-              <p className="mb-6 text-gray-300">
+              <p className="mb-6 text-[rgb(var(--text-secondary))]">
                 Join our main Discord server to get help with GFWL issues, share
                 your experiences, and connect with other players.
               </p>
@@ -87,7 +122,7 @@ export default function Contact() {
 
           {gamesWithCommunities.length > 0 && (
             <section>
-              <h2 className="text-2xl font-bold mb-4 text-white">
+              <h2 className="text-2xl font-bold mb-4 text-[rgb(var(--text-primary))]">
                 Game-Specific Communities
               </h2>
 
@@ -96,15 +131,15 @@ export default function Contact() {
                   <input
                     type="text"
                     placeholder="Search game communities..."
-                    className="w-full bg-[#2d2d2d] text-white border border-gray-700 rounded-md py-2 px-4 pl-10 pr-10 focus:outline-none focus:border-[#107c10]"
+                    className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] border border-[rgb(var(--border-color))] rounded-md py-2 px-4 pl-10 pr-10 focus:outline-none focus:border-[#107c10]"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
-                  <FaSearch className="absolute left-3 top-3 text-gray-400" />
+                  <FaSearch className="absolute left-3 top-3 text-[rgb(var(--text-muted))]" />
                   {searchQuery && (
                     <button
                       onClick={clearSearch}
-                      className="absolute right-3 top-3 text-gray-400 hover:text-white"
+                      className="absolute right-3 top-3 text-[rgb(var(--text-muted))] hover:text-[rgb(var(--text-primary))]"
                       aria-label="Clear search"
                     >
                       <FaTimes />
@@ -122,7 +157,7 @@ export default function Contact() {
                       content={
                         <div>
                           {game.description && (
-                            <p className="mb-4 text-gray-300">
+                            <p className="mb-4 text-[rgb(var(--text-secondary))]">
                               {game.description}
                             </p>
                           )}
@@ -156,8 +191,8 @@ export default function Contact() {
                   ))}
                 </div>
               ) : (
-                <div className="bg-[#2d2d2d] p-6 rounded-lg text-center">
-                  <p className="text-gray-300">
+                <div className="bg-[rgb(var(--bg-card-alt))] p-6 rounded-lg text-center">
+                  <p className="text-[rgb(var(--text-secondary))]">
                     No game communities found matching your search.
                   </p>
                 </div>
@@ -166,7 +201,7 @@ export default function Contact() {
               {/* Pagination for Game Specific Communities */}
               {searchedGames.length > communitiesPerPage && (
                 <div className="mt-6 flex flex-col md:flex-row md:items-center md:justify-between">
-                  <div className="text-gray-300 text-sm mb-2 md:mb-0">
+                  <div className="text-[rgb(var(--text-secondary))] text-sm mb-2 md:mb-0">
                     Showing {indexOfFirstCommunity + 1}-
                     {Math.min(indexOfLastCommunity, searchedGames.length)} of{" "}
                     {searchedGames.length} communities

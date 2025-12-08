@@ -14,6 +14,16 @@ export interface Game {
   knownIssues?: string[];
   communityTips?: string[];
   featureEnabled?: boolean;
+  readyToPublish?: boolean;
+  publishedAt?: Date;
+  publishedBy?: string;
+  playabilityStatus?: "playable" | "unplayable" | "community_alternative" | "remastered_available";
+  isUnplayable?: boolean;
+  communityAlternativeName?: string;
+  communityAlternativeUrl?: string;
+  communityAlternativeDownloadLink?: string;
+  remasteredName?: string;
+  remasteredPlatform?: string;
 }
 
 export interface PageProps {

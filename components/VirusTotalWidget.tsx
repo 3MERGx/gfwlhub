@@ -23,13 +23,13 @@ export default function VirusTotalWidget({
   }
 
   return (
-    <div className="bg-[#2d2d2d] p-4 rounded-lg">
+    <div className="bg-[rgb(var(--bg-card))] p-4 rounded-lg border border-[rgb(var(--border-color))]">
       <div className="flex items-center mb-3">
         <FaShieldAlt className="text-green-500 mr-2" size={20} />
-        <h4 className="text-white font-medium">VirusTotal Security Check</h4>
+        <h4 className="text-[rgb(var(--text-primary))] font-medium">VirusTotal Security Check</h4>
       </div>
 
-      <p className="text-gray-300 text-sm mb-4">
+      <p className="text-[rgb(var(--text-secondary))] text-sm mb-4">
         This file has been scanned with VirusTotal&apos;s multi-engine antivirus
         scanner. Check the results to ensure the file is safe before
         downloading.

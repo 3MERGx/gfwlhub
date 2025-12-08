@@ -1,18 +1,34 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { games } from "@/data/games";
-import { FaArrowLeft, FaDiscord, FaReddit, FaBookOpen } from "react-icons/fa";
+import {
+  FaArrowLeft,
+  FaDiscord,
+  FaReddit,
+  FaBookOpen,
+  FaDatabase,
+} from "react-icons/fa";
 import { GamePageParams } from "@/types/routes";
 import VirusTotalWidget from "@/components/VirusTotalWidget";
 import StoreButton from "@/components/StoreButton";
 import Image from "next/image";
 import { Metadata } from "next";
 import DownloadButtonWithModal from "@/components/DownloadButtonWithModal";
+import { getAllGames, getGameBySlug } from "@/lib/games-service";
+import { games as staticGames } from "@/data/games";
+import MakeCorrectionButton from "./MakeCorrectionButton";
+import DisabledGameBanner from "./DisabledGameBanner";
+import { redirect } from "next/navigation";
+import { safeLog } from "@/lib/security";
+import UnplayableGameBanner from "@/components/UnplayableGameBanner";
+import CommunityAlternativeCard from "@/components/CommunityAlternativeCard";
+import RemasteredVersionCard from "@/components/RemasteredVersionCard";
+import PlayabilityBadge from "@/components/PlayabilityBadge";
+import TextWithLinks from "@/components/TextWithLinks";
 
 // Get feature flags from .env.local or check if it's enabled in the game data
-const getFeatureFlag = (slug: string): boolean => {
+const getFeatureFlag = async (slug: string): Promise<boolean> => {
   // Check if the game has featureEnabled set to true in the data
-  const gameData = games.find((g) => g.slug === slug);
+  const gameData = await getGameBySlug(slug);
   if (gameData?.featureEnabled) return true;
 
   // Otherwise check environment variables
@@ -23,9 +39,23 @@ const getFeatureFlag = (slug: string): boolean => {
 };
 
 export async function generateStaticParams() {
-  return games.map((game) => ({
-    slug: game.slug,
-  }));
+  try {
+    // Try to get games from MongoDB
+    const games = await getAllGames();
+    return games.map((game) => ({
+      slug: game.slug,
+    }));
+  } catch (error) {
+    // Fall back to static games array if MongoDB is unavailable during build
+    // This allows the build to succeed even if MongoDB connection fails
+    safeLog.warn(
+      "MongoDB unavailable during build, using static games array:",
+      error
+    );
+    return staticGames.map((game) => ({
+      slug: game.slug,
+    }));
+  }
 }
 
 export async function generateMetadata({
@@ -35,7 +65,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const resolvedParams = await params;
   const slug = resolvedParams.slug;
-  const game = games.find((g) => g.slug === slug);
+  const game = await getGameBySlug(slug);
 
   if (!game) {
     return {
@@ -44,29 +74,73 @@ export async function generateMetadata({
     };
   }
 
+  // Convert imageUrl to absolute URL if it's relative
+  const getAbsoluteImageUrl = (
+    imageUrl: string | undefined
+  ): string | undefined => {
+    if (!imageUrl) return undefined;
+    // If it's already an absolute URL (starts with http:// or https://), return as-is
+    if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+      return imageUrl;
+    }
+    // If it's a relative URL, convert to absolute
+    const baseUrl =
+      process.env.NEXT_PUBLIC_SITE_URL || "https://gfwl-hub.vercel.app";
+    return `${baseUrl}${imageUrl.startsWith("/") ? imageUrl : `/${imageUrl}`}`;
+  };
+
+  const absoluteImageUrl = getAbsoluteImageUrl(game.imageUrl);
+
+  // Get playability status badge for social cards
+  const getPlayabilityBadge = (): string => {
+    if (game.isUnplayable) {
+      return "⚠️ Unplayable";
+    }
+    switch (game.playabilityStatus) {
+      case "unplayable":
+        return "⚠️ Unplayable";
+      case "community_alternative":
+        return "✓ Community Alternative Available";
+      case "remastered_available":
+        return "✓ Remastered Available";
+      case "playable":
+      default:
+        return "✓ Playable";
+    }
+  };
+
+  const playabilityBadge = getPlayabilityBadge();
+  const descriptionWithBadge = `${game.description} • ${playabilityBadge}`;
+
   const metadata: Metadata = {
     title: `${game.title} | GFWL Hub`,
-    description: game.description,
+    description: descriptionWithBadge,
     openGraph: {
       title: `${game.title} | GFWL Hub`,
-      description: game.description,
+      description: descriptionWithBadge,
       type: "article",
+      url: `${
+        process.env.NEXT_PUBLIC_SITE_URL || "https://gfwl-hub.vercel.app"
+      }/games/${slug}`,
+      siteName: "GFWL Hub",
+      ...(absoluteImageUrl && {
+        images: [
+          {
+            url: absoluteImageUrl,
+            alt: `${game.title} box art`,
+          },
+        ],
+      }),
     },
     twitter: {
       card: "summary_large_image",
       title: `${game.title} | GFWL Hub`,
-      description: game.description,
+      description: descriptionWithBadge,
+      ...(absoluteImageUrl && {
+        images: [absoluteImageUrl],
+      }),
     },
   };
-
-  if (game.imageUrl) {
-    if (metadata.openGraph) {
-      metadata.openGraph.images = [game.imageUrl];
-    }
-    if (metadata.twitter) {
-      metadata.twitter.images = [game.imageUrl];
-    }
-  }
 
   return metadata;
 }
@@ -78,27 +152,32 @@ export default async function GamePage({
 }) {
   const params = await paramsPromise;
   const slug = params.slug;
-  const game = games.find((g) => g.slug === slug);
+  const game = await getGameBySlug(slug);
 
   if (!game) {
     notFound();
   }
 
-  const isFeatureEnabled = getFeatureFlag(slug);
+  const isFeatureEnabled = await getFeatureFlag(slug);
 
   const disclaimerModalTitle = "Important Notice Regarding Downloads";
   const disclaimerModalContent = `You are downloading files from third-party, external sources. While GFWL Hub may scan links using tools such as VirusTotal, we do not host, control, or guarantee the safety of any files linked through our platform. GFWL Hub makes no warranties—express or implied—regarding the safety, reliability, or performance of these files.
 
 By proceeding, you acknowledge and accept that all downloads are done at your own risk. GFWL Hub is not responsible for any harm to your device, data loss, or other consequences resulting from the use of downloaded files. We strongly advise keeping your antivirus software up-to-date and exercising caution.`;
 
+  // Redirect disabled games back to supported games (they should use the modal on the list page)
+  if (!isFeatureEnabled) {
+    redirect("/supported-games");
+  }
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
-        <div className="bg-[#202020] p-8 rounded-lg shadow-xl">
+        <div className="bg-[rgb(var(--bg-card))] p-8 rounded-lg shadow-xl">
           <div className="mb-6 flex justify-between items-center">
             <Link
               href="/supported-games"
-              className="inline-flex items-center text-gray-300 hover:text-white transition-colors"
+              className="inline-flex items-center text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] transition-colors"
             >
               <FaArrowLeft className="mr-2" />
               Back to Supported Games
@@ -111,7 +190,7 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                   href={game.discordLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-white hover:text-[#5865F2] transition-colors"
+                  className="text-[rgb(var(--text-primary))] hover:text-[#5865F2] transition-colors"
                   aria-label={`${game.title} Discord`}
                   title="Discord"
                 >
@@ -123,7 +202,7 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                   href={game.redditLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-white hover:text-[#FF4500] transition-colors"
+                  className="text-[rgb(var(--text-primary))] hover:text-[#FF4500] transition-colors"
                   aria-label={`${game.title} Reddit`}
                   title="Reddit"
                 >
@@ -135,11 +214,23 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                   href={game.wikiLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-white hover:text-yellow-400 transition-colors"
+                  className="text-[rgb(var(--text-primary))] hover:text-yellow-400 transition-colors"
                   aria-label={`${game.title} Wiki`}
                   title="View Wiki"
                 >
                   <FaBookOpen size={22} />
+                </Link>
+              )}
+              {game.steamDBLink && (
+                <Link
+                  href={game.steamDBLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[rgb(var(--text-primary))] hover:text-blue-400 transition-colors"
+                  aria-label={`${game.title} SteamDB`}
+                  title="View on SteamDB"
+                >
+                  <FaDatabase size={22} />
                 </Link>
               )}
             </div>
@@ -159,12 +250,12 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
               </div>
             )}
             <div className="md:ml-8 flex-1">
-              <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
+              <h1 className="text-3xl md:text-4xl font-bold text-[rgb(var(--text-primary))] mb-2">
                 {game.title}
               </h1>
 
               {/* Activation Type and Status Badges */}
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
                 <span
                   className={`px-3 py-1 rounded-full text-xs font-semibold ${
                     game.activationType === "SSA"
@@ -192,25 +283,39 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                     : game.status.charAt(0).toUpperCase() +
                       game.status.slice(1)}
                 </span>
+                {/* Playability Badge */}
+                {game.playabilityStatus &&
+                  game.playabilityStatus !== "playable" && (
+                    <PlayabilityBadge status={game.playabilityStatus} />
+                  )}
               </div>
 
-              <p className="text-gray-300 mb-4 text-sm leading-relaxed">
+              <p className="text-[rgb(var(--text-secondary))] mb-4 text-sm leading-relaxed">
                 {game.description}
               </p>
 
+              {/* Playability Indicators */}
+              {game.isUnplayable && <UnplayableGameBanner />}
+              {game.remasteredName && (
+                <RemasteredVersionCard
+                  remasteredName={game.remasteredName}
+                  remasteredPlatform={game.remasteredPlatform}
+                />
+              )}
+
               {/* Released Date & Developer */}
               {(game.releaseDate || game.developer) && (
-                <div className="text-sm text-gray-400 mb-1">
+                <div className="text-sm text-[rgb(var(--text-muted))] mb-1">
                   {game.releaseDate && (
                     <div className="mb-1">
                       Released:{" "}
-                      <span className="text-gray-200">{game.releaseDate}</span>
+                      <span className="text-[rgb(var(--text-primary))]">{game.releaseDate}</span>
                     </div>
                   )}
                   {game.developer && (
                     <div>
                       Developer:{" "}
-                      <span className="text-gray-200">{game.developer}</span>
+                      <span className="text-[rgb(var(--text-primary))]">{game.developer}</span>
                     </div>
                   )}
                 </div>
@@ -218,21 +323,21 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
 
               {/* Publisher */}
               {game.publisher && (
-                <div className="text-sm text-gray-400 mb-4">
+                <div className="text-sm text-[rgb(var(--text-secondary))] mb-4">
                   Publisher:{" "}
-                  <span className="text-gray-200">{game.publisher}</span>
+                  <span className="text-[rgb(var(--text-primary))]">{game.publisher}</span>
                 </div>
               )}
 
               {/* Genres */}
               {game.genres && game.genres.length > 0 && (
                 <div className="mb-3">
-                  <span className="text-gray-400 text-sm">Genres: </span>
+                  <span className="text-[rgb(var(--text-muted))] text-sm">Genres: </span>
                   <div className="flex flex-wrap gap-2 mt-1">
-                    {game.genres.map((genre, index) => (
+                    {game.genres?.map((genre: string, index: number) => (
                       <span
                         key={index}
-                        className="bg-[#2d2d2d] px-2 py-1 rounded text-xs text-white"
+                        className="bg-[rgb(var(--bg-card-alt))] px-2 py-1 rounded text-xs text-[rgb(var(--text-primary))]"
                       >
                         {genre}
                       </span>
@@ -244,12 +349,12 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
               {/* Platforms */}
               {game.platforms && game.platforms.length > 0 && (
                 <div className="mb-3">
-                  <span className="text-gray-400 text-sm">Platforms: </span>
+                  <span className="text-[rgb(var(--text-muted))] text-sm">Platforms: </span>
                   <div className="flex flex-wrap gap-2 mt-1">
-                    {game.platforms.map((platform, index) => (
+                    {game.platforms?.map((platform: string, index: number) => (
                       <span
                         key={index}
-                        className="bg-[#2d2d2d] px-2 py-1 rounded text-xs text-white"
+                        className="bg-[rgb(var(--bg-card-alt))] px-2 py-1 rounded text-xs text-[rgb(var(--text-primary))]"
                       >
                         {platform}
                       </span>
@@ -257,13 +362,28 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                   </div>
                 </div>
               )}
+
+              {/* Additional DRM */}
+              {game.additionalDRM && (
+                <div className="mb-3">
+                  <span className="text-[rgb(var(--text-muted))] text-sm">
+                    Additional DRM:{" "}
+                  </span>
+                  <span className="text-[rgb(var(--text-primary))] text-sm">
+                    {game.additionalDRM}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
-          {isFeatureEnabled && game.downloadLink && (
+          {/* Show banner for disabled games */}
+          {!isFeatureEnabled && <DisabledGameBanner game={game} />}
+
+          {isFeatureEnabled && (game.downloadLink || game.purchaseLink) && (
             <div className="mt-8">
-              <h2 className="text-2xl font-bold mb-4 text-white">
-                Game Download
+              <h2 className="text-2xl font-bold mb-4 text-[rgb(var(--text-primary))]">
+                {game.downloadLink ? "Game Download" : "Purchase Game"}
               </h2>
 
               <div className="flex flex-wrap gap-3 mb-6">
@@ -293,14 +413,18 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
 
           {game.instructions && game.instructions.length > 0 && (
             <>
-              <h2 className="text-xl font-bold mb-3 mt-4 text-white">
+              <h2 className="text-xl font-bold mb-3 mt-4 text-[rgb(var(--text-primary))]">
                 Installation Instructions
               </h2>
-              <div className="bg-[#2d2d2d] p-4 rounded-lg">
-                <ul className="list-disc list-inside space-y-3 text-gray-300">
-                  {game.instructions.map((instruction, index) => (
-                    <li key={index}>{instruction}</li>
-                  ))}
+              <div className="bg-[rgb(var(--bg-card-alt))] p-4 rounded-lg">
+                <ul className="list-disc list-inside space-y-3 text-[rgb(var(--text-secondary))]">
+                  {game.instructions?.map(
+                    (instruction: string, index: number) => (
+                      <li key={index}>
+                        <TextWithLinks text={instruction} />
+                      </li>
+                    )
+                  )}
                 </ul>
               </div>
             </>
@@ -308,13 +432,15 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
 
           {game.knownIssues && game.knownIssues.length > 0 && (
             <>
-              <h2 className="text-xl font-bold mb-3 mt-4 text-white">
+              <h2 className="text-xl font-bold mb-3 mt-4 text-[rgb(var(--text-primary))]">
                 Known Issues
               </h2>
-              <div className="bg-[#2d2d2d] p-4 rounded-lg">
-                <ul className="list-disc list-inside space-y-3 text-gray-300">
-                  {game.knownIssues.map((issue, index) => (
-                    <li key={index}>{issue}</li>
+              <div className="bg-[rgb(var(--bg-card-alt))] p-4 rounded-lg">
+                <ul className="list-disc list-inside space-y-3 text-[rgb(var(--text-secondary))]">
+                  {game.knownIssues?.map((issue: string, index: number) => (
+                    <li key={index}>
+                      <TextWithLinks text={issue} />
+                    </li>
                   ))}
                 </ul>
               </div>
@@ -323,25 +449,43 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
 
           {game.communityTips && game.communityTips.length > 0 && (
             <>
-              <h2 className="text-xl font-bold mb-3 mt-4 text-white">
+              <h2 className="text-xl font-bold mb-3 mt-4 text-[rgb(var(--text-primary))]">
                 Community Tips
               </h2>
-              <div className="bg-[#2d2d2d] p-4 rounded-lg">
-                <ul className="list-disc list-inside space-y-3 text-gray-300">
-                  {game.communityTips.map((tip, index) => (
-                    <li key={index}>{tip}</li>
+              <div className="bg-[rgb(var(--bg-card-alt))] p-4 rounded-lg">
+                <ul className="list-disc list-inside space-y-3 text-[rgb(var(--text-secondary))]">
+                  {game.communityTips?.map((tip: string, index: number) => (
+                    <li key={index}>
+                      <TextWithLinks text={tip} />
+                    </li>
                   ))}
                 </ul>
               </div>
             </>
           )}
+
+          {/* Community Alternative Section */}
+          {(game.communityAlternativeName || game.communityAlternativeUrl || game.communityAlternativeDownloadLink) && (
+            <div className="mt-8 pt-6 border-t border-[rgb(var(--border-color))]">
+              <h2 className="text-xl font-bold mb-3 text-[rgb(var(--text-primary))]">
+                Community Alternative
+              </h2>
+              <CommunityAlternativeCard
+                communityAlternativeName={game.communityAlternativeName || "Community Alternative"}
+                communityAlternativeUrl={game.communityAlternativeUrl}
+                communityAlternativeDownloadLink={game.communityAlternativeDownloadLink}
+                fileName={game.fileName}
+              />
+            </div>
+          )}
+
           {/* GOG Dreamlist Section */}
           {game.gogDreamlistLink && (
-            <div className="mt-8 pt-6 border-t border-gray-700">
-              <h2 className="text-xl font-bold mb-3 text-white">
-                GOG <span className="text-purple-500">Dreamlist</span>
+            <div className="mt-8 pt-6 border-t border-[rgb(var(--border-color))]">
+              <h2 className="text-xl font-bold mb-3 text-[rgb(var(--text-primary))]">
+                <span className="text-[rgb(var(--text-primary))]">GOG</span> <span className="text-purple-500">Dreamlist</span>
               </h2>
-              <p className="text-gray-300 mb-4 text-sm leading-relaxed">
+              <p className="text-[rgb(var(--text-secondary))] mb-4 text-sm leading-relaxed">
                 Help bring this game to GOG! If you&apos;d like to see{" "}
                 {game.title} available on GOG.com, please consider voting for it
                 on their community wishlist.
@@ -354,6 +498,20 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
               >
                 Vote for {game.title} on GOG.com
               </Link>
+            </div>
+          )}
+
+          {/* Make Correction Section - Only show for enabled games */}
+          {isFeatureEnabled && (
+            <div className="mt-8 pt-6 border-t border-[rgb(var(--border-color))]">
+              <h2 className="text-xl font-bold mb-3 text-[rgb(var(--text-primary))]">
+                Found an Issue?
+              </h2>
+              <p className="text-[rgb(var(--text-primary))] mb-4 text-sm leading-relaxed">
+                Help us improve the accuracy of this page by submitting a
+                correction. All submissions are reviewed before being applied.
+              </p>
+              <MakeCorrectionButton game={game} />
             </div>
           )}
         </div>
