@@ -17,6 +17,8 @@ import {
 } from "@/lib/security";
 import { validateCSRFToken } from "@/lib/csrf";
 import { notifyReviewerApplicationSubmitted } from "@/lib/discord-webhook";
+import { getGFWLDatabase } from "@/lib/mongodb";
+import { ObjectId } from "mongodb";
 
 // POST - Submit a reviewer application
 export async function POST(request: NextRequest) {
@@ -179,7 +181,17 @@ export async function POST(request: NextRequest) {
       sanitizedPriorExperience
     );
 
-    // Send Discord notification (non-blocking)
+    // Get webhook URLs to store message IDs in correct order
+    const reviewerWebhookUrls = process.env.DISCORD_REVIEWER_APPLICATION_WEBHOOK_URL
+      ? process.env.DISCORD_REVIEWER_APPLICATION_WEBHOOK_URL.split(",").map((url) => url.trim()).filter((url) => url.length > 0)
+      : [];
+    const webhookUrls = reviewerWebhookUrls.length > 0 
+      ? reviewerWebhookUrls 
+      : (process.env.DISCORD_WEBHOOK_URL
+          ? process.env.DISCORD_WEBHOOK_URL.split(",").map((url) => url.trim()).filter((url) => url.length > 0)
+          : []);
+
+    // Send Discord notification and store message IDs (non-blocking)
     notifyReviewerApplicationSubmitted({
       id: application.id,
       userName: application.userName || user.name || "Unknown",
@@ -188,9 +200,89 @@ export async function POST(request: NextRequest) {
       experienceText: application.experienceText,
       contributionExamples: application.contributionExamples,
       createdAt: application.createdAt,
-    }).catch((error) => {
-      safeLog.error("Failed to send Discord notification:", error);
-    });
+    })
+      .then(async (firstMessageId) => {
+        // Store Discord message IDs in application document
+        if (webhookUrls.length > 0) {
+          const db = await getGFWLDatabase();
+          const applicationsCollection = db.collection("reviewerApplications");
+          const baseUrl = process.env.NEXTAUTH_URL || "https://gfwlhub.com";
+          const dashboardUrl = `${baseUrl}/dashboard/reviewer-applications`;
+
+          const embed = {
+            title: "📝 New Reviewer Application",
+            description: `**${application.userName || user.name || "Unknown"}** has submitted a reviewer application`,
+            color: 0xffa500,
+            url: dashboardUrl,
+            fields: [
+              {
+                name: "Applicant",
+                value: `${application.userName || user.name || "Unknown"}\n${application.userEmail || user.email || ""}`,
+                inline: true,
+              },
+              {
+                name: "Application ID",
+                value: application.id,
+                inline: true,
+              },
+              {
+                name: "Motivation",
+                value: application.motivationText.length > 500
+                  ? application.motivationText.substring(0, 500) + "..."
+                  : application.motivationText,
+                inline: false,
+              },
+            ],
+            footer: {
+              text: `Application ID: ${application.id}`,
+            },
+            timestamp: new Date(application.createdAt).toISOString(),
+          };
+
+          if (application.experienceText) {
+            embed.fields?.push({
+              name: "Experience",
+              value: application.experienceText.length > 300
+                ? application.experienceText.substring(0, 300) + "..."
+                : application.experienceText,
+              inline: false,
+            });
+          }
+
+          if (application.contributionExamples) {
+            embed.fields?.push({
+              name: "Contribution Examples",
+              value: application.contributionExamples.length > 300
+                ? application.contributionExamples.substring(0, 300) + "..."
+                : application.contributionExamples,
+              inline: false,
+            });
+          }
+
+          // Send to all webhooks and get all message IDs
+          const { sendDiscordWebhooks } = await import("@/lib/discord-webhook");
+          const messageIds = await sendDiscordWebhooks(webhookUrls, {
+            embeds: [embed],
+          });
+          
+          // Store array of message IDs (one per webhook)
+          await applicationsCollection.updateOne(
+            { _id: new ObjectId(application.id) },
+            { $set: { discordMessageIds: messageIds } }
+          );
+        } else if (firstMessageId) {
+          // Fallback: if no webhook URLs but we got a message ID, store it as single value (backward compatibility)
+          const db = await getGFWLDatabase();
+          const applicationsCollection = db.collection("reviewerApplications");
+          await applicationsCollection.updateOne(
+            { _id: new ObjectId(application.id) },
+            { $set: { discordMessageId: firstMessageId } }
+          );
+        }
+      })
+      .catch((error) => {
+        safeLog.error("Failed to send Discord notification:", error);
+      });
 
     return NextResponse.json({ application });
   } catch (error) {

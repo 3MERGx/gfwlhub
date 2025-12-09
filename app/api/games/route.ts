@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { getGFWLDatabase } from "@/lib/mongodb";
 import { safeLog, rateLimiters, getClientIdentifier } from "@/lib/security";
 
+// Use shorter cache time to ensure new games appear quickly
+export const revalidate = 300; // Revalidate every 5 minutes
+
+// Force dynamic rendering since we use request.headers for rate limiting
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   try {
     // Rate limiting
@@ -28,7 +34,7 @@ export async function GET(request: Request) {
       formattedGames,
       {
         headers: {
-          "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
         },
       }
     );

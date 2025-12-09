@@ -29,8 +29,10 @@ function GameSubmissionsPage() {
   const [submissions, setSubmissions] = useState<GameSubmission[]>([]);
   const [allSubmissions, setAllSubmissions] = useState<GameSubmission[]>([]); // For stats calculation
   const [loading, setLoading] = useState(true);
+  const [isFiltering, setIsFiltering] = useState(false); // Track when filters are changing
   const [statusFilter, setStatusFilter] = useState<string>("pending");
   const [gameFilter, setGameFilter] = useState<string>("");
+  const [gameFilterDebounce, setGameFilterDebounce] = useState<NodeJS.Timeout | null>(null);
   const [selectedSubmission, setSelectedSubmission] =
     useState<GameSubmission | null>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -51,29 +53,49 @@ function GameSubmissionsPage() {
       fetchSubmissions();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, statusFilter, gameFilter]);
+  }, [session]); // Only fetch on initial load, filters will trigger their own updates
 
-  const fetchSubmissions = async () => {
+  const fetchSubmissions = async (showFilteringState = false, overrideStatus?: string) => {
     try {
-      // Fetch all submissions for stats
-      const allResponse = await fetch("/api/game-submissions");
-      if (allResponse.ok) {
-        const allData = await allResponse.json();
-        setAllSubmissions(allData);
+      if (showFilteringState) {
+        setIsFiltering(true);
+      }
+
+      // Fetch all submissions for stats (only once, not on every filter change)
+      if (allSubmissions.length === 0) {
+        const allResponse = await fetch("/api/game-submissions");
+        if (allResponse.ok) {
+          const allData = await allResponse.json();
+          setAllSubmissions(allData);
+        }
       }
 
       // Fetch filtered submissions for display
+      // Use overrideStatus if provided (for immediate state updates), otherwise use current state
+      const currentStatus = overrideStatus !== undefined ? overrideStatus : statusFilter;
       const params = new URLSearchParams();
-      if (statusFilter !== "all") {
-        params.append("status", statusFilter);
+      
+      // Only add status parameter if it's not "all" (empty string means show all)
+      if (currentStatus && currentStatus !== "all") {
+        params.append("status", currentStatus);
       }
+      
       if (gameFilter) {
         params.append("gameSlug", gameFilter);
       }
 
-      const response = await fetch(
-        `/api/game-submissions?${params.toString()}`
-      );
+      // Build URL - if no params, just use base URL (will show all submissions)
+      const url = params.toString() 
+        ? `/api/game-submissions?${params.toString()}`
+        : `/api/game-submissions`;
+      
+      // Add cache-busting timestamp to ensure fresh data
+      const cacheBuster = `&_t=${Date.now()}`;
+      const finalUrl = url.includes('?') ? `${url}${cacheBuster}` : `${url}?${cacheBuster.substring(1)}`;
+      
+      const response = await fetch(finalUrl, {
+        cache: 'no-store', // Ensure we don't get cached responses
+      });
       if (response.ok) {
         const data = await response.json();
         setSubmissions(data);
@@ -82,6 +104,9 @@ function GameSubmissionsPage() {
       safeLog.error("Error fetching game submissions:", error);
     } finally {
       setLoading(false);
+      if (showFilteringState) {
+        setIsFiltering(false);
+      }
     }
   };
 
@@ -111,19 +136,69 @@ function GameSubmissionsPage() {
       );
 
       if (response.ok) {
+        const approvedSubmission = action === "approved" ? selectedSubmission : null;
+        
         setShowReviewModal(false);
         setReviewNotes("");
-        setSelectedSubmission(null);
+        
+        // Refresh submissions to get updated data (including currentGameData)
         await fetchSubmissions();
+        
+        // If approved and has required fields, check if we should offer to publish
+        if (action === "approved" && approvedSubmission && hasRequiredFields(approvedSubmission)) {
+          // Fetch the updated submission to check if game is published
+          try {
+            const updatedResponse = await fetch(`/api/game-submissions/${approvedSubmission.id}`);
+            if (updatedResponse.ok) {
+              const updatedSubmission = await updatedResponse.json();
+              const isAlreadyPublished = updatedSubmission.currentGameData?.featureEnabled === true;
+              
+              if (!isAlreadyPublished) {
+                // Set the updated submission and show publish modal
+                setPublishingSubmission(updatedSubmission);
+                setShowConfirmPublish(true);
+                showToast(
+                  `Submission approved! Ready to publish "${approvedSubmission.gameTitle}"?`,
+                  4000,
+                  "success"
+                );
+              } else {
+                setSelectedSubmission(null);
+                showToast(
+                  `Submission approved successfully`,
+                  3000,
+                  "success"
+                );
+              }
+            } else {
+              setSelectedSubmission(null);
+              showToast(
+                `Submission approved successfully`,
+                3000,
+                "success"
+              );
+            }
+          } catch {
+            setSelectedSubmission(null);
+            showToast(
+              `Submission approved successfully`,
+              3000,
+              "success"
+            );
+          }
+        } else {
+          setSelectedSubmission(null);
+          showToast(
+            `Submission ${
+              action === "approved" ? "approved" : "rejected"
+            } successfully`,
+            3000,
+            "success"
+          );
+        }
+        
         // Dispatch event to update notification counts
         window.dispatchEvent(new CustomEvent("gameSubmissionsUpdated"));
-        showToast(
-          `Submission ${
-            action === "approved" ? "approved" : "rejected"
-          } successfully`,
-          3000,
-          "success"
-        );
       } else {
         const errorData = await response.json();
         showToast(errorData.error || "Failed to submit review", 5000, "error");
@@ -161,6 +236,14 @@ function GameSubmissionsPage() {
             className={`${baseClass} bg-red-500/20 dark:bg-red-900/30 text-red-600 dark:text-red-400`}
           >
             Rejected
+          </span>
+        );
+      case "superseded":
+        return (
+          <span
+            className={`${baseClass} bg-gray-500/20 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400`}
+          >
+            Superseded
           </span>
         );
       default:
@@ -220,10 +303,19 @@ function GameSubmissionsPage() {
 
     setShowConfirmPublish(false);
     try {
+      if (!csrfToken) {
+        showToast("Security token not ready. Please wait...", 3000, "error");
+        return;
+      }
+
       const response = await fetch(
         `/api/games/${publishingSubmission.gameSlug}/publish`,
         {
           method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": csrfToken,
+          },
         }
       );
 
@@ -233,7 +325,17 @@ function GameSubmissionsPage() {
           5000,
           "success"
         );
+        
+        // Refresh submissions list to update UI
         await fetchSubmissions();
+        
+        // Refresh router to get updated game data
+        router.refresh();
+        
+        // Redirect to the published game page after a short delay
+        setTimeout(() => {
+          router.push(`/games/${publishingSubmission.gameSlug}`);
+        }, 500);
       } else {
         const error = await response.json();
         showToast(
@@ -282,6 +384,7 @@ function GameSubmissionsPage() {
     pending: allSubmissions.filter((s) => s.status === "pending").length,
     approved: allSubmissions.filter((s) => s.status === "approved").length,
     rejected: allSubmissions.filter((s) => s.status === "rejected").length,
+    superseded: allSubmissions.filter((s) => s.status === "superseded").length,
   };
 
   return (
@@ -351,7 +454,12 @@ function GameSubmissionsPage() {
               </label>
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                onChange={async (e) => {
+                  const newStatus = e.target.value;
+                  setStatusFilter(newStatus);
+                  // Refresh submissions with new filter - pass the new status directly to avoid race condition
+                  await fetchSubmissions(true, newStatus);
+                }}
                 className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
               >
                 <option value="all">All Status</option>
@@ -367,15 +475,34 @@ function GameSubmissionsPage() {
               <input
                 type="text"
                 value={gameFilter}
-                onChange={(e) => setGameFilter(e.target.value)}
+                onChange={(e) => {
+                  setGameFilter(e.target.value);
+                  // Clear existing timeout
+                  if (gameFilterDebounce) {
+                    clearTimeout(gameFilterDebounce);
+                  }
+                  // Debounce the filter update
+                  const timeoutId = setTimeout(async () => {
+                    await fetchSubmissions(true);
+                  }, 300);
+                  setGameFilterDebounce(timeoutId);
+                }}
                 placeholder="Filter by game title..."
                 className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
               />
             </div>
           </div>
 
+          {/* Loading indicator for filtering */}
+          {isFiltering && (
+            <div className="mb-4 text-center text-[rgb(var(--text-secondary))] text-sm py-2">
+              <span className="inline-block animate-spin mr-2">⏳</span>
+              Updating filters...
+            </div>
+          )}
+
           {/* Submissions List */}
-          {submissions.length === 0 ? (
+          {isFiltering ? null : submissions.length === 0 ? (
             <div className="text-center py-12 text-[rgb(var(--text-secondary))]">
               <FaClock size={48} className="mx-auto mb-4 opacity-50" />
               <p>No game submissions found</p>
@@ -581,42 +708,48 @@ function GameSubmissionsPage() {
             </div>
 
             <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-              {/* Submitted Data - only show changed fields */}
+              {/* Submitted Data - only show fields that changed */}
               {(() => {
-                interface SubmissionWithCurrentGame extends GameSubmission {
-                  currentGameData?: Record<string, unknown>;
+                interface SubmissionWithOriginalGame extends GameSubmission {
+                  originalGameData?: Record<string, unknown>;
                 }
-                const currentGame = (
-                  selectedSubmission as SubmissionWithCurrentGame
-                ).currentGameData;
+                const originalGame = (
+                  selectedSubmission as SubmissionWithOriginalGame
+                ).originalGameData;
+                
+                // Helper function to check if a field has changed from original
+                const hasChanged = (key: string, value: unknown): boolean => {
+                  if (!originalGame) return true; // If no original game data, all fields are "new"
+                  
+                  const originalValue = originalGame[key];
+                  
+                  // Compare arrays
+                  if (Array.isArray(value) && Array.isArray(originalValue)) {
+                    return (
+                      JSON.stringify(value.sort()) !==
+                      JSON.stringify(originalValue.sort())
+                    );
+                  }
+                  
+                  // Compare strings/other values
+                  return value !== originalValue;
+                };
+
+                // Only show fields that actually changed
                 const changedFields = Object.entries(
                   selectedSubmission.proposedData
                 ).filter(([key, value]) => {
-                  if (!value) return false; // Skip empty values
-
-                  // If no current game data, all fields are "new"
-                  if (!currentGame) return true;
-
-                  const currentValue = currentGame[key];
-
-                  // Compare arrays
-                  if (Array.isArray(value) && Array.isArray(currentValue)) {
-                    return (
-                      JSON.stringify(value.sort()) !==
-                      JSON.stringify(currentValue.sort())
-                    );
+                  if (!value || value === null || value === undefined || value === "") {
+                    return false; // Skip empty values
                   }
-
-                  // Compare strings/other values
-                  return value !== currentValue;
+                  return hasChanged(key, value);
                 });
 
                 if (changedFields.length === 0) {
                   return (
                     <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-500/30 rounded-lg p-4">
                       <p className="text-yellow-800 dark:text-yellow-300 text-sm">
-                        No changes detected. All submitted fields match the
-                        current game data.
+                        No changes detected. All submitted fields match the original game data.
                       </p>
                     </div>
                   );
@@ -625,8 +758,8 @@ function GameSubmissionsPage() {
                 return (
                   <div>
                     <h3 className="text-base sm:text-lg font-semibold text-[rgb(var(--text-primary))] mb-3 sm:mb-4">
-                      Submitted Data ({changedFields.length} field
-                      {changedFields.length !== 1 ? "s" : ""} changed)
+                      Submitted Changes ({changedFields.length} field
+                      {changedFields.length !== 1 ? "s" : ""})
                     </h3>
                     <div className="space-y-2 sm:space-y-3">
                       {changedFields.map(([key, value]) => {
@@ -637,17 +770,19 @@ function GameSubmissionsPage() {
                         const isDownloadLink =
                           key === "downloadLink" ||
                           key === "communityAlternativeDownloadLink";
-                        const currentValue = currentGame?.[key];
+                        const originalValue = originalGame?.[key];
+                        const hasOriginalValue = originalValue !== undefined && originalValue !== null && originalValue !== "";
+                        
                         return (
                           <div
                             key={key}
                             className={`bg-[rgb(var(--bg-card-alt))] rounded p-3 sm:p-4 ${
                               isDownloadLink
                                 ? "border-2 border-yellow-500/50"
-                                : ""
+                                : "border-l-4 border-blue-500"
                             }`}
                           >
-                            <div className="flex items-center gap-2 mb-1 sm:mb-2">
+                            <div className="flex items-center gap-2 mb-1 sm:mb-2 flex-wrap">
                               <p className="text-xs sm:text-sm text-[rgb(var(--text-secondary))] capitalize">
                                 {key.replace(/([A-Z])/g, " $1").trim()}:
                               </p>
@@ -656,32 +791,41 @@ function GameSubmissionsPage() {
                                   ⚠️ Download Link - Review Carefully
                                 </span>
                               )}
+                              <span className="px-2 py-0.5 rounded text-xs border bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/30 font-semibold">
+                                {hasOriginalValue ? "Changed" : "New Field"}
+                              </span>
                             </div>
-                            {currentValue !== undefined &&
-                              currentValue !== null && (
-                                <p className="text-[rgb(var(--text-muted))] text-xs mb-1 line-through">
-                                  Current:{" "}
-                                  {Array.isArray(currentValue)
-                                    ? currentValue.join(", ")
-                                    : String(currentValue)}
+                            {hasOriginalValue && (
+                              <div className="mb-2">
+                                <p className="text-[rgb(var(--text-muted))] text-xs mb-1">
+                                  <span className="font-semibold">Original:</span>{" "}
+                                  {Array.isArray(originalValue)
+                                    ? originalValue.join(", ")
+                                    : String(originalValue)}
+                                </p>
+                              </div>
+                            )}
+                            <div>
+                              <p className="text-[rgb(var(--text-secondary))] text-xs mb-1">
+                                <span className="font-semibold">Proposed:</span>
+                              </p>
+                              {isUrl ? (
+                                <a
+                                  href={value as string}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-400 hover:text-blue-300 break-all text-xs sm:text-sm underline"
+                                >
+                                  {value as string}
+                                </a>
+                              ) : (
+                                <p className="text-[rgb(var(--text-primary))] text-xs sm:text-sm break-words whitespace-pre-wrap">
+                                  {Array.isArray(value)
+                                    ? value.join(", ")
+                                    : value.toString()}
                                 </p>
                               )}
-                            {isUrl ? (
-                              <a
-                                href={value as string}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-400 hover:text-blue-300 break-all text-xs sm:text-sm underline"
-                              >
-                                {value as string}
-                              </a>
-                            ) : (
-                              <p className="text-[rgb(var(--text-primary))] text-xs sm:text-sm break-words whitespace-pre-wrap">
-                                {Array.isArray(value)
-                                  ? value.join(", ")
-                                  : value.toString()}
-                              </p>
-                            )}
+                            </div>
                           </div>
                         );
                       })}

@@ -116,6 +116,42 @@ export async function POST(request: NextRequest) {
     let sanitizedNewValue = newValue;
     if (typeof newValue === "string") {
       sanitizedNewValue = sanitizeString(newValue, 5000);
+      
+      // Validate URL fields for NSFW domains and direct download links
+      const urlFields: string[] = [
+        "imageUrl",
+        "discordLink",
+        "redditLink",
+        "wikiLink",
+        "steamDBLink",
+        "purchaseLink",
+        "gogDreamlistLink",
+        "communityAlternativeUrl",
+      ];
+      
+      if (urlFields.includes(sanitizedField)) {
+        const { isNsfwDomainBlocked, isDirectDownloadLink } = await import("@/lib/nsfw-blacklist");
+        
+        // Check NSFW domains
+        const nsfwCheck = isNsfwDomainBlocked(sanitizedNewValue);
+        if (nsfwCheck.isBlocked) {
+          return NextResponse.json(
+            { error: nsfwCheck.reason || "This URL is not allowed" },
+            { status: 400 }
+          );
+        }
+        
+        // Check for direct download links in non-download fields
+        if (sanitizedField !== "downloadLink" && sanitizedField !== "communityAlternativeDownloadLink") {
+          const downloadCheck = isDirectDownloadLink(sanitizedNewValue);
+          if (downloadCheck.isDirectDownload) {
+            return NextResponse.json(
+              { error: downloadCheck.reason || "Direct download links are not allowed in this field" },
+              { status: 400 }
+            );
+          }
+        }
+      }
     } else if (Array.isArray(newValue)) {
       sanitizedNewValue = newValue.map((item) => 
         typeof item === "string" ? sanitizeString(item, 500) : item

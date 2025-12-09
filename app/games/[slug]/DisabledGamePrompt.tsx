@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { FaExclamationTriangle, FaTimes, FaRocket, FaCheckCircle, FaCheck, FaTimes as FaTimesIcon } from "react-icons/fa";
 import Link from "next/link";
 import ConfirmPublishModal from "@/components/ConfirmPublishModal";
 import { useToast } from "@/components/ui/toast-context";
 import { safeLog } from "@/lib/security";
+import { useCSRF } from "@/hooks/useCSRF";
 
 interface DisabledGamePromptProps {
   gameTitle: string;
@@ -35,9 +36,9 @@ export default function DisabledGamePrompt({
   onAddDetails,
 }: DisabledGamePromptProps) {
   const router = useRouter();
-  const pathname = usePathname();
   const { data: session, status } = useSession();
   const { showToast } = useToast();
+  const { csrfToken } = useCSRF();
   const [showModal, setShowModal] = useState(true);
   const [gameStatus, setGameStatus] = useState<GameStatus | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -98,20 +99,31 @@ export default function DisabledGamePrompt({
     setShowConfirmPublish(false);
     setIsPublishing(true);
     try {
+      if (!csrfToken) {
+        showToast("Security token not ready. Please wait...", 3000, "error");
+        setIsPublishing(false);
+        return;
+      }
+
       const response = await fetch(`/api/games/${gameSlug}/publish`, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken,
+        },
       });
 
       if (response.ok) {
         showToast(`${gameTitle} has been published successfully!`, 5000, "success");
         
-        // Refresh UI
-        if (pathname?.startsWith("/games/")) {
-          router.refresh();
-        }
+        // Refresh UI to get updated game data
+        router.refresh();
+        
+        // Close modal and redirect to the published game page after a short delay
+        setShowModal(false);
         setTimeout(() => {
-          window.location.reload();
-        }, 1000);
+          router.push(`/games/${gameSlug}`);
+        }, 500);
       } else {
         const error = await response.json();
         showToast(`Failed to publish game: ${error.error || "Unknown error"}`, 5000, "error");

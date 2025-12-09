@@ -31,15 +31,32 @@ interface DiscordWebhookPayload {
 }
 
 /**
- * Sends a Discord webhook message
+ * Parses webhook URLs from environment variable (supports comma-separated multiple URLs)
+ * @param envVar - The environment variable name
+ * @returns Array of webhook URLs
+ */
+function getWebhookUrls(envVar: string): string[] {
+  const webhookValue = process.env[envVar];
+  if (!webhookValue) {
+    return [];
+  }
+  // Split by comma and trim whitespace, filter out empty strings
+  return webhookValue
+    .split(",")
+    .map((url) => url.trim())
+    .filter((url) => url.length > 0);
+}
+
+/**
+ * Sends a Discord webhook message to a single webhook
  * @param webhookUrl - The Discord webhook URL
  * @param payload - The webhook payload (content, embeds, etc.)
- * @returns Promise that resolves when the message is sent (or fails silently)
+ * @returns Promise that resolves with the message ID when the message is sent (or null if failed)
  */
 export async function sendDiscordWebhook(
   webhookUrl: string,
   payload: DiscordWebhookPayload
-): Promise<void> {
+): Promise<string | null> {
   try {
     const response = await fetch(webhookUrl, {
       method: "POST",
@@ -55,12 +72,112 @@ export async function sendDiscordWebhook(
         `Discord webhook failed: ${response.status} ${response.statusText}`,
         errorText
       );
+      return null;
     }
+
+    // Discord returns the message object with an id field
+    const data = await response.json().catch(() => null);
+    return data?.id || null;
   } catch (error) {
     // Fail silently to not disrupt the main flow
     // Log error for debugging
     safeLog.error("Error sending Discord webhook:", error);
+    return null;
   }
+}
+
+/**
+ * Updates an existing Discord webhook message
+ * @param webhookUrl - The Discord webhook URL
+ * @param messageId - The ID of the message to update
+ * @param payload - The webhook payload (content, embeds, etc.)
+ * @returns Promise that resolves when the message is updated (or fails silently)
+ */
+export async function updateDiscordWebhook(
+  webhookUrl: string,
+  messageId: string,
+  payload: DiscordWebhookPayload
+): Promise<void> {
+  try {
+    // Extract webhook ID and token from URL
+    // Discord webhook URLs are in format: https://discord.com/api/webhooks/{webhook_id}/{webhook_token}
+    const urlMatch = webhookUrl.match(/discord\.com\/api\/webhooks\/([^\/]+)\/([^\/\?]+)/);
+    if (!urlMatch) {
+      safeLog.error("Invalid Discord webhook URL format");
+      return;
+    }
+
+    const [, webhookId, webhookToken] = urlMatch;
+    const updateUrl = `https://discord.com/api/webhooks/${webhookId}/${webhookToken}/messages/${messageId}`;
+
+    const response = await fetch(updateUrl, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "Unknown error");
+      safeLog.error(
+        `Discord webhook update failed: ${response.status} ${response.statusText}`,
+        errorText
+      );
+    }
+  } catch (error) {
+    // Fail silently to not disrupt the main flow
+    // Log error for debugging
+    safeLog.error("Error updating Discord webhook:", error);
+  }
+}
+
+/**
+ * Sends a Discord webhook message to multiple webhooks
+ * @param webhookUrls - Array of Discord webhook URLs
+ * @param payload - The webhook payload (content, embeds, etc.)
+ * @returns Promise that resolves with an array of message IDs (one per webhook, null for failures)
+ */
+export async function sendDiscordWebhooks(
+  webhookUrls: string[],
+  payload: DiscordWebhookPayload
+): Promise<(string | null)[]> {
+  if (webhookUrls.length === 0) {
+    return [];
+  }
+  
+  // Send to all webhooks in parallel
+  const promises = webhookUrls.map((url) => sendDiscordWebhook(url, payload));
+  return Promise.all(promises);
+}
+
+/**
+ * Updates multiple Discord webhook messages
+ * @param webhookUrls - Array of Discord webhook URLs
+ * @param messageIds - Array of message IDs (one per webhook URL, in same order)
+ * @param payload - The webhook payload (content, embeds, etc.)
+ * @returns Promise that resolves when all updates complete (or fail silently)
+ */
+export async function updateDiscordWebhooks(
+  webhookUrls: string[],
+  messageIds: (string | null)[],
+  payload: DiscordWebhookPayload
+): Promise<void> {
+  if (webhookUrls.length === 0 || messageIds.length === 0) {
+    return;
+  }
+  
+  // Update all webhooks in parallel (only update if we have a message ID for that webhook)
+  const promises = webhookUrls.map((url, index) => {
+    const messageId = messageIds[index];
+    if (messageId) {
+      return updateDiscordWebhook(url, messageId, payload);
+    }
+    // If no message ID, send a new message instead
+    return sendDiscordWebhook(url, payload).then(() => {});
+  });
+  
+  await Promise.all(promises);
 }
 
 /**
@@ -78,8 +195,8 @@ export async function notifyCorrectionSubmitted(
     newValue: unknown;
   }
 ): Promise<void> {
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
-  if (!webhookUrl) {
+  const webhookUrls = getWebhookUrls("DISCORD_WEBHOOK_URL");
+  if (webhookUrls.length === 0) {
     return; // Discord notifications disabled
   }
 
@@ -138,7 +255,8 @@ export async function notifyCorrectionSubmitted(
     timestamp: new Date().toISOString(),
   };
 
-  await sendDiscordWebhook(webhookUrl, {
+  // Send to all webhooks (non-blocking, errors are handled internally)
+  await sendDiscordWebhooks(webhookUrls, {
     embeds: [embed],
   });
 }
@@ -159,8 +277,8 @@ export async function notifyCorrectionReviewed(
     finalValue?: unknown;
   }
 ): Promise<void> {
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
-  if (!webhookUrl) {
+  const webhookUrls = getWebhookUrls("DISCORD_WEBHOOK_URL");
+  if (webhookUrls.length === 0) {
     return; // Discord notifications disabled
   }
 
@@ -231,13 +349,15 @@ export async function notifyCorrectionReviewed(
     });
   }
 
-  await sendDiscordWebhook(webhookUrl, {
+  // Send to all webhooks (non-blocking, errors are handled internally)
+  await sendDiscordWebhooks(webhookUrls, {
     embeds: [embed],
   });
 }
 
 /**
  * Sends a notification about a new game submission
+ * @returns The Discord message ID from the first webhook if successful, null otherwise
  */
 export async function notifyGameSubmissionSubmitted(
   submission: {
@@ -248,10 +368,10 @@ export async function notifyGameSubmissionSubmitted(
     proposedData: Record<string, unknown>;
     submitterNotes?: string;
   }
-): Promise<void> {
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
-  if (!webhookUrl) {
-    return; // Discord notifications disabled
+): Promise<string | null> {
+  const webhookUrls = getWebhookUrls("DISCORD_WEBHOOK_URL");
+  if (webhookUrls.length === 0) {
+    return null; // Discord notifications disabled
   }
 
   const baseUrl = process.env.NEXTAUTH_URL || "https://gfwlhub.com";
@@ -304,13 +424,18 @@ export async function notifyGameSubmissionSubmitted(
     });
   }
 
-  await sendDiscordWebhook(webhookUrl, {
+  // Send to all webhooks, return the first message ID for backward compatibility
+  const messageIds = await sendDiscordWebhooks(webhookUrls, {
     embeds: [embed],
   });
+  // Return the first non-null message ID, or null if all failed
+  return messageIds.find((id) => id !== null) || null;
 }
 
 /**
- * Sends a notification about a game submission being reviewed
+ * Sends or updates a notification about a game submission being reviewed
+ * @param submission - The submission data
+ * @param existingMessageId - Optional Discord message ID(s) to update instead of creating a new message
  */
 export async function notifyGameSubmissionReviewed(
   submission: {
@@ -321,10 +446,11 @@ export async function notifyGameSubmissionReviewed(
     status: "approved" | "rejected";
     reviewedByName: string;
     reviewNotes?: string;
-  }
+  },
+  existingMessageId?: string | string[] | null
 ): Promise<void> {
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
-  if (!webhookUrl) {
+  const webhookUrls = getWebhookUrls("DISCORD_WEBHOOK_URL");
+  if (webhookUrls.length === 0) {
     return; // Discord notifications disabled
   }
 
@@ -374,13 +500,37 @@ export async function notifyGameSubmissionReviewed(
     });
   }
 
-  await sendDiscordWebhook(webhookUrl, {
-    embeds: [embed],
-  });
+  // Update existing messages if message IDs are provided, otherwise send to all
+  if (existingMessageId && webhookUrls.length > 0) {
+    // If existingMessageId is a string, it's the old format (single message ID)
+    // If it's an array, it's the new format (multiple message IDs)
+    if (typeof existingMessageId === 'string') {
+      // Legacy: single message ID - update first webhook, send new to others
+      await updateDiscordWebhook(webhookUrls[0], existingMessageId, {
+        embeds: [embed],
+      });
+      if (webhookUrls.length > 1) {
+        await sendDiscordWebhooks(webhookUrls.slice(1), {
+          embeds: [embed],
+        });
+      }
+    } else if (Array.isArray(existingMessageId)) {
+      // New format: array of message IDs - update all matching webhooks
+      await updateDiscordWebhooks(webhookUrls, existingMessageId, {
+        embeds: [embed],
+      });
+    }
+  } else {
+    // Send to all webhooks
+    await sendDiscordWebhooks(webhookUrls, {
+      embeds: [embed],
+    });
+  }
 }
 
 /**
  * Sends a notification about a new reviewer application
+ * @returns The Discord message ID from the first webhook if successful, null otherwise
  */
 export async function notifyReviewerApplicationSubmitted(
   application: {
@@ -392,11 +542,15 @@ export async function notifyReviewerApplicationSubmitted(
     contributionExamples?: string;
     createdAt: Date;
   }
-): Promise<void> {
+): Promise<string | null> {
   // Use dedicated reviewer application webhook if available, otherwise fall back to main webhook
-  const webhookUrl = process.env.DISCORD_REVIEWER_APPLICATION_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL;
-  if (!webhookUrl) {
-    return; // Discord notifications disabled
+  const reviewerWebhookUrls = getWebhookUrls("DISCORD_REVIEWER_APPLICATION_WEBHOOK_URL");
+  const webhookUrls = reviewerWebhookUrls.length > 0 
+    ? reviewerWebhookUrls 
+    : getWebhookUrls("DISCORD_WEBHOOK_URL");
+  
+  if (webhookUrls.length === 0) {
+    return null; // Discord notifications disabled
   }
 
   const baseUrl = process.env.NEXTAUTH_URL || "https://gfwlhub.com";
@@ -455,8 +609,109 @@ export async function notifyReviewerApplicationSubmitted(
     });
   }
 
-  await sendDiscordWebhook(webhookUrl, {
+  // Send to all webhooks, return the first message ID for backward compatibility
+  const messageIds = await sendDiscordWebhooks(webhookUrls, {
     embeds: [embed],
   });
+  // Return the first non-null message ID, or null if all failed
+  return messageIds.find((id) => id !== null) || null;
 }
 
+/**
+ * Sends or updates a notification about a reviewer application being reviewed
+ * @param application - The application data
+ * @param existingMessageId - Optional Discord message ID(s) to update instead of creating new messages
+ */
+export async function notifyReviewerApplicationReviewed(
+  application: {
+    id: string;
+    userName: string;
+    userEmail: string;
+    status: "approved" | "rejected";
+    reviewedByName: string;
+    adminNotes?: string;
+  },
+  existingMessageId?: string | string[] | null
+): Promise<void> {
+  // Use dedicated reviewer application webhook if available, otherwise fall back to main webhook
+  const reviewerWebhookUrls = getWebhookUrls("DISCORD_REVIEWER_APPLICATION_WEBHOOK_URL");
+  const webhookUrls = reviewerWebhookUrls.length > 0 
+    ? reviewerWebhookUrls 
+    : getWebhookUrls("DISCORD_WEBHOOK_URL");
+  
+  if (webhookUrls.length === 0) {
+    return; // Discord notifications disabled
+  }
+
+  const baseUrl = process.env.NEXTAUTH_URL || "https://gfwlhub.com";
+  const dashboardUrl = `${baseUrl}/dashboard/reviewer-applications`;
+
+  // Determine color and emoji based on status
+  const statusConfig = {
+    approved: { color: 0x2ecc71, emoji: "✅" }, // Green
+    rejected: { color: 0xe74c3c, emoji: "❌" }, // Red
+  };
+
+  const config = statusConfig[application.status];
+
+  const embed: DiscordEmbed = {
+    title: `${config.emoji} Reviewer Application ${application.status.charAt(0).toUpperCase() + application.status.slice(1)}`,
+    description: `**${application.reviewedByName}** ${application.status} a reviewer application from **${application.userName}**`,
+    color: config.color,
+    url: dashboardUrl,
+    fields: [
+      {
+        name: "Applicant",
+        value: `${application.userName}\n${application.userEmail}`,
+        inline: true,
+      },
+      {
+        name: "Application ID",
+        value: application.id,
+        inline: true,
+      },
+    ],
+    footer: {
+      text: `Application ID: ${application.id}`,
+    },
+    timestamp: new Date().toISOString(),
+  };
+
+  // Add admin notes if provided
+  if (application.adminNotes) {
+    embed.fields?.push({
+      name: "Admin Notes",
+      value: application.adminNotes.length > 500 
+        ? application.adminNotes.substring(0, 500) + "..."
+        : application.adminNotes,
+      inline: false,
+    });
+  }
+
+  // Update existing messages if message IDs are provided, otherwise send to all
+  if (existingMessageId && webhookUrls.length > 0) {
+    // If existingMessageId is a string, it's the old format (single message ID)
+    // If it's an array, it's the new format (multiple message IDs)
+    if (typeof existingMessageId === 'string') {
+      // Legacy: single message ID - update first webhook, send new to others
+      await updateDiscordWebhook(webhookUrls[0], existingMessageId, {
+        embeds: [embed],
+      });
+      if (webhookUrls.length > 1) {
+        await sendDiscordWebhooks(webhookUrls.slice(1), {
+          embeds: [embed],
+        });
+      }
+    } else if (Array.isArray(existingMessageId)) {
+      // New format: array of message IDs - update all matching webhooks
+      await updateDiscordWebhooks(webhookUrls, existingMessageId, {
+        embeds: [embed],
+      });
+    }
+  } else {
+    // Send to all webhooks
+    await sendDiscordWebhooks(webhookUrls, {
+      embeds: [embed],
+    });
+  }
+}

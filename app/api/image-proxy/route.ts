@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { isNsfwDomainBlocked } from "@/lib/nsfw-blacklist";
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,45 +34,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
     }
 
-  const hostname = url.hostname.toLowerCase();
-
-  // Blacklist NSFW and unsafe domains
-  const blacklistedDomains = [
-    "pornhub.com",
-    "xvideos.com",
-    "xhamster.com",
-    "redtube.com",
-    "youporn.com",
-    "tube8.com",
-    "spankwire.com",
-    "keezmovies.com",
-    "extremetube.com",
-    "4chan.org",
-    "4cdn.org",
-    "i.4cdn.org",
-    "8chan.co",
-    "8kun.top",
-    "b-ok.org",
-    "libgen.is",
-    "libgen.rs",
-    "z-lib.org",
-  ];
-
-  // Check if domain or any subdomain is blacklisted
-  const isBlacklisted = blacklistedDomains.some((domain) => {
-    return (
-      hostname === domain ||
-      hostname.endsWith(`.${domain}`) ||
-      hostname.startsWith(`${domain}.`)
-    );
-  });
-
-  if (isBlacklisted) {
+  // Check NSFW and unsafe domains using shared blacklist
+  const nsfwCheck = isNsfwDomainBlocked(sanitizedImageUrl);
+  if (nsfwCheck.isBlocked) {
     return NextResponse.json(
-      { error: "Domain is blacklisted" },
+      { error: nsfwCheck.reason || "Domain is blacklisted" },
       { status: 403 }
     );
   }
+
+  const hostname = url.hostname.toLowerCase();
 
   // Whitelist allowed domains for security
   const allowedDomains = [

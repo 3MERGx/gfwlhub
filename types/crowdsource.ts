@@ -181,7 +181,11 @@ export interface LeaderboardEntry {
 }
 
 // Game submission (for adding complete game information)
-export type GameSubmissionStatus = "pending" | "approved" | "rejected";
+export type GameSubmissionStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "superseded";
 
 export interface GameSubmission {
   id: string;
@@ -237,7 +241,10 @@ export interface GameSubmission {
   // Notes from submitter
   submitterNotes?: string;
 
-  // Current game data (for comparison - only included in API responses)
+  // Original game data at time of submission (for comparison - only included in API responses)
+  originalGameData?: any;
+
+  // Current game data (for reference - only included in API responses)
   currentGameData?: any;
 
   // Published information (only included if game is published)
