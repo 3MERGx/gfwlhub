@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { Game } from "@/data/games";
 import { useToast } from "@/components/ui/toast-context";
@@ -88,11 +88,49 @@ export default function SupportedGames() {
   };
 
   // Filter games based on search query (show all games, enabled and disabled)
-  const filteredGames = games.filter(
-    (game) =>
-      game.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      game.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Use useMemo to ensure filtering happens correctly and avoid stale closures
+  const filteredGames = useMemo(() => {
+    const trimmedQuery = searchQuery.trim();
+    
+    // If search query is empty, show all games
+    if (!trimmedQuery) {
+      return games;
+    }
+    
+    const query = trimmedQuery.toLowerCase();
+    
+    return games.filter((game) => {
+      const title = game.title.toLowerCase();
+      const description = game.description?.toLowerCase() || "";
+      
+      // Always check title first (most important)
+      const titleMatch = title.includes(query);
+      
+      // For description matching, be more strict to avoid false positives
+      // Only match if:
+      // 1. Query is 3+ characters (allows substring matches like "test" in "testing")
+      // 2. OR query matches as a whole word (prevents "tin" matching "testing")
+      let descriptionMatch = false;
+      if (query.length >= 3) {
+        // For longer queries, allow substring matches in description
+        descriptionMatch = description.includes(query);
+      } else if (query.length >= 2) {
+        // For 2-character queries, use word boundary to avoid partial matches
+        // Escape special regex characters
+        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const wordBoundaryRegex = new RegExp(`\\b${escapedQuery}\\b`, 'i');
+        descriptionMatch = wordBoundaryRegex.test(description);
+      } else {
+        // For single character queries, only match if it's a standalone word
+        // This is very restrictive to avoid too many false positives
+        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const wordBoundaryRegex = new RegExp(`\\b${escapedQuery}\\b`, 'i');
+        descriptionMatch = wordBoundaryRegex.test(description);
+      }
+      
+      return titleMatch || descriptionMatch;
+    });
+  }, [games, searchQuery]);
 
   // Sort filtered games
   const sortedGames = [...filteredGames].sort((a, b) => {
@@ -151,7 +189,8 @@ export default function SupportedGames() {
                 className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] border border-[rgb(var(--border-color))] rounded-md py-2 pl-10 pr-10 focus:outline-none focus:border-[#107c10]"
                 value={searchQuery}
                 onChange={(e) => {
-                  setSearchQuery(e.target.value);
+                  const newQuery = e.target.value;
+                  setSearchQuery(newQuery);
                   setCurrentPage(1); // Reset to first page when search changes
                 }}
               />

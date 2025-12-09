@@ -4,7 +4,12 @@ import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { notifyGameSubmissionReviewed } from "@/lib/discord-webhook";
-import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import {
+  safeLog,
+  sanitizeString,
+  rateLimiters,
+  getClientIdentifier,
+} from "@/lib/security";
 import { revalidatePath } from "next/cache";
 import { validateCSRFToken } from "@/lib/csrf";
 
@@ -41,7 +46,7 @@ export async function PATCH(
         { status: 403 }
       );
     }
-    
+
     // Remove CSRF token from body if present
     delete body._csrf;
 
@@ -51,16 +56,24 @@ export async function PATCH(
     // Sanitize and validate inputs
     const sanitizedId = sanitizeString(String(id || ""), 50);
     const sanitizedStatus = sanitizeString(String(status || ""), 50);
-    const sanitizedReviewNotes = reviewNotes ? sanitizeString(String(reviewNotes), 2000) : undefined;
+    const sanitizedReviewNotes = reviewNotes
+      ? sanitizeString(String(reviewNotes), 2000)
+      : undefined;
 
     // Validate status
-    if (!sanitizedStatus || !["approved", "rejected"].includes(sanitizedStatus)) {
+    if (
+      !sanitizedStatus ||
+      !["approved", "rejected"].includes(sanitizedStatus)
+    ) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
 
     // Validate ID is a valid ObjectId
     if (!sanitizedId || !ObjectId.isValid(sanitizedId)) {
-      return NextResponse.json({ error: "Invalid submission ID" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid submission ID" },
+        { status: 400 }
+      );
     }
 
     const db = await getGFWLDatabase();
@@ -83,13 +96,16 @@ export async function PATCH(
     // Prevent self-approval abuse: reviewers cannot approve their own submissions
     // Exception: Developers (from DEVELOPER_EMAIL env var) can approve their own submissions
     const adminEmails =
-      process.env.DEVELOPER_EMAILS?.split(",").map((email) => email.trim()) || [];
-    const isDeveloper = session.user.email && adminEmails.includes(session.user.email);
-    
+      process.env.DEVELOPER_EMAILS?.split(",").map((email) => email.trim()) ||
+      [];
+    const isDeveloper =
+      session.user.email && adminEmails.includes(session.user.email);
+
     if (submission.submittedBy === session.user.id && !isDeveloper) {
       return NextResponse.json(
-        { 
-          error: "You cannot review your own submissions. This prevents abuse of the approval system." 
+        {
+          error:
+            "You cannot review your own submissions. This prevents abuse of the approval system.",
         },
         { status: 403 }
       );
@@ -108,6 +124,39 @@ export async function PATCH(
         },
       }
     );
+
+    // If approved, mark other pending submissions for the same game as "superseded"
+    // This is a neutral status - it doesn't affect user stats (no rejected count increase)
+    // but also doesn't give credit (no approved count increase). It's fair to all parties.
+    if (sanitizedStatus === "approved") {
+      // Find other pending submissions for the same game
+      const otherPendingSubmissions = await submissionsCollection
+        .find({
+          gameSlug: submission.gameSlug,
+          status: "pending",
+          _id: { $ne: new ObjectId(sanitizedId) },
+        })
+        .toArray();
+
+      // Mark them as superseded (neutral status - doesn't affect user stats)
+      if (otherPendingSubmissions.length > 0) {
+        const otherIds = otherPendingSubmissions.map((s) => s._id);
+        await submissionsCollection.updateMany(
+          { _id: { $in: otherIds } },
+          {
+            $set: {
+              status: "superseded",
+              reviewedBy: session.user.id,
+              reviewedByName: session.user.name || "Unknown",
+              reviewedAt: new Date(),
+              reviewNotes: `Automatically superseded because another submission for ${submission.gameTitle} was approved.`,
+            },
+          }
+        );
+        // Note: We intentionally do NOT increment rejectedCount for superseded submissions
+        // This is fair - the user isn't being punished, but they also don't get credit
+      }
+    }
 
     // If approved, update user's approved count
     if (sanitizedStatus === "approved") {
@@ -136,14 +185,16 @@ export async function PATCH(
 
       // Check if game has minimum required fields to be published
       // Get existing game data
-      const existingGame = await gamesCollection.findOne({ slug: submission.gameSlug });
+      const existingGame = await gamesCollection.findOne({
+        slug: submission.gameSlug,
+      });
       const mergedData = { ...existingGame, ...updateData };
-      const hasRequiredFields = 
-        mergedData.title && 
-        mergedData.releaseDate && 
-        mergedData.developer && 
+      const hasRequiredFields =
+        mergedData.title &&
+        mergedData.releaseDate &&
+        mergedData.developer &&
         mergedData.publisher;
-      
+
       // Set readyToPublish flag if game has minimum required fields
       if (hasRequiredFields) {
         updateData.readyToPublish = true;
@@ -152,23 +203,27 @@ export async function PATCH(
       if (Object.keys(updateData).length > 0) {
         // Generate update ID (timestamp-based)
         const updateId = `${Date.now()}-${id}`;
-        
+
         // Get list of fields being updated
         const updatedFields = Object.keys(updateData).filter(
           (key) => key !== "updatedAt"
         );
-        
+
         // Get submitter info
         let submitterName = "Unknown";
-        if (submission.submittedBy && ObjectId.isValid(submission.submittedBy)) {
+        if (
+          submission.submittedBy &&
+          ObjectId.isValid(submission.submittedBy)
+        ) {
           const submitter = await usersCollection.findOne({
             _id: new ObjectId(submission.submittedBy),
           });
-          submitterName = submitter?.name || submission.submittedByName || "Unknown";
+          submitterName =
+            submitter?.name || submission.submittedByName || "Unknown";
         } else {
           submitterName = submission.submittedByName || "Unknown";
         }
-        
+
         // Create update history entry
         const updateHistoryEntry = {
           updateId,
@@ -217,15 +272,24 @@ export async function PATCH(
     }
 
     // Send Discord notification (non-blocking)
-    notifyGameSubmissionReviewed({
-      id: sanitizedId,
-      gameTitle: submission.gameTitle,
-      gameSlug: submission.gameSlug,
-      submittedByName: submission.submittedByName,
-      status: sanitizedStatus as "approved" | "rejected",
-      reviewedByName: session.user.name || "Unknown",
-      reviewNotes: sanitizedReviewNotes || undefined,
-    }).catch((error) => {
+    // Update existing webhook messages if message IDs exist, otherwise create new messages
+    // Support both old format (single message ID) and new format (array of message IDs)
+    const discordMessageIds =
+      (submission.discordMessageIds as string[] | undefined) ||
+      (submission.discordMessageId ? [submission.discordMessageId] : null);
+
+    notifyGameSubmissionReviewed(
+      {
+        id: sanitizedId,
+        gameTitle: submission.gameTitle,
+        gameSlug: submission.gameSlug,
+        submittedByName: submission.submittedByName,
+        status: sanitizedStatus as "approved" | "rejected",
+        reviewedByName: session.user.name || "Unknown",
+        reviewNotes: sanitizedReviewNotes || undefined,
+      },
+      discordMessageIds
+    ).catch((error) => {
       safeLog.error("Failed to send Discord notification:", error);
     });
 
@@ -243,4 +307,3 @@ export async function PATCH(
     );
   }
 }
-

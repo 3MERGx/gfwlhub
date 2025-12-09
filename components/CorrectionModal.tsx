@@ -8,6 +8,10 @@ import { CorrectionField } from "@/types/crowdsource";
 import UrlSafetyIndicator from "@/components/UrlSafetyIndicator";
 import { getUrlValidationError } from "@/lib/url-validation";
 import { useCSRF } from "@/hooks/useCSRF";
+import {
+  isNsfwDomainBlocked,
+  isDirectDownloadLink,
+} from "@/lib/nsfw-blacklist";
 
 interface CorrectionModalProps {
   game: Game;
@@ -106,22 +110,10 @@ export default function CorrectionModal({
       const urlObj = new URL(url);
       const domain = urlObj.hostname.toLowerCase();
 
-      // Known malicious domains (expand this list as needed)
-      const maliciousDomains: string[] = [
-        // Add known malicious domains here
-      ];
-
-      // Check against malicious domains
-      for (const maliciousDomain of maliciousDomains) {
-        if (
-          domain === maliciousDomain ||
-          domain.endsWith(`.${maliciousDomain}`)
-        ) {
-          return {
-            isBlocked: true,
-            reason: `Domain "${domain}" is on the blacklist`,
-          };
-        }
+      // Check NSFW domains
+      const nsfwCheck = isNsfwDomainBlocked(url);
+      if (nsfwCheck.isBlocked) {
+        return nsfwCheck;
       }
 
       // Block URL shorteners for security
@@ -376,7 +368,7 @@ export default function CorrectionModal({
           setError(`${field} must be a valid URL`);
           return;
         }
-        
+
         // Check domain-specific validation
         const domainError = getUrlValidationError(field, newValue.trim());
         if (domainError) {
@@ -384,13 +376,32 @@ export default function CorrectionModal({
           setError(domainError);
           return;
         }
-        
-        // Check blacklist
+
+        // Check blacklist (NSFW, unsafe domains, URL shorteners)
         const blacklistCheck = checkUrlBlacklist(newValue.trim());
         if (blacklistCheck.isBlocked) {
           setUrlError(blacklistCheck.reason || "This URL is not allowed");
           setError(blacklistCheck.reason || "This URL is not allowed");
           return;
+        }
+
+        // For non-download fields, check if URL is a direct download link
+        if (
+          field !== "downloadLink" &&
+          field !== "communityAlternativeDownloadLink"
+        ) {
+          const downloadCheck = isDirectDownloadLink(newValue.trim());
+          if (downloadCheck.isDirectDownload) {
+            setUrlError(
+              downloadCheck.reason ||
+                "Direct download links are not allowed in this field"
+            );
+            setError(
+              downloadCheck.reason ||
+                "Direct download links are not allowed in this field"
+            );
+            return;
+          }
         }
       }
     }
@@ -527,9 +538,12 @@ export default function CorrectionModal({
 
       onSubmit();
       onClose();
-      
+
       // Refresh UI
-      if (pathname === "/dashboard/submissions" || pathname?.startsWith("/games/")) {
+      if (
+        pathname === "/dashboard/submissions" ||
+        pathname?.startsWith("/games/")
+      ) {
         router.refresh();
       }
       router.refresh();
@@ -1203,7 +1217,10 @@ export default function CorrectionModal({
                         setError(`${field} must be a valid URL`);
                       } else {
                         // Check domain-specific validation
-                        const domainError = getUrlValidationError(field, newValue.trim());
+                        const domainError = getUrlValidationError(
+                          field,
+                          newValue.trim()
+                        );
                         if (domainError) {
                           setUrlError(domainError);
                           setError(domainError);
@@ -1237,6 +1254,17 @@ export default function CorrectionModal({
                 Enter one item per line
               </p>
             )}
+            {field === "imageUrl" && (
+              <p className="text-xs text-[rgb(var(--text-muted))] mt-1.5 flex items-start gap-1.5">
+                <span className="text-blue-400">💡</span>
+                <span>
+                  Use a direct image URL (ending in .jpg, .png, etc.) from a
+                  reliable source like Wikipedia, PCGamingWiki, or official game
+                  websites. The image should be high-quality box art or cover
+                  art.
+                </span>
+              </p>
+            )}
             {![
               "title",
               "status",
@@ -1244,6 +1272,7 @@ export default function CorrectionModal({
               "genres",
               "platforms",
               "instructions",
+              "imageUrl",
             ].includes(field || "") && (
               <p className="text-xs text-blue-400 mt-1">
                 💡 Leave this field empty to clear/remove the current value
@@ -1270,7 +1299,6 @@ export default function CorrectionModal({
               required
             />
           </div>
-
 
           {/* Footer - Actions */}
           <div className="sticky bottom-0 bg-[rgb(var(--bg-card))] border-t border-[rgb(var(--border-color))] pt-6 -mx-6 px-6 -mb-6 pb-6">

@@ -9,6 +9,7 @@ import { getUrlValidationError } from "@/lib/url-validation";
 import { safeLog } from "@/lib/security";
 import { useToast } from "@/components/ui/toast-context";
 import { useCSRF } from "@/hooks/useCSRF";
+import { isNsfwDomainBlocked, isDirectDownloadLink } from "@/lib/nsfw-blacklist";
 
 interface AddGameDetailsModalProps {
   game: Game;
@@ -143,22 +144,10 @@ export default function AddGameDetailsModal({
       const urlObj = new URL(url);
       const domain = urlObj.hostname.toLowerCase();
 
-      // Known malicious domains (expand this list as needed)
-      const maliciousDomains: string[] = [
-        // Add known malicious domains here
-      ];
-
-      // Check against malicious domains
-      for (const maliciousDomain of maliciousDomains) {
-        if (
-          domain === maliciousDomain ||
-          domain.endsWith(`.${maliciousDomain}`)
-        ) {
-          return {
-            isBlocked: true,
-            reason: `Domain "${domain}" is on the blacklist`,
-          };
-        }
+      // Check NSFW domains
+      const nsfwCheck = isNsfwDomainBlocked(url);
+      if (nsfwCheck.isBlocked) {
+        return nsfwCheck;
       }
 
       // Block URL shorteners for security
@@ -249,11 +238,20 @@ export default function AddGameDetailsModal({
             errors[key] = domainError;
             hasErrors = true;
           } else {
-            // Check blacklist
+            // Check blacklist (NSFW, unsafe domains, URL shorteners)
             const blacklistCheck = checkUrlBlacklist(value);
             if (blacklistCheck.isBlocked) {
               errors[key] = blacklistCheck.reason || "This URL is not allowed";
               hasErrors = true;
+            } else {
+              // For non-download fields, check if URL is a direct download link
+              if (key !== "downloadLink" && key !== "communityAlternativeDownloadLink") {
+                const downloadCheck = isDirectDownloadLink(value);
+                if (downloadCheck.isDirectDownload) {
+                  errors[key] = downloadCheck.reason || "Direct download links are not allowed in this field";
+                  hasErrors = true;
+                }
+              }
             }
           }
         }
@@ -290,7 +288,7 @@ export default function AddGameDetailsModal({
             [key]: domainError,
           });
         } else {
-          // Check blacklist
+          // Check blacklist (NSFW, unsafe domains, URL shorteners)
           const blacklistCheck = checkUrlBlacklist(value);
           if (blacklistCheck.isBlocked) {
             setUrlErrors({
@@ -298,6 +296,17 @@ export default function AddGameDetailsModal({
               [key]: blacklistCheck.reason || "This URL is not allowed",
             });
           } else {
+            // For non-download fields, check if URL is a direct download link
+            if (key !== "downloadLink" && key !== "communityAlternativeDownloadLink") {
+              const downloadCheck = isDirectDownloadLink(value);
+              if (downloadCheck.isDirectDownload) {
+                setUrlErrors({
+                  ...urlErrors,
+                  [key]: downloadCheck.reason || "Direct download links are not allowed in this field",
+                });
+                return;
+              }
+            }
             // Clear error if URL is valid and not blacklisted
             if (urlErrors[key]) {
               const newErrors = { ...urlErrors };

@@ -7,6 +7,7 @@ import {
   getUserByEmail,
   canManageUsers,
 } from "@/lib/crowdsource-service-mongodb";
+import { ReviewerApplication } from "@/types/crowdsource";
 import {
   safeLog,
   sanitizeString,
@@ -14,6 +15,7 @@ import {
   getClientIdentifier,
 } from "@/lib/security";
 import { validateCSRFToken } from "@/lib/csrf";
+import { notifyReviewerApplicationReviewed } from "@/lib/discord-webhook";
 
 // POST - Reject a reviewer application (admin only)
 export async function POST(
@@ -88,6 +90,42 @@ export async function POST(
       user.name,
       adminNotes
     );
+
+    // Get updated application to check for discordMessageIds
+    const updatedApplication = await getReviewerApplicationById(sanitizedId);
+
+    // Send Discord notification (non-blocking)
+    // Update existing webhook messages if message IDs exist, otherwise create new messages
+    // Support both old format (single message ID) and new format (array of message IDs)
+    if (updatedApplication) {
+      const appWithExtras = updatedApplication as ReviewerApplication & {
+        discordMessageIds?: (string | null)[];
+        discordMessageId?: string;
+      };
+      const rawMessageIds = appWithExtras.discordMessageIds || 
+                           (appWithExtras.discordMessageId ? [appWithExtras.discordMessageId] : null);
+      
+      // Filter out null values and convert to string[] if it's an array
+      const discordMessageIds: string | string[] | null = rawMessageIds 
+        ? (Array.isArray(rawMessageIds) 
+            ? (rawMessageIds.filter((id): id is string => id !== null) as string[])
+            : rawMessageIds)
+        : null;
+      
+      notifyReviewerApplicationReviewed(
+        {
+          id: updatedApplication.id,
+          userName: updatedApplication.userName || "Unknown",
+          userEmail: updatedApplication.userEmail || "",
+          status: "rejected",
+          reviewedByName: user.name || "Unknown",
+          adminNotes: adminNotes || undefined,
+        },
+        discordMessageIds
+      ).catch((error) => {
+        safeLog.error("Failed to send Discord notification:", error);
+      });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

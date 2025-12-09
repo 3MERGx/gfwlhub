@@ -89,6 +89,9 @@ export async function POST(
     revalidatePath("/dashboard/games");
     revalidatePath(`/games/${sanitizedSlug}`);
     revalidatePath("/");
+    revalidatePath("/supported-games");
+    // Revalidate API route cache
+    revalidatePath("/api/games");
 
     return NextResponse.json({ success: true });
   } catch (error) {

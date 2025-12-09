@@ -3,6 +3,16 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
+  webpack: (config, { dev, isServer }) => {
+    // Fix webpack cache issues on Windows/OneDrive
+    // Use memory cache in development to avoid file permission issues with OneDrive
+    if (dev) {
+      config.cache = {
+        type: 'memory',
+      };
+    }
+    return config;
+  },
   images: {
     remotePatterns: [
       {
