@@ -241,6 +241,34 @@ export async function getAllCorrections(limit?: number): Promise<Correction[]> {
   return corrections.map(toCorrection);
 }
 
+/**
+ * Finds recent pending corrections from the same user for the same game
+ * within a specified timeframe (default 5 minutes)
+ */
+export async function findRecentPendingCorrection(
+  gameSlug: string,
+  submittedBy: string,
+  timeframeMinutes: number = 5
+): Promise<Correction | null> {
+  const client = await clientPromise;
+  const db = client.db("GFWL");
+  
+  const cutoffTime = new Date(Date.now() - timeframeMinutes * 60 * 1000);
+  
+  const recentCorrection = await db
+    .collection("corrections")
+    .findOne({
+      gameSlug,
+      submittedBy,
+      status: "pending",
+      submittedAt: { $gte: cutoffTime },
+    }, {
+      sort: { submittedAt: -1 }, // Get the most recent one
+    });
+  
+  return recentCorrection ? toCorrection(recentCorrection) : null;
+}
+
 export async function reviewCorrection(
   correctionId: string,
   reviewedBy: string,

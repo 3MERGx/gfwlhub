@@ -123,8 +123,9 @@ export default function Header() {
     // Initial fetch
     fetchPendingGameSubmissionsCount();
     
-    // Refresh count every 60 seconds (reduced frequency)
-    intervalId = setInterval(fetchPendingGameSubmissionsCount, 60000);
+    // Refresh count every 90 seconds (increased interval to reduce rate limiting)
+    // Note: DashboardLayout also polls this endpoint, so we use a longer interval here
+    intervalId = setInterval(fetchPendingGameSubmissionsCount, 90000);
 
     // Listen for custom event to refresh immediately after review (with debounce)
     const handleGameSubmissionsUpdated = () => {

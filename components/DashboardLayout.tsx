@@ -162,8 +162,8 @@ export default function DashboardLayout({
     // Initial fetch
     fetchPendingGameSubmissionsCount();
     
-    // Refresh count every 60 seconds (reduced frequency)
-    intervalId = setInterval(fetchPendingGameSubmissionsCount, 60000);
+    // Refresh count every 90 seconds (increased interval to reduce rate limiting)
+    intervalId = setInterval(fetchPendingGameSubmissionsCount, 90000);
     
     // Listen for custom event to refresh immediately after review (with debounce)
     const handleGameSubmissionsUpdated = () => {
@@ -307,9 +307,10 @@ export default function DashboardLayout({
   const experimentalNavItems = visibleNavItems.filter((item) => item.section === "experimental");
 
   return (
-    <div className="h-full flex bg-[rgb(var(--bg-dashboard))] overflow-hidden">
-      {/* Sidebar - Only visible on xl screens and up */}
-      <aside className="hidden xl:block w-72 bg-[rgb(var(--bg-sidebar))] border-r border-[rgb(var(--border-color))] sticky top-0 h-full flex-shrink-0">
+    <div className="min-h-screen flex bg-[rgb(var(--bg-dashboard))]">
+      {/* Sidebar - Only visible on xl screens and up - Fixed position to scroll with user */}
+      {/* Position below header (header is h-16 = 64px) */}
+      <aside className="hidden xl:block w-72 bg-[rgb(var(--bg-sidebar))] border-r border-[rgb(var(--border-color))] fixed top-16 left-0 h-[calc(100vh-4rem)] flex-shrink-0 z-10">
         <div className="flex flex-col h-full">
           {/* Sidebar Header */}
           <div className="p-4 border-b border-[rgb(var(--border-color))] flex-shrink-0">
@@ -407,10 +408,10 @@ export default function DashboardLayout({
         </div>
       </aside>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      {/* Main Content - Add left margin to account for fixed sidebar */}
+      <div className="flex-1 flex flex-col min-w-0 xl:ml-72">
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <main className="flex-1">{children}</main>
       </div>
     </div>
   );

@@ -274,9 +274,23 @@ export async function PATCH(
     // Send Discord notification (non-blocking)
     // Update existing webhook messages if message IDs exist, otherwise create new messages
     // Support both old format (single message ID) and new format (array of message IDs)
-    const discordMessageIds =
-      (submission.discordMessageIds as string[] | undefined) ||
-      (submission.discordMessageId ? [submission.discordMessageId] : null);
+    let discordMessageIds: string[] | null = null;
+    
+    // Check for new format (array of message IDs)
+    if (submission.discordMessageIds && Array.isArray(submission.discordMessageIds)) {
+      // Filter out null/undefined values and ensure we have valid strings
+      const validIds = submission.discordMessageIds.filter(
+        (id): id is string => typeof id === "string" && id.length > 0
+      );
+      if (validIds.length > 0) {
+        discordMessageIds = validIds;
+      }
+    }
+    
+    // Fallback to old format (single message ID)
+    if (!discordMessageIds && submission.discordMessageId && typeof submission.discordMessageId === "string") {
+      discordMessageIds = [submission.discordMessageId];
+    }
 
     notifyGameSubmissionReviewed(
       {

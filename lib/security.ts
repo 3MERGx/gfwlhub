@@ -144,8 +144,8 @@ const isDevelopment = process.env.NODE_ENV === "development";
 const devMultiplier = isDevelopment ? 5 : 1; // 5x more lenient in development
 
 export const rateLimiters = {
-  // General API endpoints: 10 requests per minute (50 in dev)
-  api: new RateLimiter(60000, 10 * devMultiplier),
+  // General API endpoints: 30 requests per minute (150 in dev) - increased for dashboard polling
+  api: new RateLimiter(60000, 30 * devMultiplier),
   // Auth endpoints: 5 requests per minute (25 in dev)
   auth: new RateLimiter(60000, 5 * devMultiplier),
   // Upload endpoints: 5 requests per minute (25 in dev)
