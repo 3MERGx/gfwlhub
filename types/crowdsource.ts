@@ -26,7 +26,7 @@ export interface User {
 }
 
 // Correction submission
-export type CorrectionStatus = "pending" | "approved" | "rejected" | "modified";
+export type CorrectionStatus = "pending" | "approved" | "rejected" | "modified" | "superseded";
 
 export type CorrectionField =
   | "title"

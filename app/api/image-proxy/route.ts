@@ -53,6 +53,11 @@ export async function GET(request: NextRequest) {
     "images.igdb.com",
     "steamcdn-a.akamaihd.net",
     "cdn.akamai.steamstatic.com",
+    // SteamGridDB domains
+    "steamgriddb.com",
+    "www.steamgriddb.com",
+    "cdn.steamgriddb.com",
+    "cdn2.steamgriddb.com",
     // OAuth provider image domains
     "lh3.googleusercontent.com",
     "googleusercontent.com",

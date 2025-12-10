@@ -127,11 +127,13 @@ export async function GET(request: NextRequest) {
       })
     );
 
+    // Add caching headers for GET requests to reduce rate limiting issues
+    // Frequently accessed data: 30 second cache, stale-while-revalidate for 2 minutes
     return NextResponse.json(
       transformedSubmissions,
       {
         headers: {
-          "Cache-Control": "private, no-cache, must-revalidate",
+          "Cache-Control": "private, s-maxage=30, stale-while-revalidate=120",
         },
       }
     );
@@ -460,11 +462,6 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // Send new Discord webhook message
-      // Get webhook URLs to store message IDs in correct order
-      const webhookUrls = process.env.DISCORD_WEBHOOK_URL
-        ? process.env.DISCORD_WEBHOOK_URL.split(",").map((url) => url.trim()).filter((url) => url.length > 0)
-        : [];
-      
       notifyGameSubmissionSubmitted({
         id: submissionId,
         gameTitle: sanitizedGameTitle,
@@ -473,76 +470,27 @@ export async function POST(request: NextRequest) {
         proposedData: finalProposedData as Record<string, unknown>,
         submitterNotes: finalSubmitterNotes,
       })
-        .then(async (firstMessageId) => {
+        .then(async (messageIds) => {
           // Store Discord message IDs in submission document
-          // We need to get all message IDs, not just the first one
-          if (webhookUrls.length > 0) {
-            const { sendDiscordWebhooks } = await import("@/lib/discord-webhook");
-            const baseUrl = process.env.NEXTAUTH_URL || "https://gfwlhub.com";
-            const dashboardUrl = `${baseUrl}/dashboard/game-submissions`;
-            
-            const submittedFields = Object.keys(finalProposedData).filter(
-              (key) => finalProposedData[key] !== null && 
-                       finalProposedData[key] !== undefined && 
-                       finalProposedData[key] !== ""
-            );
-
-            const embed = {
-              title: "🎮 New Game Submission",
-              description: `**${sanitizedSubmittedByName}** submitted game data for **${sanitizedGameTitle}**`,
-              color: 0x9b59b6,
-              url: dashboardUrl,
-              fields: [
-                {
-                  name: "Game",
-                  value: `[${sanitizedGameTitle}](${baseUrl}/games/${sanitizedGameSlug})`,
-                  inline: true,
-                },
-                {
-                  name: "Review",
-                  value: `[Open Dashboard](${dashboardUrl})`,
-                  inline: true,
-                },
-                {
-                  name: "Fields Submitted",
-                  value: submittedFields.length > 0 
-                    ? submittedFields.slice(0, 10).join(", ") + (submittedFields.length > 10 ? ` (+${submittedFields.length - 10} more)` : "")
-                    : "*No fields*",
-                  inline: false,
-                },
-              ],
-              footer: {
-                text: `Submission ID: ${submissionId}`,
-              },
-              timestamp: new Date().toISOString(),
-            };
-
-            if (finalSubmitterNotes) {
-              embed.fields?.push({
-                name: "Notes",
-                value: finalSubmitterNotes.length > 500 
-                  ? finalSubmitterNotes.substring(0, 500) + "..."
-                  : finalSubmitterNotes,
-                inline: false,
-              });
+          if (messageIds && messageIds.length > 0) {
+            // Filter out null values and check if we have any valid IDs
+            const validMessageIds = messageIds.filter((id): id is string => id !== null);
+            if (validMessageIds.length > 0) {
+              // Store array of message IDs (one per webhook)
+              await submissionsCollection.updateOne(
+                { _id: new ObjectId(submissionId) },
+                { $set: { discordMessageIds: messageIds } }
+              );
+            } else {
+              // Fallback: if we got message IDs but all are null, try to store the first one as single value (backward compatibility)
+              const firstMessageId = messageIds[0];
+              if (firstMessageId) {
+                await submissionsCollection.updateOne(
+                  { _id: new ObjectId(submissionId) },
+                  { $set: { discordMessageId: firstMessageId } }
+                );
+              }
             }
-
-            // Send to all webhooks and get all message IDs
-            const messageIds = await sendDiscordWebhooks(webhookUrls, {
-              embeds: [embed],
-            });
-            
-            // Store array of message IDs (one per webhook)
-            await submissionsCollection.updateOne(
-              { _id: new ObjectId(submissionId) },
-              { $set: { discordMessageIds: messageIds } }
-            );
-          } else if (firstMessageId) {
-            // Fallback: if no webhook URLs but we got a message ID, store it as single value (backward compatibility)
-            await submissionsCollection.updateOne(
-              { _id: new ObjectId(submissionId) },
-              { $set: { discordMessageId: firstMessageId } }
-            );
           }
         })
         .catch((error) => {
