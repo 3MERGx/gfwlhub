@@ -112,6 +112,101 @@ export function sanitizeMarkdownHtml(text: string): string {
 }
 
 /**
+ * Sanitizes HTML content by allowing only safe HTML tags and attributes
+ * Prevents XSS attacks while preserving formatting
+ */
+export function sanitizeHtml(html: string): string {
+  if (!html || typeof html !== "string") return "";
+
+  // List of allowed HTML tags
+  const allowedTags = [
+    "p", "br", "strong", "em", "u", "b", "i", "a", "ul", "ol", "li",
+    "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "code", "pre"
+  ];
+
+  // Allowed attributes per tag
+  const allowedAttributes: Record<string, string[]> = {
+    a: ["href", "target", "rel"],
+    // Add more if needed
+  };
+
+  // Remove script tags and their content completely
+  html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
+  
+  // Remove other dangerous tags
+  html = html.replace(/<(iframe|object|embed|form|input|button|select|textarea|style|link|meta|base)\b[^>]*>.*?<\/\1>/gi, "");
+  html = html.replace(/<(iframe|object|embed|form|input|button|select|textarea|style|link|meta|base)\b[^>]*\/?>/gi, "");
+
+  // Remove event handlers and dangerous attributes
+  html = html.replace(/\s*on\w+\s*=\s*["'][^"']*["']/gi, ""); // Remove onclick, onerror, etc.
+  html = html.replace(/\s*on\w+\s*=\s*[^\s>]*/gi, ""); // Remove unquoted event handlers
+  html = html.replace(/javascript:/gi, ""); // Remove javascript: protocol
+
+  // Process allowed tags
+  const tagPattern = /<\/?([a-z][a-z0-9]*)\b[^>]*>/gi;
+  html = html.replace(tagPattern, (match, tagName) => {
+    const lowerTag = tagName.toLowerCase();
+    const isClosing = match.startsWith("</");
+    
+    // If tag is not allowed, remove it
+    if (!allowedTags.includes(lowerTag)) {
+      return "";
+    }
+
+    if (isClosing) {
+      return `</${lowerTag}>`;
+    }
+
+    // Process opening tag attributes
+    const attrPattern = /(\w+)\s*=\s*["']([^"']*)["']/g;
+    const sanitizedAttrs: string[] = [];
+    let attrMatch;
+    const attrMatches: RegExpExecArray[] = [];
+    
+    // Collect all matches first (regex.exec with global flag needs this)
+    while ((attrMatch = attrPattern.exec(match)) !== null) {
+      attrMatches.push(attrMatch);
+    }
+
+    for (const attrMatchResult of attrMatches) {
+      const attrName = attrMatchResult[1].toLowerCase();
+      const attrValue = attrMatchResult[2];
+
+      // Check if attribute is allowed for this tag
+      const allowedAttrs = allowedAttributes[lowerTag] || [];
+      if (allowedAttrs.includes(attrName)) {
+        // Sanitize href to only allow http, https, and relative URLs
+        if (attrName === "href") {
+          const lowerValue = attrValue.toLowerCase();
+          if (lowerValue.startsWith("http://") || 
+              lowerValue.startsWith("https://") || 
+              lowerValue.startsWith("/") || 
+              lowerValue.startsWith("#") ||
+              lowerValue.startsWith("mailto:")) {
+            sanitizedAttrs.push(`${attrName}="${escapeHtml(attrValue)}"`);
+          }
+        } else if (attrName === "target") {
+          // Only allow _blank, _self, _parent, _top
+          if (["_blank", "_self", "_parent", "_top"].includes(attrValue)) {
+            sanitizedAttrs.push(`${attrName}="${attrValue}"`);
+          }
+        } else if (attrName === "rel") {
+          // Allow rel attribute for security (noopener, noreferrer)
+          sanitizedAttrs.push(`${attrName}="${escapeHtml(attrValue)}"`);
+        }
+      }
+    }
+
+    if (sanitizedAttrs.length > 0) {
+      return `<${lowerTag} ${sanitizedAttrs.join(" ")}>`;
+    }
+    return `<${lowerTag}>`;
+  });
+
+  return html;
+}
+
+/**
  * Simple in-memory rate limiter
  * Note: For production at scale, consider using Redis or a dedicated rate limiting service
  */

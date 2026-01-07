@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { FaExclamationTriangle, FaTimes, FaRocket, FaCheckCircle, FaCheck, FaTimes as FaTimesIcon } from "react-icons/fa";
 import Link from "next/link";
 import ConfirmPublishModal from "@/components/ConfirmPublishModal";
@@ -36,6 +36,7 @@ export default function DisabledGamePrompt({
   onAddDetails,
 }: DisabledGamePromptProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { data: session, status } = useSession();
   const { showToast } = useToast();
   const { csrfToken } = useCSRF();
@@ -330,12 +331,24 @@ export default function DisabledGamePrompt({
             )}
             <div className="flex gap-3">
               {!session && status !== "loading" && (
-                <Link
-                  href="/auth/signin"
+                <button
+                  onClick={() => {
+                    // Store callbackUrl in localStorage BEFORE navigation
+                    if (typeof window !== "undefined" && pathname) {
+                      try {
+                        localStorage.setItem("gfwl_callback_url", pathname);
+                      } catch {
+                        // localStorage might be unavailable, continue anyway
+                      }
+                    }
+                    // Navigate to sign-in page with callbackUrl in URL
+                    const callbackUrl = encodeURIComponent(pathname);
+                    router.push(`/auth/signin?callbackUrl=${callbackUrl}`);
+                  }}
                   className="flex-1 bg-[#107c10] hover:bg-[#0d6b0d] text-white font-semibold py-2.5 px-4 rounded-lg transition-colors text-center text-sm"
                 >
                   Sign In to Help
-                </Link>
+                </button>
               )}
               <button
                 onClick={handleClose}

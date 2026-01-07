@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useToast } from "@/components/ui/toast-context";
 import Accordion from "@/components/Accordion";
-import { sanitizeMarkdownHtml } from "@/lib/security";
+import { sanitizeHtml } from "@/lib/security";
 import { useCSRF } from "@/hooks/useCSRF";
 import {
   FaEdit,
@@ -371,21 +371,16 @@ export default function FAQ() {
 
   // Render answer as HTML (sanitized) with line break support
   const renderAnswer = (answer: string) => {
-    // Convert \n to <br> tags for line breaks
-    // Also handle existing HTML, so we need to be careful
+    // Convert \n to <br> tags for line breaks if there's no existing HTML
     let processedAnswer = answer;
     
-    // Sanitize and process answer
     // If the answer doesn't contain HTML tags, convert \n to <br>
     if (!/<[^>]+>/.test(answer)) {
       processedAnswer = answer.replace(/\n/g, '<br>');
-    } else {
-      // If it has HTML, convert \n to <br> but preserve existing HTML
-      processedAnswer = answer.replace(/\n/g, '<br>');
     }
     
-    // Sanitize HTML to prevent XSS
-    const sanitizedAnswer = sanitizeMarkdownHtml(processedAnswer);
+    // Sanitize HTML to prevent XSS while preserving safe HTML tags
+    const sanitizedAnswer = sanitizeHtml(processedAnswer);
     
     return (
       <div

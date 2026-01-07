@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface GameImageProps {
   src?: string;
@@ -21,12 +21,26 @@ export default function GameImage({
   priority = false,
 }: GameImageProps) {
   const [imageError, setImageError] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+
+  // Fallback: if image doesn't load within 5 seconds, show placeholder
+  useEffect(() => {
+    if (!src) return;
+    
+    const timer = setTimeout(() => {
+      if (!imageLoaded) {
+        setImageError(true);
+      }
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [src, imageLoaded]);
 
   // Show placeholder if no image or error
   if (imageError || !src) {
     return (
       <div
-        className={`relative flex items-center justify-center bg-[#1a1a1a] border border-[#2d2d2d] ${className}`}
+        className={`relative flex items-center justify-center bg-[rgb(var(--bg-card))] border border-[rgb(var(--border-color))] rounded-lg shadow-lg ${className}`}
         style={{ width, height }}
       >
         <div className="text-center p-4">
@@ -39,16 +53,16 @@ export default function GameImage({
               xmlns="http://www.w3.org/2000/svg"
               className="mx-auto"
             >
-              <circle cx="30" cy="30" r="25" fill="#2d2d2d" />
+              <circle cx="30" cy="30" r="25" fill="rgb(var(--bg-card-alt))" />
               <path
                 d="M20 30L30 20L40 30L30 40Z"
-                fill="#444"
+                fill="rgb(var(--text-muted))"
                 opacity="0.5"
               />
             </svg>
           </div>
-          <p className="text-gray-400 text-sm font-medium">No Image Available</p>
-          <p className="text-gray-500 text-xs mt-1">Help us add one!</p>
+          <p className="text-[rgb(var(--text-secondary))] text-sm font-medium">No Image Available</p>
+          <p className="text-[rgb(var(--text-muted))] text-xs mt-1">Help us add one!</p>
         </div>
       </div>
     );
@@ -63,7 +77,14 @@ export default function GameImage({
       className={className}
       priority={priority}
       loading={priority ? undefined : "lazy"}
-      onError={() => setImageError(true)}
+      onError={() => {
+        setImageError(true);
+        setImageLoaded(false);
+      }}
+      onLoad={() => {
+        setImageLoaded(true);
+        setImageError(false);
+      }}
     />
   );
 }

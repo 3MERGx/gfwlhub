@@ -17,6 +17,9 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       // No account linking - each OAuth provider creates a separate user
+      httpOptions: {
+        timeout: 10000, // Increase timeout to 10 seconds for OAuth requests
+      },
     }),
     // GitHub OAuth - Add credentials when ready
     ...(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET
@@ -29,6 +32,9 @@ export const authOptions: NextAuthOptions = {
                 scope: "read:user user:email",
               },
             },
+            httpOptions: {
+              timeout: 10000, // Increase timeout to 10 seconds for OAuth requests
+            },
           }),
         ]
       : []),
@@ -38,6 +44,9 @@ export const authOptions: NextAuthOptions = {
           DiscordProvider({
             clientId: process.env.DISCORD_CLIENT_ID,
             clientSecret: process.env.DISCORD_CLIENT_SECRET,
+            httpOptions: {
+              timeout: 10000, // Increase timeout to 10 seconds for OAuth requests
+            },
           }),
         ]
       : []),
@@ -52,31 +61,39 @@ export const authOptions: NextAuthOptions = {
       // When user signs in (initial login)
       if (user) {
         // user.id from adapter is always a valid MongoDB ObjectId string
-        // Try to find user by ID first (most reliable), then by email/provider
+        // Optimize: Use a single query with $or to find user by multiple criteria
         let dbUser = null;
         
-        // First, try to find by ID (works for both new and existing users)
+        try {
+          // Build query conditions
+          const queryConditions: Record<string, unknown>[] = [];
+          
+          // First, try to find by ID (most reliable)
         if (user.id && ObjectId.isValid(user.id)) {
-          try {
-            dbUser = await usersCollection.findOne({
-              _id: new ObjectId(user.id),
-            });
-          } catch (error) {
-            safeLog.error("JWT callback: Error finding user by ID:", error);
-          }
+            queryConditions.push({ _id: new ObjectId(user.id) });
         }
         
-        // If not found by ID, try by email (for existing users)
-        if (!dbUser && user.email) {
-          dbUser = await usersCollection.findOne({ email: user.email });
+          // Also try by email if available
+          if (user.email) {
+            queryConditions.push({ email: user.email });
         }
         
-        // If still not found, try by provider account ID (for GitHub users with null email)
-        if (!dbUser && account) {
-          dbUser = await usersCollection.findOne({
+          // Also try by provider account ID if available
+          if (account) {
+            queryConditions.push({
             "providerInfo.provider": account.provider,
             "providerInfo.providerAccountId": account.providerAccountId,
           });
+          }
+          
+          // Execute single query with $or if we have conditions
+          if (queryConditions.length > 0) {
+            dbUser = await usersCollection.findOne({
+              $or: queryConditions,
+            });
+          }
+        } catch (error) {
+          safeLog.error("JWT callback: Error finding user:", error);
         }
 
         if (dbUser) {
@@ -375,17 +392,65 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
     async redirect({ url, baseUrl }) {
-      // If URL is provided and valid, use it
-      if (url.startsWith("/")) {
-        // If it's a dashboard route, we'll let DashboardLayout handle permission checks
-        // Otherwise redirect to the requested page
+      // Parse the URL to check for callbackUrl and handle different cases
+      try {
+        const urlObj = new URL(url, baseUrl);
+        const pathname = urlObj.pathname;
+        const callbackUrl = urlObj.searchParams.get("callbackUrl");
+        
+        // If there's a callbackUrl in the query params, use it
+        if (callbackUrl) {
+          const decodedCallbackUrl = decodeURIComponent(callbackUrl);
+          safeLog.log("NextAuth redirect callback - Found callbackUrl in query params:", decodedCallbackUrl);
+          if (decodedCallbackUrl.startsWith("/") && !decodedCallbackUrl.startsWith("/dashboard")) {
+            return `${baseUrl}${decodedCallbackUrl}`;
+          }
+        }
+        
+        // If redirecting to sign-in page, preserve the full URL with query params
+        // The client-side code will check localStorage for callbackUrl
+        if (pathname === "/auth/signin") {
+          safeLog.log("NextAuth redirect callback - Redirecting to sign-in page, client will check localStorage for callbackUrl");
+          return url; // Return the full URL with query params
+        }
+      } catch (error) {
+        // If URL parsing fails, continue with normal logic
+        safeLog.log("NextAuth redirect callback - URL parsing failed:", error);
+      }
+
+      // If URL is a relative path (starts with /), use it directly
+      // This is how NextAuth passes the callbackUrl after OAuth
+      if (url && url.startsWith("/")) {
+        // If it's a dashboard route, redirect to homepage (regular users can't access)
+        if (url.startsWith("/dashboard")) {
+          safeLog.log("NextAuth redirect callback - Dashboard route detected, redirecting to homepage");
+          return `${baseUrl}/`;
+        }
+        // If url is just "/" or empty, it means callbackUrl was lost
+        // Redirect to sign-in page - client will check localStorage
+        if (url === "/" || url === "") {
+          safeLog.log("NextAuth redirect callback - Empty callbackUrl detected, redirecting to sign-in - client will check localStorage");
+          return `${baseUrl}/auth/signin`;
+        }
+        // For simple page navigations (not OAuth flows), just return the URL without logging
+        // This reduces noise in logs during normal navigation
         return `${baseUrl}${url}`;
       }
-      if (new URL(url).origin === baseUrl) {
-        return url;
+      
+      // If URL is a full URL with same origin, use it directly
+      try {
+        if (url && new URL(url).origin === baseUrl) {
+          // For simple page navigations (not OAuth flows), just return the URL without logging
+          // This reduces noise in logs during normal navigation
+          return url; // Preserve query params
       }
-      // Default redirect to homepage (safe for all users)
-      return `${baseUrl}/`;
+      } catch {
+        // Invalid URL, continue to default
+      }
+      
+      // Default redirect to sign-in page - client will check localStorage for callbackUrl
+      safeLog.log("NextAuth redirect callback - Default redirect to sign-in - callbackUrl was lost, client will check localStorage");
+      return `${baseUrl}/auth/signin`;
     },
   },
   events: {

@@ -8,11 +8,13 @@ import { Suspense } from "react";
 function AuthErrorContent() {
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
+  const callbackUrl = searchParams.get("callbackUrl") || "/";
 
   const errorMessages: Record<string, string> = {
     Configuration: "There is a problem with the server configuration.",
     AccessDenied: "You do not have permission to sign in.",
     Verification: "The verification link has expired or has already been used.",
+    OAuthCallback: "The authentication request timed out. Please try again.",
     Default: "An error occurred during authentication.",
   };
 
@@ -41,7 +43,7 @@ function AuthErrorContent() {
           {/* Actions */}
           <div className="space-y-3">
             <Link
-              href="/auth/signin"
+              href={`/auth/signin?callbackUrl=${encodeURIComponent(callbackUrl)}`}
               className="block w-full bg-[#107c10] hover:bg-[#0d6b0d] text-white font-medium py-3 px-4 rounded-lg transition-colors text-center"
             >
               Try Again
