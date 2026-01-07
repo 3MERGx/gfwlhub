@@ -20,45 +20,210 @@ import { safeLog } from "@/lib/security";
 function SignInContent() {
   const [isLoading, setIsLoading] = useState<string | null>(null);
   const [lastUsedProvider, setLastUsedProvider] = useState<string | null>(null);
-  const [redirectCountdown, setRedirectCountdown] = useState(3);
   const { data: session, status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Get the callback URL from query params, or default to homepage
-  // If callbackUrl is a dashboard route, redirect to homepage instead (regular users can't access dashboard)
+  // Get the callback URL from query params, localStorage, or default to homepage
+  // Priority: URL params > localStorage > referrer > default
+  const storedCallbackUrlLS = typeof window !== "undefined" 
+    ? (() => {
+        try {
+          return localStorage.getItem("gfwl_callback_url");
+        } catch {
+          // localStorage might be unavailable (private browsing, etc.)
+          return null;
+        }
+      })()
+    : null;
+  
+  // Get callbackUrl from URL params
+  // Try useSearchParams first, then fallback to window.location.search
+  let urlCallbackUrl = searchParams.get("callbackUrl") || searchParams.get("from");
+  
+  // Fallback: Read directly from window.location.search if useSearchParams didn't work
+  if (!urlCallbackUrl && typeof window !== "undefined") {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      urlCallbackUrl = urlParams.get("callbackUrl") || urlParams.get("from");
+    } catch {
+      // Invalid URL, ignore
+    }
+  }
+  
+  // Try to extract callbackUrl from referrer if it's a valid game/page URL
+  let referrerCallbackUrl: string | null = null;
+  if (typeof window !== "undefined" && document.referrer) {
+    try {
+      const referrerUrl = new URL(document.referrer);
+      const referrerPath = referrerUrl.pathname;
+      // Only use referrer if it's a valid page (not homepage, not sign-in, not dashboard)
+      if (referrerPath && referrerPath !== "/" && referrerPath !== "/auth/signin" && !referrerPath.startsWith("/dashboard")) {
+        referrerCallbackUrl = referrerPath;
+      }
+    } catch {
+      // Invalid referrer URL, ignore
+    }
+  }
+  
+  // Get from URL params (if present), then localStorage, then referrer, then default
   const rawCallbackUrl =
-    searchParams.get("callbackUrl") || searchParams.get("from") || "/";
-  const callbackUrl = rawCallbackUrl.startsWith("/dashboard")
-    ? "/"
+    urlCallbackUrl || 
+    storedCallbackUrlLS ||
+    referrerCallbackUrl ||
+    "/";
+  
+  // Decode the callbackUrl if it's URL-encoded
+  const decodedCallbackUrl = rawCallbackUrl !== "/" 
+    ? (() => {
+        try {
+          return decodeURIComponent(rawCallbackUrl);
+        } catch {
+          // Invalid encoding, use as-is
+          return rawCallbackUrl;
+        }
+      })()
     : rawCallbackUrl;
+  const callbackUrl = decodedCallbackUrl.startsWith("/dashboard")
+    ? "/"
+    : decodedCallbackUrl;
 
-  // Redirect authenticated users away from sign-in page with countdown
+  // Debug logging removed - only log errors if needed
+
+  // CRITICAL: Store callbackUrl in localStorage IMMEDIATELY (synchronously) when component renders
+  // This ensures it's available before any OAuth redirect happens
+  // localStorage works even if cookies are disabled
+  if (typeof window !== "undefined" && callbackUrl && callbackUrl !== "/") {
+    try {
+      const currentStored = localStorage.getItem("gfwl_callback_url");
+      if (currentStored !== callbackUrl) {
+        localStorage.setItem("gfwl_callback_url", callbackUrl);
+        // Only log in development
+        if (process.env.NODE_ENV === "development") {
+          safeLog.log("Stored callbackUrl in localStorage:", callbackUrl);
+        }
+      }
+    } catch {
+      // localStorage might be unavailable, continue without it
+    }
+  }
+
+  // Redirect authenticated users away from sign-in page
   useEffect(() => {
     if (status === "authenticated" && session) {
-      // Start countdown timer
-      const countdownInterval = setInterval(() => {
-        setRedirectCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(countdownInterval);
-            router.push(callbackUrl);
-            return 0;
+      // Get callbackUrl from URL params, localStorage, or default to homepage
+      // localStorage works even if cookies are disabled
+      const urlCallbackUrl = searchParams.get("callbackUrl");
+      const storedCallbackUrlFromLS = localStorage.getItem("gfwl_callback_url");
+      
+      // Check if we're coming back from OAuth by checking the URL parameters
+      // OAuth providers add code= and state= parameters when redirecting back
+      const isComingFromOAuth = window.location.search.includes("code=") || 
+                                  window.location.search.includes("state=") ||
+                                  window.location.search.includes("error=");
+      
+      // Log all localStorage items for debugging
+      const allLocalStorageItems: Record<string, string> = {};
+      if (typeof window !== "undefined") {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key) {
+            allLocalStorageItems[key] = localStorage.getItem(key) || "";
           }
-          return prev - 1;
-        });
-      }, 1000);
-
-      return () => clearInterval(countdownInterval);
+        }
+      }
+      
+      safeLog.log("Auth redirect check:", {
+        urlCallbackUrl,
+        storedCallbackUrlFromLS,
+        callbackUrl,
+        status,
+        hasSession: !!session,
+        pathname: window.location.pathname,
+        isComingFromOAuth,
+        search: window.location.search,
+        fullUrl: window.location.href,
+        allLocalStorageItems,
+        documentReferrer: document.referrer,
+      });
+      
+      // Decode URL callbackUrl if present
+      const decodedUrlCallbackUrl = urlCallbackUrl 
+        ? decodeURIComponent(urlCallbackUrl)
+        : null;
+      
+      // If coming from OAuth and we have a stored callbackUrl, prioritize it
+      // Otherwise, prioritize: URL param > localStorage > component state > default
+      let finalCallbackUrl: string;
+      if (isComingFromOAuth && storedCallbackUrlFromLS) {
+        // Coming back from OAuth - use stored callbackUrl
+        finalCallbackUrl = storedCallbackUrlFromLS;
+        safeLog.log("Coming from OAuth, using stored callbackUrl from localStorage:", finalCallbackUrl);
+      } else {
+        // Normal flow - check URL params first, then localStorage
+        finalCallbackUrl = decodedUrlCallbackUrl || storedCallbackUrlFromLS || callbackUrl || "/";
+      }
+      
+      // Ensure it's not a dashboard route (regular users can't access)
+      if (finalCallbackUrl.startsWith("/dashboard")) {
+        finalCallbackUrl = "/";
+      }
+      
+      // Clean up stored callbackUrl after using it
+      if (storedCallbackUrlFromLS) {
+        localStorage.removeItem("gfwl_callback_url");
+        safeLog.log("Cleaned up stored callbackUrl from localStorage");
+      }
+      
+      safeLog.log("Redirecting authenticated user to:", finalCallbackUrl);
+      
+      // Redirect immediately (no delay needed)
+      router.replace(finalCallbackUrl);
     }
-  }, [status, session, router, callbackUrl]);
+  }, [status, session, router, callbackUrl, searchParams]);
 
-  // Load last used provider from localStorage on mount
+  // Also store in useEffect as backup (in case URL changes)
   useEffect(() => {
-    const storedProvider = localStorage.getItem("gfwl_last_provider");
-    if (storedProvider) {
-      setLastUsedProvider(storedProvider);
+    if (callbackUrl && callbackUrl !== "/") {
+      const currentStored = localStorage.getItem("gfwl_callback_url");
+      if (currentStored !== callbackUrl) {
+        localStorage.setItem("gfwl_callback_url", callbackUrl);
+        safeLog.log("Stored callbackUrl in localStorage (useEffect backup):", callbackUrl);
+      }
+    }
+  }, [callbackUrl]);
+  
+  // On mount, check if we have a referrer and no callbackUrl stored
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("gfwl_callback_url");
+      if (!stored && document.referrer) {
+        try {
+          const referrerUrl = new URL(document.referrer);
+          const referrerPath = referrerUrl.pathname;
+          // Only use referrer if it's a valid page (not homepage, not sign-in, not dashboard)
+          if (referrerPath && referrerPath !== "/" && referrerPath !== "/auth/signin" && !referrerPath.startsWith("/dashboard")) {
+            localStorage.setItem("gfwl_callback_url", referrerPath);
+            safeLog.log("Stored referrer as callbackUrl in localStorage (on mount):", referrerPath);
+          }
+        } catch {
+          // Invalid referrer URL, ignore
+        }
+      }
     }
   }, []);
+
+         // Load last used provider from localStorage on mount
+         useEffect(() => {
+           try {
+             const storedProvider = localStorage.getItem("gfwl_last_provider");
+             if (storedProvider) {
+               setLastUsedProvider(storedProvider);
+             }
+           } catch {
+             // localStorage might be unavailable, continue without it
+           }
+         }, []);
 
   // Show loading state while checking authentication
   if (status === "loading") {
@@ -87,11 +252,7 @@ function SignInContent() {
           </div>
           <div className="mb-6 space-y-2">
             <p className="text-gray-300">
-              You&apos;re already signed in. Redirecting you in{" "}
-              <span className="text-[#107c10] font-bold text-lg">
-                {redirectCountdown}
-              </span>{" "}
-              {redirectCountdown === 1 ? "second" : "seconds"}...
+              You&apos;re already signed in. Redirecting you...
             </p>
             <div className="flex items-center justify-center gap-2 text-gray-400 text-sm">
               <FaInfoCircle size={14} />
@@ -115,10 +276,51 @@ function SignInContent() {
     setIsLoading(provider);
     try {
       // Store this provider as last used
-      localStorage.setItem("gfwl_last_provider", provider);
-      localStorage.setItem("gfwl_last_provider_time", new Date().toISOString());
+      try {
+        localStorage.setItem("gfwl_last_provider", provider);
+        localStorage.setItem("gfwl_last_provider_time", new Date().toISOString());
+      } catch {
+        // localStorage might be unavailable, continue anyway
+      }
 
-      await signIn(provider, { callbackUrl });
+      // CRITICAL: Re-check localStorage right before OAuth to ensure we have the latest value
+      // The callbackUrl from component state might be "/" if detection failed
+      let finalCallbackUrl = callbackUrl;
+      
+      if (typeof window !== "undefined") {
+        try {
+          const latestStored = localStorage.getItem("gfwl_callback_url");
+          if (latestStored && latestStored !== "/" && latestStored !== callbackUrl) {
+            // If localStorage has a different (non-default) value, use it
+            finalCallbackUrl = latestStored;
+          }
+        } catch {
+          // localStorage might be unavailable, use callbackUrl from state
+        }
+      }
+
+      // CRITICAL: Store callbackUrl in localStorage BEFORE OAuth redirect
+      // NextAuth doesn't reliably preserve callbackUrl through OAuth flow
+      // localStorage works even if cookies are disabled
+      if (finalCallbackUrl && finalCallbackUrl !== "/") {
+        try {
+          localStorage.setItem("gfwl_callback_url", finalCallbackUrl);
+        } catch {
+          // localStorage might be unavailable, continue anyway
+        }
+      }
+      
+      // Ensure callbackUrl is a valid relative path
+      const validCallbackUrl = finalCallbackUrl && finalCallbackUrl.startsWith("/") 
+        ? finalCallbackUrl 
+        : "/";
+      
+      // Use signIn with callbackUrl option - NextAuth should preserve it in OAuth state
+      // If NextAuth loses it, the client-side code will use localStorage as backup
+      await signIn(provider, { 
+        callbackUrl: validCallbackUrl,
+        redirect: true 
+      });
     } catch (error) {
       safeLog.error("Sign in error:", error);
       setIsLoading(null);

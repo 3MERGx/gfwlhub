@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -17,6 +18,8 @@ import {
 
 export default function UserMenu() {
   const { data: session, status } = useSession();
+  const pathname = usePathname();
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -46,14 +49,28 @@ export default function UserMenu() {
 
   // Not signed in
   if (!session) {
+    const handleSignInClick = () => {
+      // Store current pathname in localStorage BEFORE navigation
+      if (typeof window !== "undefined" && pathname) {
+        try {
+          localStorage.setItem("gfwl_callback_url", pathname);
+        } catch {
+          // localStorage might be unavailable, continue anyway
+        }
+      }
+      // Navigate to sign-in page with callbackUrl in URL
+      const callbackUrl = pathname ? encodeURIComponent(pathname) : "";
+      router.push(`/auth/signin${callbackUrl ? `?callbackUrl=${callbackUrl}` : ""}`);
+    };
+    
     return (
-      <Link
-        href="/auth/signin"
+      <button
+        onClick={handleSignInClick}
         className="flex items-center gap-2 bg-white text-[#107c10] hover:bg-gray-100 px-4 py-2 rounded-md font-medium transition-colors"
       >
         <FaSignInAlt />
         <span className="hidden sm:inline">Sign In</span>
-      </Link>
+      </button>
     );
   }
 
@@ -209,7 +226,20 @@ export default function UserMenu() {
           {/* Sign Out */}
           <div className="border-t border-[rgb(var(--border-color))] pt-2">
             <button
-              onClick={() => signOut({ callbackUrl: "/" })}
+              onClick={async () => {
+                setIsOpen(false); // Close dropdown immediately
+                // Keep user on current page when signing out (professional UX)
+                // Only redirect if on a protected page (dashboard)
+                const currentPath = pathname || (typeof window !== "undefined" ? window.location.pathname : "/");
+                const redirectUrl = currentPath.startsWith("/dashboard") ? "/" : currentPath;
+                
+                // Sign out without redirect, then manually redirect to keep user on same page
+                // Use router.replace() instead of push() to avoid adding to history
+                // and to prevent multiple redirect callback calls
+                await signOut({ redirect: false });
+                // Use replace instead of push to avoid history entry and reduce redirect calls
+                router.replace(redirectUrl);
+              }}
               className="flex items-center gap-3 px-4 py-2 text-red-500 dark:text-red-400 hover:bg-[rgb(var(--bg-card-alt))] hover:text-red-600 dark:hover:text-red-300 transition-colors w-full"
             >
               <FaSignOutAlt size={16} />

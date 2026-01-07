@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
   const allowedDomains = [
     "pcgamingwiki.com",
     "thumbnails.pcgamingwiki.com",
+    "images.pcgamingwiki.com",
     "www.pcgamingwiki.com",
     "images.igdb.com",
     "steamcdn-a.akamaihd.net",

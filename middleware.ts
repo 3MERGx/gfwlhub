@@ -10,7 +10,7 @@ export function middleware(request: NextRequest) {
     "Content-Security-Policy",
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-eval' 'unsafe-inline'", // 'unsafe-eval' and 'unsafe-inline' needed for Next.js
+      "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://va.vercel-scripts.com", // 'unsafe-eval' and 'unsafe-inline' needed for Next.js, va.vercel-scripts.com for Vercel Analytics
       "style-src 'self' 'unsafe-inline'", // 'unsafe-inline' needed for Tailwind CSS
       "img-src 'self' data: https: blob:",
       "font-src 'self' data:",

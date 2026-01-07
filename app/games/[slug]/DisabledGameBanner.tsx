@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { FaPlus, FaSignInAlt, FaInfoCircle } from "react-icons/fa";
 import { Game } from "@/data/games";
 import AddGameDetailsModal from "@/components/AddGameDetailsModal";
-import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast-context";
 import { UserStatus } from "@/types/crowdsource";
 
@@ -17,6 +17,8 @@ export default function DisabledGameBanner({ game }: DisabledGameBannerProps) {
   const { data: session, status } = useSession();
   const [showModal, setShowModal] = useState(false);
   const { showToast } = useToast();
+  const pathname = usePathname();
+  const router = useRouter();
 
   const handleSubmitSuccess = () => {
     showToast(
@@ -101,13 +103,25 @@ export default function DisabledGameBanner({ game }: DisabledGameBannerProps) {
             )}
 
             {!session && status !== "loading" && (
-              <Link
-                href="/auth/signin"
+              <button
+                onClick={() => {
+                  // Store callbackUrl in localStorage BEFORE navigation
+                  if (typeof window !== "undefined" && pathname) {
+                    try {
+                      localStorage.setItem("gfwl_callback_url", pathname);
+                    } catch {
+                      // localStorage might be unavailable, continue anyway
+                    }
+                  }
+                  // Navigate to sign-in page with callbackUrl in URL
+                  const callbackUrl = encodeURIComponent(pathname);
+                  router.push(`/auth/signin?callbackUrl=${callbackUrl}`);
+                }}
                 className="inline-flex items-center gap-2 bg-[#107c10] hover:bg-[#0d6b0d] text-white font-semibold py-2 px-4 rounded-lg transition-colors shadow-md focus:outline-none focus:ring-2 focus:ring-[#107c10] focus:ring-opacity-75"
               >
                 <FaSignInAlt />
                 Sign In to Add Game Details
-              </Link>
+              </button>
             )}
 
             {session && status === "authenticated" && (

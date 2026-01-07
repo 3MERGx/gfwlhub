@@ -10,7 +10,6 @@ import {
 import { GamePageParams } from "@/types/routes";
 import VirusTotalWidget from "@/components/VirusTotalWidget";
 import StoreButton from "@/components/StoreButton";
-import Image from "next/image";
 import { Metadata } from "next";
 import DownloadButtonWithModal from "@/components/DownloadButtonWithModal";
 import { getAllGames, getGameBySlug } from "@/lib/games-service";
@@ -24,6 +23,7 @@ import CommunityAlternativeCard from "@/components/CommunityAlternativeCard";
 import RemasteredVersionCard from "@/components/RemasteredVersionCard";
 import PlayabilityBadge from "@/components/PlayabilityBadge";
 import TextWithLinks from "@/components/TextWithLinks";
+import GameImage from "@/components/GameImage";
 
 // Get feature flags from .env.local or check if it's enabled in the game data
 const getFeatureFlag = async (slug: string): Promise<boolean> => {
@@ -237,18 +237,16 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
           </div>
 
           <div className="flex flex-col md:flex-row gap-6 mb-6">
-            {game.imageUrl && (
-              <div className="md:w-1/3 flex-shrink-0">
-                <Image
-                  src={game.imageUrl}
-                  alt={`${game.title} cover art`}
-                  width={300}
-                  height={400}
-                  className="rounded-lg object-cover w-full h-auto shadow-lg"
-                  priority
-                />
-              </div>
-            )}
+            <div className="md:w-1/3 flex-shrink-0">
+              <GameImage
+                src={game.imageUrl}
+                alt={`${game.title} cover art`}
+                width={300}
+                height={400}
+                className="rounded-lg object-cover w-full h-auto shadow-lg"
+                priority
+              />
+            </div>
             <div className="md:ml-8 flex-1">
               <h1 className="text-3xl md:text-4xl font-bold text-[rgb(var(--text-primary))] mb-2">
                 {game.title}
@@ -309,13 +307,17 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                   {game.releaseDate && (
                     <div className="mb-1">
                       Released:{" "}
-                      <span className="text-[rgb(var(--text-primary))]">{game.releaseDate}</span>
+                      <span className="text-[rgb(var(--text-primary))]">
+                        {game.releaseDate}
+                      </span>
                     </div>
                   )}
                   {game.developer && (
                     <div>
                       Developer:{" "}
-                      <span className="text-[rgb(var(--text-primary))]">{game.developer}</span>
+                      <span className="text-[rgb(var(--text-primary))]">
+                        {game.developer}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -325,14 +327,18 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
               {game.publisher && (
                 <div className="text-sm text-[rgb(var(--text-secondary))] mb-4">
                   Publisher:{" "}
-                  <span className="text-[rgb(var(--text-primary))]">{game.publisher}</span>
+                  <span className="text-[rgb(var(--text-primary))]">
+                    {game.publisher}
+                  </span>
                 </div>
               )}
 
               {/* Genres */}
               {game.genres && game.genres.length > 0 && (
                 <div className="mb-3">
-                  <span className="text-[rgb(var(--text-muted))] text-sm">Genres: </span>
+                  <span className="text-[rgb(var(--text-muted))] text-sm">
+                    Genres:{" "}
+                  </span>
                   <div className="flex flex-wrap gap-2 mt-1">
                     {game.genres?.map((genre: string, index: number) => (
                       <span
@@ -349,7 +355,9 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
               {/* Platforms */}
               {game.platforms && game.platforms.length > 0 && (
                 <div className="mb-3">
-                  <span className="text-[rgb(var(--text-muted))] text-sm">Platforms: </span>
+                  <span className="text-[rgb(var(--text-muted))] text-sm">
+                    Platforms:{" "}
+                  </span>
                   <div className="flex flex-wrap gap-2 mt-1">
                     {game.platforms?.map((platform: string, index: number) => (
                       <span
@@ -465,15 +473,21 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
           )}
 
           {/* Community Alternative Section */}
-          {(game.communityAlternativeName || game.communityAlternativeUrl || game.communityAlternativeDownloadLink) && (
+          {(game.communityAlternativeName ||
+            game.communityAlternativeUrl ||
+            game.communityAlternativeDownloadLink) && (
             <div className="mt-8 pt-6 border-t border-[rgb(var(--border-color))]">
               <h2 className="text-xl font-bold mb-3 text-[rgb(var(--text-primary))]">
                 Community Alternative
               </h2>
               <CommunityAlternativeCard
-                communityAlternativeName={game.communityAlternativeName || "Community Alternative"}
+                communityAlternativeName={
+                  game.communityAlternativeName || "Community Alternative"
+                }
                 communityAlternativeUrl={game.communityAlternativeUrl}
-                communityAlternativeDownloadLink={game.communityAlternativeDownloadLink}
+                communityAlternativeDownloadLink={
+                  game.communityAlternativeDownloadLink
+                }
                 fileName={game.fileName}
               />
             </div>
@@ -483,7 +497,8 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
           {game.gogDreamlistLink && (
             <div className="mt-8 pt-6 border-t border-[rgb(var(--border-color))]">
               <h2 className="text-xl font-bold mb-3 text-[rgb(var(--text-primary))]">
-                <span className="text-[rgb(var(--text-primary))]">GOG</span> <span className="text-purple-500">Dreamlist</span>
+                <span className="text-[rgb(var(--text-primary))]">GOG</span>{" "}
+                <span className="text-purple-500">Dreamlist</span>
               </h2>
               <p className="text-[rgb(var(--text-secondary))] mb-4 text-sm leading-relaxed">
                 Help bring this game to GOG! If you&apos;d like to see{" "}

@@ -29,6 +29,12 @@ const nextConfig = {
       },
       {
         protocol: "https",
+        hostname: "upload.wikimedia.org",
+        port: "",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
         hostname: "static.wikia.nocookie.net",
         port: "",
         pathname: "/gtawiki/images/**",
@@ -42,6 +48,18 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "**.pcgamingwiki.com",
+        port: "",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "images.pcgamingwiki.com",
+        port: "",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "thumbnails.pcgamingwiki.com",
         port: "",
         pathname: "/**",
       },

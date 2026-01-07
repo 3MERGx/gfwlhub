@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, Suspense } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   FaGamepad,
   FaQuestionCircle,
@@ -12,7 +15,23 @@ import {
   FaChartLine,
 } from "react-icons/fa";
 
-export default function Home() {
+function HomeContent() {
+  const router = useRouter();
+  const { status } = useSession();
+
+  // Check if we just came back from OAuth and have a stored callbackUrl
+  useEffect(() => {
+    // Only check if we're authenticated (just signed in)
+    if (status === "authenticated") {
+      const storedCallbackUrl = localStorage.getItem("gfwl_callback_url");
+      if (storedCallbackUrl && storedCallbackUrl !== "/") {
+        // Clean up and redirect
+        localStorage.removeItem("gfwl_callback_url");
+        router.replace(storedCallbackUrl);
+        return;
+      }
+    }
+  }, [status, router]);
   // Stats fetching removed - stats display is commented out in JSX
   // Keeping the structure in case we want to re-enable stats later
   // const [stats, setStats] = useState<Stats | null>(null);
@@ -317,5 +336,17 @@ export default function Home() {
         </div>
       </section>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
   );
 }
