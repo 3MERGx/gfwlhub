@@ -12,12 +12,6 @@ const Footer = () => {
           <div className="flex flex-col sm:flex-row items-center gap-4">
             <div className="flex items-center gap-4">
               <Link
-                href="/download"
-                className="text-[rgb(var(--text-primary))] hover:text-[#107c10] transition-colors font-medium"
-              >
-                GFWL Legacy Bypass
-              </Link>
-              <Link
                 href="https://discord.gg/PR75T8xMWS"
                 target="_blank"
                 rel="noopener noreferrer"

@@ -17,6 +17,7 @@ import {
   FaTrophy,
   FaFlask,
   FaUserCheck,
+  FaQuestionCircle,
 } from "react-icons/fa";
 
 interface DashboardLayoutProps {
@@ -250,6 +251,13 @@ export default function DashboardLayout({
       href: "/dashboard/game-submissions",
       icon: FaPlus,
       label: "Game Submissions",
+      roles: ["reviewer", "admin"],
+      section: "main",
+    },
+    {
+      href: "/dashboard/faq-submissions",
+      icon: FaQuestionCircle,
+      label: "FAQ Submissions",
       roles: ["reviewer", "admin"],
       section: "main",
     },

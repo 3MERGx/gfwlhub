@@ -1,11 +1,11 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "FAQ - GFWL Hub",
+  title: "FAQ",
   description:
     "Frequently asked questions about Games for Windows LIVE issues and fixes.",
   openGraph: {
-    title: "FAQ - GFWL Hub",
+    title: "",
     description:
       "Frequently asked questions about Games for Windows LIVE issues and fixes.",
     type: "website",

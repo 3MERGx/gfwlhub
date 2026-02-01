@@ -112,15 +112,60 @@ export function sanitizeMarkdownHtml(text: string): string {
 }
 
 /**
+ * Converts simple Markdown to safe HTML for FAQ-style content.
+ * Escapes HTML first, then converts: **bold**, *italic*, _underline_,
+ * newlines to <br>, and lines starting with "- " to list items.
+ * Output uses only allowed tags (strong, em, u, br, ul, li).
+ */
+export function markdownToSafeHtml(text: string): string {
+  if (!text || typeof text !== "string") return "";
+  let out = escapeHtml(text);
+  // Bold first (so ** is not consumed by italic)
+  out = out.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  // Italic: single *...* (no * inside)
+  out = out.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  // Underline
+  out = out.replace(/_(.+?)_/g, "<u>$1</u>");
+  // List lines and newlines
+  const lines = out.split("\n");
+  const result: string[] = [];
+  let inList = false;
+  let needBr = false;
+  for (const line of lines) {
+    const listMatch = /^[\-*]\s+(.+)$/.exec(line);
+    if (listMatch) {
+      if (inList) {
+        result.push("<li>", listMatch[1], "</li>");
+      } else {
+        if (needBr) result.push("<br>");
+        result.push("<ul>", "<li>", listMatch[1], "</li>");
+        inList = true;
+        needBr = false;
+      }
+    } else {
+      if (inList) {
+        result.push("</ul>");
+        inList = false;
+      }
+      if (needBr) result.push("<br>");
+      result.push(line);
+      needBr = true;
+    }
+  }
+  if (inList) result.push("</ul>");
+  return result.join("");
+}
+
+/**
  * Sanitizes HTML content by allowing only safe HTML tags and attributes
  * Prevents XSS attacks while preserving formatting
  */
 export function sanitizeHtml(html: string): string {
   if (!html || typeof html !== "string") return "";
 
-  // List of allowed HTML tags
+  // List of allowed HTML tags (include div for contentEditable output)
   const allowedTags = [
-    "p", "br", "strong", "em", "u", "b", "i", "a", "ul", "ol", "li",
+    "p", "br", "div", "strong", "em", "u", "b", "i", "a", "ul", "ol", "li",
     "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "code", "pre"
   ];
 

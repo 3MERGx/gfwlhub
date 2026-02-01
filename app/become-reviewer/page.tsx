@@ -441,6 +441,9 @@ export default function BecomeReviewerPage() {
                   </span>
                 </div>
               </div>
+              <p className="mt-2 text-xs text-[rgb(var(--text-muted))]">
+                Only game corrections and game submissions count. FAQ submissions do not.
+              </p>
               {session?.user?.id && (
                 <div className="mt-4 flex gap-4">
                   <Link
