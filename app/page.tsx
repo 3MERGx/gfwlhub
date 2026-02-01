@@ -17,7 +17,9 @@ import {
 
 function HomeContent() {
   const router = useRouter();
-  const { status } = useSession();
+  const { status, data: session } = useSession();
+  const canViewLeaderboard =
+    session?.user?.role === "reviewer" || session?.user?.role === "admin";
 
   // Check if we just came back from OAuth and have a stored callbackUrl
   useEffect(() => {
@@ -32,55 +34,22 @@ function HomeContent() {
       }
     }
   }, [status, router]);
-  // Stats fetching removed - stats display is commented out in JSX
-  // Keeping the structure in case we want to re-enable stats later
-  // const [stats, setStats] = useState<Stats | null>(null);
-  // const [loading, setLoading] = useState(true);
-
-  // useEffect(() => {
-  //   async function fetchStats() {
-  //     try {
-  //       const gamesRes = await fetch("/api/games");
-  //       if (gamesRes.ok) {
-  //         const games = await gamesRes.json();
-  //         const supportedGames = games.filter(
-  //           (game: { status: string }) => game.status === "supported"
-  //         ).length;
-  //         let contributorCount = 0;
-  //         try {
-  //           const leaderboardRes = await fetch("/api/leaderboard");
-  //           if (leaderboardRes.ok) {
-  //             const leaderboard = await leaderboardRes.json();
-  //             contributorCount = leaderboard.filter(
-  //               (user: { submissionsCount: number }) =>
-  //                 (user.submissionsCount || 0) > 0
-  //             ).length;
-  //           }
-  //         } catch {
-  //           console.log("Could not fetch contributor count");
-  //         }
-  //         setStats({
-  //           totalGames: games.length,
-  //           supportedGames,
-  //           totalContributors: contributorCount,
-  //         });
-  //       }
-  //     } catch (error) {
-  //       console.error("Error fetching stats:", error);
-  //     } finally {
-  //       setLoading(false);
-  //     }
-  //   }
-  //   fetchStats();
-  // }, []);
-
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-[#107c10] via-[#0e6b0e] to-[#0a5a0a] rounded-lg shadow-2xl p-8 md:p-12 mb-12 text-white relative overflow-hidden">
-        <div className="absolute inset-0 bg-[url('/pattern.svg')] opacity-10"></div>
+      <section
+        className="bg-gradient-to-br from-[#107c10] via-[#0e6b0e] to-[#0a5a0a] rounded-lg shadow-2xl p-8 md:p-12 mb-12 text-white relative overflow-hidden"
+        aria-labelledby="hero-heading"
+      >
+        <div
+          className="absolute inset-0 bg-[url('/pattern.svg')] opacity-10"
+          aria-hidden
+        />
         <div className="relative max-w-4xl mx-auto text-center">
-          <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
+          <h1
+            id="hero-heading"
+            className="text-4xl md:text-6xl font-bold mb-6 leading-tight"
+          >
             Welcome to the GFWL Hub
           </h1>
           <p className="text-xl md:text-2xl mb-8 text-gray-100">
@@ -92,64 +61,38 @@ function HomeContent() {
               href="https://community.pcgamingwiki.com/files/file/1012-microsoft-games-for-windows-live/?do=download&r=3736&confirm=1&t=1&csrfKey=72a35fbfd8ae582fe891f867e376ddcc"
               target="_blank"
               rel="noopener noreferrer"
-              className="bg-white text-[#107c10] hover:bg-gray-100 px-8 py-4 rounded-lg text-lg font-semibold transition-all shadow-lg hover:shadow-xl inline-flex items-center gap-2"
+              className="bg-white text-[#107c10] hover:bg-gray-100 px-8 py-4 rounded-lg text-lg font-semibold transition-all shadow-lg hover:shadow-xl inline-flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#0e6b0e]"
+              aria-label="Download GFWL client from PCGamingWiki (opens in new tab)"
             >
-              <FaDownload size={20} />
-              Download GFWL
+              <FaDownload size={20} aria-hidden />
+              Download GFWL Client
             </Link>
             <Link
               href="/supported-games"
-              className="bg-[#107c10]/20 hover:bg-[#107c10]/30 border-2 border-white/30 hover:border-white/50 text-white px-8 py-4 rounded-lg text-lg font-semibold transition-all inline-flex items-center gap-2"
+              className="bg-[#107c10]/20 hover:bg-[#107c10]/30 border-2 border-white/30 hover:border-white/50 text-white px-8 py-4 rounded-lg text-lg font-semibold transition-all inline-flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#0e6b0e]"
             >
               Browse Games
-              <FaArrowRight size={16} />
+              <FaArrowRight size={16} aria-hidden />
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Stats Section */}
-      {/* {!loading && stats && (
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <div className="bg-[#202020] p-6 rounded-lg shadow-lg border border-gray-700">
-            <div className="flex items-center justify-between mb-2">
-              <FaGamepad className="text-[#107c10] text-3xl" />
-              <span className="text-4xl font-bold text-white">
-                {stats.totalGames}
-              </span>
-            </div>
-            <p className="text-gray-400 text-sm">Total Games</p>
-          </div>
-          <div className="bg-[#202020] p-6 rounded-lg shadow-lg border border-gray-700">
-            <div className="flex items-center justify-between mb-2">
-              <FaCheckCircle className="text-green-500 text-3xl" />
-              <span className="text-4xl font-bold text-white">
-                {stats.supportedGames}
-              </span>
-            </div>
-            <p className="text-gray-400 text-sm">Supported Games</p>
-          </div>
-          <div className="bg-[#202020] p-6 rounded-lg shadow-lg border border-gray-700">
-            <div className="flex items-center justify-between mb-2">
-              <FaUsers className="text-blue-500 text-3xl" />
-              <span className="text-4xl font-bold text-white">
-                {stats.totalContributors}
-              </span>
-            </div>
-            <p className="text-gray-400 text-sm">Community Contributors</p>
-          </div>
-        </section>
-      )} */}
-
       {/* Features Section */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-        <div className="bg-[rgb(var(--bg-card))] p-8 rounded-lg shadow-xl border-t-4 border-t-[#107c10] border-x border-y border-b border-[rgb(var(--border-color))] transform transition-all hover:scale-105 hover:shadow-2xl group">
-          <div className="text-[#107c10] text-5xl mb-6 flex justify-center group-hover:scale-110 transition-transform">
+      <section
+        className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12"
+        aria-labelledby="features-heading"
+      >
+        <h2 id="features-heading" className="sr-only">
+          Key features
+        </h2>
+        <div className="bg-[rgb(var(--bg-card))] p-8 rounded-lg shadow-xl border border-[rgb(var(--border-color))] border-t-4 border-t-[#107c10] transform transition-all hover:scale-105 hover:shadow-2xl group focus-within:ring-2 focus-within:ring-[#107c10] focus-within:ring-offset-2 focus-within:ring-offset-[rgb(var(--bg-card))]">
+          <div className="text-[#107c10] text-5xl mb-6 flex justify-center group-hover:scale-110 transition-transform" aria-hidden>
             <FaGamepad />
           </div>
-          <h2 className="text-2xl font-bold mb-4 text-center text-[rgb(var(--text-primary))]">
+          <h3 className="text-2xl font-bold mb-4 text-center text-[rgb(var(--text-primary))]">
             Game Support
-          </h2>
+          </h3>
           <p className="mb-6 text-[rgb(var(--text-secondary))] text-center">
             Browse our comprehensive list of supported games. Find installation
             guides, fixes, and community resources for your favorite GFWL
@@ -158,21 +101,21 @@ function HomeContent() {
           <div className="text-center">
             <Link
               href="/supported-games"
-              className="text-[#107c10] hover:text-[#0e6b0e] transition-colors font-semibold inline-flex items-center gap-2 group-hover:gap-3"
+              className="text-[#107c10] hover:text-[#0e6b0e] transition-colors font-semibold inline-flex items-center gap-2 group-hover:gap-3 focus:outline-none focus:ring-2 focus:ring-[#107c10] focus:ring-offset-2 focus:ring-offset-[rgb(var(--bg-card))] rounded"
             >
               View Supported Games
-              <FaArrowRight size={14} />
+              <FaArrowRight size={14} aria-hidden />
             </Link>
           </div>
         </div>
 
-        <div className="bg-[rgb(var(--bg-card))] p-8 rounded-lg shadow-xl border-t-4 border-t-[#107c10] border-x border-y border-b border-[rgb(var(--border-color))] transform transition-all hover:scale-105 hover:shadow-2xl group">
-          <div className="text-[#107c10] text-5xl mb-6 flex justify-center group-hover:scale-110 transition-transform">
+        <div className="bg-[rgb(var(--bg-card))] p-8 rounded-lg shadow-xl border border-[rgb(var(--border-color))] border-t-4 border-t-[#107c10] transform transition-all hover:scale-105 hover:shadow-2xl group focus-within:ring-2 focus-within:ring-[#107c10] focus-within:ring-offset-2 focus-within:ring-offset-[rgb(var(--bg-card))]">
+          <div className="text-[#107c10] text-5xl mb-6 flex justify-center group-hover:scale-110 transition-transform" aria-hidden>
             <FaQuestionCircle />
           </div>
-          <h2 className="text-2xl font-bold mb-4 text-center text-[rgb(var(--text-primary))]">
+          <h3 className="text-2xl font-bold mb-4 text-center text-[rgb(var(--text-primary))]">
             FAQ
-          </h2>
+          </h3>
           <p className="mb-6 text-[rgb(var(--text-secondary))] text-center">
             Get answers to common questions about GFWL issues, activation
             problems, and troubleshooting. Find solutions quickly.
@@ -180,21 +123,21 @@ function HomeContent() {
           <div className="text-center">
             <Link
               href="/faq"
-              className="text-[#107c10] hover:text-[#0e6b0e] transition-colors font-semibold inline-flex items-center gap-2 group-hover:gap-3"
+              className="text-[#107c10] hover:text-[#0e6b0e] transition-colors font-semibold inline-flex items-center gap-2 group-hover:gap-3 focus:outline-none focus:ring-2 focus:ring-[#107c10] focus:ring-offset-2 focus:ring-offset-[rgb(var(--bg-card))] rounded"
             >
               Read FAQ
-              <FaArrowRight size={14} />
+              <FaArrowRight size={14} aria-hidden />
             </Link>
           </div>
         </div>
 
-        <div className="bg-[rgb(var(--bg-card))] p-8 rounded-lg shadow-xl border-t-4 border-t-[#107c10] border-x border-y border-b border-[rgb(var(--border-color))] transform transition-all hover:scale-105 hover:shadow-2xl group">
-          <div className="text-[#107c10] text-5xl mb-6 flex justify-center group-hover:scale-110 transition-transform">
+        <div className="bg-[rgb(var(--bg-card))] p-8 rounded-lg shadow-xl border border-[rgb(var(--border-color))] border-t-4 border-t-[#107c10] transform transition-all hover:scale-105 hover:shadow-2xl group focus-within:ring-2 focus-within:ring-[#107c10] focus-within:ring-offset-2 focus-within:ring-offset-[rgb(var(--bg-card))]">
+          <div className="text-[#107c10] text-5xl mb-6 flex justify-center group-hover:scale-110 transition-transform" aria-hidden>
             <FaUsers />
           </div>
-          <h2 className="text-2xl font-bold mb-4 text-center text-[rgb(var(--text-primary))]">
+          <h3 className="text-2xl font-bold mb-4 text-center text-[rgb(var(--text-primary))]">
             Community
-          </h2>
+          </h3>
           <p className="mb-6 text-[rgb(var(--text-secondary))] text-center">
             Join our Discord server and connect with other GFWL enthusiasts.
             Share tips, get help, and contribute to the community.
@@ -202,23 +145,26 @@ function HomeContent() {
           <div className="text-center">
             <Link
               href="/contact"
-              className="text-[#107c10] hover:text-[#0e6b0e] transition-colors font-semibold inline-flex items-center gap-2 group-hover:gap-3"
+              className="text-[#107c10] hover:text-[#0e6b0e] transition-colors font-semibold inline-flex items-center gap-2 group-hover:gap-3 focus:outline-none focus:ring-2 focus:ring-[#107c10] focus:ring-offset-2 focus:ring-offset-[rgb(var(--bg-card))] rounded"
             >
               Join Community
-              <FaArrowRight size={14} />
+              <FaArrowRight size={14} aria-hidden />
             </Link>
           </div>
         </div>
       </section>
 
       {/* How It Works Section */}
-      <section className="bg-[rgb(var(--bg-card))] p-8 md:p-12 rounded-lg shadow-xl mb-12">
-        <h2 className="text-3xl font-bold mb-8 text-center text-[rgb(var(--text-primary))]">
+      <section
+        className="bg-[rgb(var(--bg-card))] p-8 md:p-12 rounded-lg shadow-xl mb-12"
+        aria-labelledby="how-it-works-heading"
+      >
+        <h2 id="how-it-works-heading" className="text-3xl font-bold mb-8 text-center text-[rgb(var(--text-primary))]">
           How It Works
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-          <div className="text-center">
-            <div className="w-16 h-16 bg-[#107c10] rounded-full flex items-center justify-center mx-auto mb-4">
+        <ol className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto list-none" aria-label="Steps">
+          <li className="text-center">
+            <div className="w-16 h-16 bg-[#107c10] rounded-full flex items-center justify-center mx-auto mb-4" aria-hidden>
               <FaGamepad className="text-white text-2xl" />
             </div>
             <h3 className="text-xl font-semibold mb-3 text-[rgb(var(--text-primary))]">
@@ -228,9 +174,9 @@ function HomeContent() {
               Browse our list of supported games and find the one you want to
               play.
             </p>
-          </div>
-          <div className="text-center">
-            <div className="w-16 h-16 bg-[#107c10] rounded-full flex items-center justify-center mx-auto mb-4">
+          </li>
+          <li className="text-center">
+            <div className="w-16 h-16 bg-[#107c10] rounded-full flex items-center justify-center mx-auto mb-4" aria-hidden>
               <FaDownload className="text-white text-2xl" />
             </div>
             <h3 className="text-xl font-semibold mb-3 text-[rgb(var(--text-primary))]">
@@ -240,9 +186,9 @@ function HomeContent() {
               Download the necessary files and follow our step-by-step
               installation guides.
             </p>
-          </div>
-          <div className="text-center">
-            <div className="w-16 h-16 bg-[#107c10] rounded-full flex items-center justify-center mx-auto mb-4">
+          </li>
+          <li className="text-center">
+            <div className="w-16 h-16 bg-[#107c10] rounded-full flex items-center justify-center mx-auto mb-4" aria-hidden>
               <FaCheckCircle className="text-white text-2xl" />
             </div>
             <h3 className="text-xl font-semibold mb-3 text-[rgb(var(--text-primary))]">
@@ -252,26 +198,39 @@ function HomeContent() {
               Launch your game and enjoy! Join our community for support and
               updates.
             </p>
-          </div>
-        </div>
+          </li>
+        </ol>
       </section>
 
       {/* Contribute Section */}
-      <section className="bg-[rgb(var(--bg-card))] border border-[rgb(var(--border-color))] p-8 md:p-12 rounded-lg shadow-xl mb-12">
+      <section
+        className="bg-[rgb(var(--bg-card))] border border-[rgb(var(--border-color))] p-8 md:p-12 rounded-lg shadow-xl mb-12"
+        aria-labelledby="contribute-heading"
+      >
         <div className="max-w-3xl mx-auto text-center">
-          <div className="text-[#107c10] text-5xl mb-6 flex justify-center">
+          <div className="text-[#107c10] text-5xl mb-6 flex justify-center" aria-hidden>
             <FaEdit />
           </div>
-          <h2 className="text-3xl font-bold mb-4 text-[rgb(var(--text-primary))]">
+          <h2 id="contribute-heading" className="text-3xl font-bold mb-4 text-[rgb(var(--text-primary))]">
             Help Improve GFWL Hub
           </h2>
-          <p className="text-xl mb-8 text-[rgb(var(--text-secondary))]">
+          <p className="text-xl mb-4 text-[rgb(var(--text-secondary))]">
             This is a community-driven project. Your contributions help keep
             these games playable for everyone.
           </p>
+          {canViewLeaderboard && (
+            <p className="mb-8 text-[rgb(var(--text-secondary))]">
+              <Link
+                href="/leaderboard"
+                className="text-[#107c10] hover:text-[#0e6b0e] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-[#107c10] focus:ring-offset-2 focus:ring-offset-[rgb(var(--bg-card))] rounded"
+              >
+                See top contributors on the leaderboard
+              </Link>
+            </p>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <div className="bg-[rgb(var(--bg-card))] p-6 rounded-lg border border-[rgb(var(--border-color))]">
-              <FaEdit className="text-[#107c10] text-3xl mb-3" />
+              <FaEdit className="text-[#107c10] text-3xl mb-3" aria-hidden />
               <h3 className="text-lg font-semibold mb-2 text-[rgb(var(--text-primary))]">
                 Submit Corrections
               </h3>
@@ -281,7 +240,7 @@ function HomeContent() {
               </p>
             </div>
             <div className="bg-[rgb(var(--bg-card))] p-6 rounded-lg border border-[rgb(var(--border-color))]">
-              <FaChartLine className="text-[#107c10] text-3xl mb-3" />
+              <FaChartLine className="text-[#107c10] text-3xl mb-3" aria-hidden />
               <h3 className="text-lg font-semibold mb-2 text-[rgb(var(--text-primary))]">
                 Add Game Details
               </h3>
@@ -292,18 +251,21 @@ function HomeContent() {
             </div>
           </div>
           <Link
-            href="/auth/signin"
-            className="bg-[#107c10] hover:bg-[#0e6b0e] text-white px-8 py-4 rounded-lg text-lg font-semibold transition-all shadow-lg hover:shadow-xl inline-flex items-center gap-2"
+            href={status === "authenticated" ? "/dashboard" : "/auth/signin"}
+            className="bg-[#107c10] hover:bg-[#0e6b0e] text-white px-8 py-4 rounded-lg text-lg font-semibold transition-all shadow-lg hover:shadow-xl inline-flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] focus:ring-offset-2 focus:ring-offset-[rgb(var(--bg-primary))]"
           >
-            Get Started
-            <FaArrowRight size={16} />
+            {status === "authenticated" ? "Go to Dashboard" : "Get Started"}
+            <FaArrowRight size={16} aria-hidden />
           </Link>
         </div>
       </section>
 
       {/* About Section */}
-      <section className="bg-[rgb(var(--bg-card))] p-8 md:p-12 rounded-lg shadow-xl text-[rgb(var(--text-primary))]">
-        <h2 className="text-3xl font-bold mb-6 text-center">About GFWL Hub</h2>
+      <section
+        className="bg-[rgb(var(--bg-card))] p-8 md:p-12 rounded-lg shadow-xl text-[rgb(var(--text-primary))]"
+        aria-labelledby="about-heading"
+      >
+        <h2 id="about-heading" className="text-3xl font-bold mb-6 text-center">About GFWL Hub</h2>
         <div className="max-w-4xl mx-auto space-y-6">
           <p className="text-lg text-[rgb(var(--text-secondary))] leading-relaxed">
             Games for Windows LIVE (GFWL) was Microsoft&apos;s gaming service
@@ -325,12 +287,13 @@ function HomeContent() {
           <div className="text-center pt-4">
             <Link
               href="https://www.pcgamingwiki.com/wiki/Games_for_Windows_-_LIVE"
-              className="text-[#107c10] hover:text-[#0e6b0e] transition-colors font-semibold inline-flex items-center gap-2"
+              className="text-[#107c10] hover:text-[#0e6b0e] transition-colors font-semibold inline-flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] focus:ring-offset-2 focus:ring-offset-[rgb(var(--bg-card))] rounded"
               target="_blank"
               rel="noopener noreferrer"
+              aria-label="Learn more on PCGamingWiki (opens in new tab)"
             >
               Learn more on PCGamingWiki
-              <FaArrowRight size={14} />
+              <FaArrowRight size={14} aria-hidden />
             </Link>
           </div>
         </div>
@@ -341,11 +304,16 @@ function HomeContent() {
 
 export default function Home() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-white">Loading...</div>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="container mx-auto px-4 py-8 flex items-center justify-center min-h-[60vh]">
+          <div
+            className="animate-pulse rounded-lg bg-[rgb(var(--bg-card))] border border-[rgb(var(--border-color))] w-full max-w-4xl h-64"
+            aria-hidden
+          />
+        </div>
+      }
+    >
       <HomeContent />
     </Suspense>
   );
