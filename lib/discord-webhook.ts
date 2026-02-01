@@ -757,6 +757,124 @@ export async function notifyGameSubmissionReviewed(
 }
 
 /**
+ * Sends a notification about a new FAQ submission
+ */
+export async function notifyFaqSubmissionSubmitted(submission: {
+  id: string;
+  question: string;
+  submittedByName: string;
+}): Promise<void> {
+  const webhookUrls = getWebhookUrls("DISCORD_WEBHOOK_URL");
+  if (webhookUrls.length === 0) {
+    return;
+  }
+
+  const baseUrl = process.env.NEXTAUTH_URL || "https://gfwlhub.com";
+  const dashboardUrl = `${baseUrl}/dashboard/faq-submissions`;
+
+  const questionPreview =
+    submission.question.length > 200
+      ? submission.question.substring(0, 200) + "..."
+      : submission.question;
+
+  const embed: DiscordEmbed = {
+    title: "❓ New FAQ Submission",
+    description: `**${submission.submittedByName}** submitted a FAQ for review`,
+    color: 0x3498db, // Blue
+    url: dashboardUrl,
+    fields: [
+      {
+        name: "Question",
+        value: questionPreview,
+        inline: false,
+      },
+      {
+        name: "Review",
+        value: `[Open Dashboard](${dashboardUrl})`,
+        inline: true,
+      },
+    ],
+    footer: {
+      text: `Submission ID: ${submission.id}`,
+    },
+    timestamp: new Date().toISOString(),
+  };
+
+  await sendDiscordWebhooks(webhookUrls, {
+    embeds: [embed],
+  });
+}
+
+/**
+ * Sends a notification about an FAQ submission being approved or rejected
+ */
+export async function notifyFaqSubmissionReviewed(submission: {
+  id: string;
+  question: string;
+  submittedByName: string;
+  status: "approved" | "rejected";
+  reviewedByName: string;
+  reviewNotes?: string;
+}): Promise<void> {
+  const webhookUrls = getWebhookUrls("DISCORD_WEBHOOK_URL");
+  if (webhookUrls.length === 0) {
+    return;
+  }
+
+  const baseUrl = process.env.NEXTAUTH_URL || "https://gfwlhub.com";
+  const dashboardUrl = `${baseUrl}/dashboard/faq-submissions`;
+
+  const statusConfig = {
+    approved: { color: 0x2ecc71, emoji: "✅" } as const,
+    rejected: { color: 0xe74c3c, emoji: "❌" } as const,
+  };
+  const config = statusConfig[submission.status];
+
+  const questionPreview =
+    submission.question.length > 200
+      ? submission.question.substring(0, 200) + "..."
+      : submission.question;
+
+  const embed: DiscordEmbed = {
+    title: `${config.emoji} FAQ Submission ${submission.status.charAt(0).toUpperCase() + submission.status.slice(1)}`,
+    description: `**${submission.reviewedByName}** ${submission.status} an FAQ submission by **${submission.submittedByName}**`,
+    color: config.color,
+    url: dashboardUrl,
+    fields: [
+      {
+        name: "Question",
+        value: questionPreview,
+        inline: false,
+      },
+      {
+        name: "Submitted By",
+        value: submission.submittedByName,
+        inline: true,
+      },
+    ],
+    footer: {
+      text: `Submission ID: ${submission.id}`,
+    },
+    timestamp: new Date().toISOString(),
+  };
+
+  if (submission.reviewNotes) {
+    embed.fields?.push({
+      name: "Review Notes",
+      value:
+        submission.reviewNotes.length > 500
+          ? submission.reviewNotes.substring(0, 500) + "..."
+          : submission.reviewNotes,
+      inline: false,
+    });
+  }
+
+  await sendDiscordWebhooks(webhookUrls, {
+    embeds: [embed],
+  });
+}
+
+/**
  * Sends a notification about a new reviewer application
  * @returns The Discord message ID from the first webhook if successful, null otherwise
  */

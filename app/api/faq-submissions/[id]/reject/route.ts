@@ -6,6 +6,7 @@ import { ObjectId } from "mongodb";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 import { validateCSRFToken } from "@/lib/csrf";
 import { revalidatePath } from "next/cache";
+import { notifyFaqSubmissionReviewed } from "@/lib/discord-webhook";
 
 // POST - Reject an FAQ submission (reviewer/admin only)
 export async function POST(
@@ -94,6 +95,16 @@ export async function POST(
 
     // Revalidate paths
     revalidatePath("/dashboard/faq-submissions");
+
+    // Discord webhook (non-blocking)
+    notifyFaqSubmissionReviewed({
+      id: sanitizedId,
+      question: submission.question,
+      submittedByName: submission.submittedByName || "Unknown",
+      status: "rejected",
+      reviewedByName: session.user.name || "Unknown",
+      reviewNotes: adminNotes,
+    }).catch((err) => safeLog.error("FAQ rejection Discord webhook failed:", err));
 
     return NextResponse.json({ success: true });
   } catch (error) {

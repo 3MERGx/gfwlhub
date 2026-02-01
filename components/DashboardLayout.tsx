@@ -35,6 +35,8 @@ export default function DashboardLayout({
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [pendingGameSubmissionsCount, setPendingGameSubmissionsCount] =
     useState<number>(0);
+  const [pendingFaqSubmissionsCount, setPendingFaqSubmissionsCount] =
+    useState<number>(0);
 
   useEffect(() => {
     // Redirect to signin if not authenticated
@@ -191,6 +193,47 @@ export default function DashboardLayout({
     };
   }, [status, session]);
 
+  // Fetch pending FAQ submissions count for reviewers and admins
+  useEffect(() => {
+    if (status !== "authenticated" || !session) return;
+    const userRole = session.user.role;
+    if (userRole !== "reviewer" && userRole !== "admin") return;
+
+    let isMounted = true;
+    let intervalId: NodeJS.Timeout | null = null;
+    let debounceTimeout: NodeJS.Timeout | null = null;
+
+    const fetchPendingFaqSubmissionsCount = async () => {
+      if (!isMounted) return;
+      try {
+        const response = await fetch("/api/faq-submissions?status=pending");
+        if (response.ok && isMounted) {
+          const data = await response.json();
+          setPendingFaqSubmissionsCount(Array.isArray(data) ? data.length : 0);
+        }
+      } catch (error) {
+        if (isMounted) safeLog.error("Error fetching pending FAQ submissions count:", error);
+      }
+    };
+
+    fetchPendingFaqSubmissionsCount();
+    intervalId = setInterval(fetchPendingFaqSubmissionsCount, 60000);
+    const handleFaqSubmissionsUpdated = () => {
+      if (debounceTimeout) clearTimeout(debounceTimeout);
+      debounceTimeout = setTimeout(() => {
+        if (isMounted) fetchPendingFaqSubmissionsCount();
+      }, 500);
+    };
+    window.addEventListener("faqSubmissionsUpdated", handleFaqSubmissionsUpdated);
+
+    return () => {
+      isMounted = false;
+      if (intervalId) clearInterval(intervalId);
+      if (debounceTimeout) clearTimeout(debounceTimeout);
+      window.removeEventListener("faqSubmissionsUpdated", handleFaqSubmissionsUpdated);
+    };
+  }, [status, session]);
+
   // Show loading state while checking auth
   if (status === "loading") {
     return (
@@ -342,6 +385,9 @@ export default function DashboardLayout({
               const showGameSubmissionsBadge =
                 item.href === "/dashboard/game-submissions" &&
                 pendingGameSubmissionsCount > 0;
+              const showFaqSubmissionsBadge =
+                item.href === "/dashboard/faq-submissions" &&
+                pendingFaqSubmissionsCount > 0;
               return (
                 <Link
                   key={item.href}
@@ -364,6 +410,13 @@ export default function DashboardLayout({
                       {pendingGameSubmissionsCount > 99
                         ? "99+"
                         : pendingGameSubmissionsCount}
+                    </span>
+                  )}
+                  {showFaqSubmissionsBadge && (
+                    <span className="ml-auto bg-orange-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+                      {pendingFaqSubmissionsCount > 99
+                        ? "99+"
+                        : pendingFaqSubmissionsCount}
                     </span>
                   )}
                 </Link>

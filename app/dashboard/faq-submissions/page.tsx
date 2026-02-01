@@ -208,6 +208,7 @@ export default function FAQSubmissionsPage() {
 
       if (response.ok) {
         fetchSubmissions(true);
+        window.dispatchEvent(new CustomEvent("faqSubmissionsUpdated"));
       } else {
         const error = await response.json();
         setSubmissions((prev) => [...prev, sub]);
@@ -264,6 +265,7 @@ export default function FAQSubmissionsPage() {
 
       if (response.ok) {
         fetchSubmissions(true);
+        window.dispatchEvent(new CustomEvent("faqSubmissionsUpdated"));
       } else {
         const error = await response.json();
         setSubmissions((prev) => [...prev, sub]);
