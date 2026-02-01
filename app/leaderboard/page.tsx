@@ -1,12 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import Image from "next/image";
 import DashboardLayout from "@/components/DashboardLayout";
 import { safeLog } from "@/lib/security";
 import { useDebounce } from "@/hooks/useDebounce";
 import { getAvatarUrl } from "@/lib/image-utils";
+import type { LeaderboardUser, SortField, SortOrder } from "@/types/leaderboard";
 import {
   FaTrophy,
   FaMedal,
@@ -20,27 +28,8 @@ import {
   FaUserShield,
   FaUserCheck,
   FaTimes,
+  FaRedo,
 } from "react-icons/fa";
-
-interface LeaderboardUser {
-  id: string;
-  name: string;
-  email: string;
-  avatar: string | null;
-  role: "user" | "reviewer" | "admin";
-  status: "active" | "suspended"; // Only active and suspended users shown
-  submissionsCount: number;
-  approvedCount: number;
-  rejectedCount: number;
-  reviewedCount: number;
-  approvalRate: number;
-  createdAt: Date;
-  lastLoginAt: Date;
-  rank: number; // Rank based on current filter (all users or role-specific)
-}
-
-type SortField = "rank" | "name" | "submissions" | "approved" | "approvalRate";
-type SortOrder = "asc" | "desc";
 
 export default function LeaderboardPage() {
   const [users, setUsers] = useState<LeaderboardUser[]>([]);
@@ -50,9 +39,10 @@ export default function LeaderboardPage() {
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
-  
+
   // Pagination
   const totalPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -66,47 +56,50 @@ export default function LeaderboardPage() {
     setSortOrder("desc");
   };
 
-  // Debounce search query
   const debouncedSearchQuery = useDebounce(searchQuery, 400);
+  const isFiltered =
+    roleFilter !== "all" || !!debouncedSearchQuery.trim();
 
-  // Fetch leaderboard data and assign ranks
-  useEffect(() => {
-    const fetchLeaderboard = async () => {
-      try {
-        const response = await fetch("/api/leaderboard");
-        if (response.ok) {
-          const data = await response.json();
-          
-          // Sort by approval rate (desc), then submission count (desc) to assign ranks
-          const sortedData = [...data].sort((a, b) => {
-            const rateDiff = b.approvalRate - a.approvalRate;
-            if (Math.abs(rateDiff) > 0.01) {
-              return rateDiff;
-            }
-            return b.submissionsCount - a.submissionsCount;
-          });
-          
-          // Assign ranks based on sorted order
-          const rankedData = sortedData.map((user, index) => ({
-            ...user,
-            rank: index + 1,
-          }));
-          
-          setUsers(rankedData);
-          setFilteredUsers(rankedData);
-        } else if (response.status === 403) {
-          // Not reviewer or admin - will be handled by DashboardLayout
-          safeLog.error("Access denied");
-        }
-      } catch (error) {
-        safeLog.error("Error fetching leaderboard:", error);
-      } finally {
-        setLoading(false);
+  const fetchLeaderboard = useCallback(async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const response = await fetch("/api/leaderboard");
+      if (response.ok) {
+        const data = await response.json();
+
+        const sortedData = [...data].sort((a: LeaderboardUser, b: LeaderboardUser) => {
+          const rateDiff = b.approvalRate - a.approvalRate;
+          if (Math.abs(rateDiff) > 0.01) {
+            return rateDiff;
+          }
+          return b.submissionsCount - a.submissionsCount;
+        });
+
+        const rankedData = sortedData.map((user: LeaderboardUser, index: number) => ({
+          ...user,
+          rank: index + 1,
+        }));
+
+        setUsers(rankedData);
+        setFilteredUsers(rankedData);
+      } else if (response.status === 403) {
+        safeLog.error("Access denied");
+        setError("You don’t have access to the leaderboard.");
+      } else {
+        setError("Failed to load leaderboard. Please try again.");
       }
-    };
-
-    fetchLeaderboard();
+    } catch (err) {
+      safeLog.error("Error fetching leaderboard:", err);
+      setError("Failed to load leaderboard. Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchLeaderboard();
+  }, [fetchLeaderboard]);
 
   // Recalculate ranks when role filter changes, then apply search and sort
   useEffect(() => {
@@ -167,6 +160,7 @@ export default function LeaderboardPage() {
     });
 
     setFilteredUsers(filtered);
+    setCurrentPage(1);
   }, [users, roleFilter, debouncedSearchQuery, sortField, sortOrder]);
 
   const handleSort = (field: SortField) => {
@@ -213,9 +207,13 @@ export default function LeaderboardPage() {
     className?: string;
   }) => {
     const isActive = sortField === field;
+    const ariaSort =
+      !isActive ? "none" : sortOrder === "asc" ? "ascending" : "descending";
     return (
       <button
+        type="button"
         onClick={() => handleSort(field)}
+        aria-sort={ariaSort}
         className={`flex items-center gap-2 hover:text-[rgb(var(--text-primary))] transition-colors ${className} ${
           isActive ? "text-[rgb(var(--text-primary))]" : "text-[rgb(var(--text-secondary))]"
         }`}
@@ -233,6 +231,27 @@ export default function LeaderboardPage() {
       </button>
     );
   };
+
+  if (error) {
+    return (
+      <DashboardLayout requireRole="reviewer">
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+            <p className="text-[rgb(var(--text-primary))] mb-4">{error}</p>
+            <button
+              type="button"
+              onClick={() => fetchLeaderboard()}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[#107c10] text-white rounded-lg hover:opacity-90 transition-opacity"
+              aria-label="Retry loading leaderboard"
+            >
+              <FaRedo size={16} />
+              Retry
+            </button>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   if (loading) {
     return (
@@ -318,28 +337,29 @@ export default function LeaderboardPage() {
 
             {/* Filters */}
             <div className="flex flex-col sm:flex-row gap-3">
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                className="flex-1 px-3 sm:px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none text-sm sm:text-base"
-              >
-                <option value="all">All Roles</option>
-                <option value="user">Users</option>
-                <option value="reviewer">Reviewers</option>
-                <option value="admin">Admins</option>
-              </select>
+              <Select value={roleFilter} onValueChange={setRoleFilter}>
+                <SelectTrigger className="flex-1 min-w-0 text-sm sm:text-base">
+                  <SelectValue placeholder="All Roles" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Roles</SelectItem>
+                  <SelectItem value="user">Users</SelectItem>
+                  <SelectItem value="reviewer">Reviewers</SelectItem>
+                  <SelectItem value="admin">Admins</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
-          {/* Stats Overview */}
+          {/* Stats Overview - aligned with current filter */}
           <div className="space-y-3 sm:space-y-4 mb-4 sm:mb-6">
             {/* Total Contributors - Full width on small/medium, part of grid on large */}
             <div className="md:hidden bg-[rgb(var(--bg-card))] rounded-lg p-3 sm:p-4 border border-[rgb(var(--border-color))]">
               <div className="flex items-center gap-2 text-[rgb(var(--text-secondary))] text-xs sm:text-sm mb-1">
                 <FaUsers size={14} />
-                <span>Total Contributors</span>
+                <span>Total Contributors{isFiltered ? " (filtered)" : ""}</span>
               </div>
-              <p className="text-xl sm:text-2xl font-bold text-[rgb(var(--text-primary))]">{users.length}</p>
+              <p className="text-xl sm:text-2xl font-bold text-[rgb(var(--text-primary))]">{filteredUsers.length}</p>
             </div>
 
             {/* Total Submissions and Approved - Same row on small/medium */}
@@ -350,7 +370,7 @@ export default function LeaderboardPage() {
                   <span>Total Submissions</span>
                 </div>
                 <p className="text-xl sm:text-2xl font-bold text-[rgb(var(--text-primary))]">
-                  {users.reduce((sum, user) => sum + user.submissionsCount, 0)}
+                  {filteredUsers.reduce((sum, user) => sum + user.submissionsCount, 0)}
                 </p>
               </div>
 
@@ -360,7 +380,7 @@ export default function LeaderboardPage() {
                   <span>Approved</span>
                 </div>
                 <p className="text-xl sm:text-2xl font-bold text-green-500">
-                  {users.reduce((sum, user) => sum + user.approvedCount, 0)}
+                  {filteredUsers.reduce((sum, user) => sum + user.approvedCount, 0)}
                 </p>
               </div>
             </div>
@@ -370,9 +390,9 @@ export default function LeaderboardPage() {
               <div className="bg-[rgb(var(--bg-card))] rounded-lg p-3 sm:p-4 border border-[rgb(var(--border-color))]">
                 <div className="flex items-center gap-2 text-[rgb(var(--text-secondary))] text-xs sm:text-sm mb-1">
                   <FaUsers size={14} />
-                  <span>Total Contributors</span>
+                  <span>Total Contributors{isFiltered ? " (filtered)" : ""}</span>
                 </div>
-                <p className="text-xl sm:text-2xl font-bold text-[rgb(var(--text-primary))]">{users.length}</p>
+                <p className="text-xl sm:text-2xl font-bold text-[rgb(var(--text-primary))]">{filteredUsers.length}</p>
               </div>
 
               <div className="bg-[rgb(var(--bg-card))] rounded-lg p-3 sm:p-4 border border-[rgb(var(--border-color))]">
@@ -381,7 +401,7 @@ export default function LeaderboardPage() {
                   <span>Total Submissions</span>
                 </div>
                 <p className="text-xl sm:text-2xl font-bold text-[rgb(var(--text-primary))]">
-                  {users.reduce((sum, user) => sum + user.submissionsCount, 0)}
+                  {filteredUsers.reduce((sum, user) => sum + user.submissionsCount, 0)}
                 </p>
               </div>
 
@@ -391,7 +411,7 @@ export default function LeaderboardPage() {
                   <span>Approved</span>
                 </div>
                 <p className="text-xl sm:text-2xl font-bold text-green-500">
-                  {users.reduce((sum, user) => sum + user.approvedCount, 0)}
+                  {filteredUsers.reduce((sum, user) => sum + user.approvedCount, 0)}
                 </p>
               </div>
             </div>
@@ -456,6 +476,7 @@ export default function LeaderboardPage() {
                               alt={user.name}
                               width={40}
                               height={40}
+                              loading="lazy"
                               className="w-10 h-10 rounded-full ring-2 ring-gray-700/50 group-hover:ring-[#107c10]/30 transition-all object-cover"
                               unoptimized
                               onError={(e) => {
@@ -509,22 +530,35 @@ export default function LeaderboardPage() {
 
                       {/* Approval Rate */}
                       <div className="col-span-2 flex items-center justify-center">
-                        <div className="text-center">
-                          <div className="text-lg font-bold text-[rgb(var(--text-primary))] mb-1">
-                            {user.approvalRate.toFixed(1)}%
-                          </div>
-                          <div className="w-24 bg-[rgb(var(--bg-card-alt))] rounded-full h-2 overflow-hidden">
-                            <div
-                              className={`h-full transition-all ${
-                                user.approvalRate >= 75
-                                  ? "bg-green-500"
-                                  : user.approvalRate >= 50
-                                  ? "bg-yellow-500"
-                                  : "bg-red-500"
-                              }`}
-                              style={{ width: `${user.approvalRate}%` }}
-                            />
-                          </div>
+                        <div className="flex flex-col items-center">
+                          {user.reviewedCount === 0 ? (
+                            <>
+                              <div className="text-lg font-bold text-[rgb(var(--text-muted))] mb-1" title="No submissions reviewed yet">
+                                Pending
+                              </div>
+                              <div className="w-24 bg-[rgb(var(--bg-card-alt))] rounded-full h-2 overflow-hidden" aria-hidden="true">
+                                <div className="h-full w-0 bg-transparent" />
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="text-lg font-bold text-[rgb(var(--text-primary))] mb-1">
+                                {user.approvalRate.toFixed(1)}%
+                              </div>
+                              <div className="w-24 bg-[rgb(var(--bg-card-alt))] rounded-full h-2 overflow-hidden">
+                                <div
+                                  className={`h-full transition-all ${
+                                    user.approvalRate >= 75
+                                      ? "bg-green-500"
+                                      : user.approvalRate >= 50
+                                      ? "bg-yellow-500"
+                                      : "bg-red-500"
+                                  }`}
+                                  style={{ width: `${user.approvalRate}%` }}
+                                />
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -566,6 +600,7 @@ export default function LeaderboardPage() {
                             alt={user.name}
                             width={48}
                             height={48}
+                            loading="lazy"
                             className="w-12 h-12 rounded-full ring-2 ring-gray-700 object-cover"
                             unoptimized
                             onError={(e) => {
@@ -623,19 +658,32 @@ export default function LeaderboardPage() {
 
                       <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3 col-span-2">
                         <div className="text-[rgb(var(--text-secondary))] text-xs mb-1">Approval Rate</div>
-                        <p className="text-lg font-bold text-[rgb(var(--text-primary))] mb-1">{user.approvalRate.toFixed(1)}%</p>
-                        <div className="w-full bg-[rgb(var(--bg-card-alt))] rounded-full h-1.5 overflow-hidden">
-                          <div
-                            className={`h-full transition-all ${
-                              user.approvalRate >= 75
-                                ? "bg-green-500"
-                                : user.approvalRate >= 50
-                                ? "bg-yellow-500"
-                                : "bg-red-500"
-                            }`}
-                            style={{ width: `${user.approvalRate}%` }}
-                          />
-                        </div>
+                        {user.reviewedCount === 0 ? (
+                          <>
+                            <p className="text-lg font-bold text-[rgb(var(--text-muted))] mb-1" title="No submissions reviewed yet">
+                              Pending
+                            </p>
+                            <div className="w-full bg-[rgb(var(--bg-card-alt))] rounded-full h-1.5 overflow-hidden" aria-hidden="true">
+                              <div className="h-full w-0 bg-transparent" />
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-lg font-bold text-[rgb(var(--text-primary))] mb-1">{user.approvalRate.toFixed(1)}%</p>
+                            <div className="w-full bg-[rgb(var(--bg-card-alt))] rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className={`h-full transition-all ${
+                                  user.approvalRate >= 75
+                                    ? "bg-green-500"
+                                    : user.approvalRate >= 50
+                                    ? "bg-yellow-500"
+                                    : "bg-red-500"
+                                }`}
+                                style={{ width: `${user.approvalRate}%` }}
+                              />
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -644,8 +692,8 @@ export default function LeaderboardPage() {
             )}
           </div>
 
-          {/* Pagination - Only show if more than 100 entries */}
-          {filteredUsers.length > 100 && totalPages > 1 && (
+          {/* Pagination - show whenever there is more than one page */}
+          {totalPages > 1 && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
               <div className="text-sm text-[rgb(var(--text-secondary))]">
                 Page {currentPage} of {totalPages}

@@ -25,7 +25,7 @@ export default function VirusTotalWidget({
   return (
     <div className="bg-[rgb(var(--bg-card))] p-4 rounded-lg border border-[rgb(var(--border-color))]">
       <div className="flex items-center mb-3">
-        <FaShieldAlt className="text-green-500 mr-2" size={20} />
+        <FaShieldAlt className="text-[#107c10] mr-2" size={20} />
         <h4 className="text-[rgb(var(--text-primary))] font-medium">VirusTotal Security Check</h4>
       </div>
 
@@ -39,7 +39,8 @@ export default function VirusTotalWidget({
         href={vtUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors text-sm"
+        className="inline-flex items-center bg-[#107c10] hover:bg-[#0d6b0d] text-white px-4 py-2 rounded-md transition-colors text-sm focus:ring-2 focus:ring-[#107c10]/50 focus:outline-none"
+        aria-label="View VirusTotal report (opens in new tab)"
       >
         View VirusTotal Report <FaExternalLinkAlt className="ml-2" size={14} />
       </a>

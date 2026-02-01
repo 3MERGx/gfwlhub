@@ -18,6 +18,14 @@ import {
 } from "react-icons/fa";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { getFieldDisplayName } from "@/lib/field-display";
 import { useCSRF } from "@/hooks/useCSRF";
 import { useDebounce } from "@/hooks/useDebounce";
 import Image from "next/image";
@@ -380,18 +388,6 @@ export default function SubmissionsPage() {
   const endIndex = startIndex + itemsPerPage;
   const paginatedCorrections = groupedCorrections.slice(startIndex, endIndex);
 
-  const getFieldDisplayName = (field: string) => {
-    // Handle special cases like "steamDBLink" -> "SteamDB Link"
-    // First, protect common acronyms by temporarily replacing them with a unique lowercase placeholder
-    const result = field
-      .replace(/([a-z])(DB)([A-Z])/gi, "$1__db_placeholder__$3") // Temporarily mark DB acronym
-      .replace(/([a-z])([A-Z])/g, "$1 $2") // Add space between camelCase words
-      .replace(/__db_placeholder__/g, "DB") // Restore DB acronym
-      .replace(/^./, (str) => str.toUpperCase()) // Capitalize first letter
-      .trim();
-    return result;
-  };
-
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
       case "pending":
@@ -471,47 +467,47 @@ export default function SubmissionsPage() {
               } md:flex space-y-3 md:space-y-0 md:gap-3 md:flex-wrap md:items-center`}
             >
               {/* Status Filter */}
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full md:w-auto px-4 py-2 pr-10 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
-                style={{ paddingRight: "2.75rem" }}
-              >
-                <option value="pending">Pending</option>
-                <option value="all">All Statuses</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-                <option value="modified">Modified</option>
-              </select>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full md:w-auto min-w-[140px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="modified">Modified</SelectItem>
+                </SelectContent>
+              </Select>
 
               {/* Field Filter */}
-              <select
-                value={fieldFilter}
-                onChange={(e) => setFieldFilter(e.target.value)}
-                className="w-full md:w-auto px-4 py-2 pr-10 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
-                style={{ paddingRight: "2.75rem" }}
-              >
-                <option value="all">All Fields</option>
-                <option value="title">Title</option>
-                <option value="description">Description</option>
-                <option value="developer">Developer</option>
-                <option value="publisher">Publisher</option>
-                <option value="releaseDate">Release Date</option>
-                <option value="genres">Genres</option>
-                <option value="platforms">Platforms</option>
-              </select>
+              <Select value={fieldFilter} onValueChange={setFieldFilter}>
+                <SelectTrigger className="w-full md:w-auto min-w-[140px]">
+                  <SelectValue placeholder="All Fields" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Fields</SelectItem>
+                  <SelectItem value="title">Title</SelectItem>
+                  <SelectItem value="description">Description</SelectItem>
+                  <SelectItem value="developer">Developer</SelectItem>
+                  <SelectItem value="publisher">Publisher</SelectItem>
+                  <SelectItem value="releaseDate">Release Date</SelectItem>
+                  <SelectItem value="genres">Genres</SelectItem>
+                  <SelectItem value="platforms">Platforms</SelectItem>
+                </SelectContent>
+              </Select>
 
               {/* Sort By */}
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="w-full md:w-auto px-4 py-2 pr-10 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
-                style={{ paddingRight: "2.75rem" }}
-              >
-                <option value="date">Submission Date</option>
-                <option value="game">Game Name</option>
-                <option value="submitter">Submitter</option>
-              </select>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-full md:w-auto min-w-[160px]">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date">Submission Date</SelectItem>
+                  <SelectItem value="game">Game Name</SelectItem>
+                  <SelectItem value="submitter">Submitter</SelectItem>
+                </SelectContent>
+              </Select>
 
               {/* Sort Order */}
               <button

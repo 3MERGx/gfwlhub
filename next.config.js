@@ -3,6 +3,8 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
+  // Next.js 16 uses Turbopack by default; empty config silences "webpack config but no turbopack" error.
+  turbopack: {},
   webpack: (config, { dev, isServer }) => {
     // Fix webpack cache issues on Windows/OneDrive
     // Use memory cache in development to avoid file permission issues with OneDrive
@@ -90,6 +92,12 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "**.discord.com",
+        port: "",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "**.steamgriddb.com",
         port: "",
         pathname: "/**",
       },

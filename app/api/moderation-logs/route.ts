@@ -43,6 +43,9 @@ export async function GET(request: Request) {
     const db = await getGFWLDatabase();
     const usersCollection = db.collection("users");
 
+    // Moderation logs live in the users collection: each user document can have a
+    // moderationHistory array. To find logs for a specific user (e.g. "EMERGx"),
+    // query users by name and read that document's moderationHistory field.
     // Get all users with moderation history
     const users = await usersCollection
       .find({

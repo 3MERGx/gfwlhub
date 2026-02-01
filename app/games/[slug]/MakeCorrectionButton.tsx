@@ -22,7 +22,7 @@ export default function MakeCorrectionButton({
   const router = useRouter();
 
   const handleSubmitSuccess = () => {
-    showToast("Correction submitted successfully! It will be reviewed shortly.", 5000, "success");
+    showToast("Correction submitted! Check your profile to track the review status.", 5000, "success");
     setShowModal(false);
   };
 

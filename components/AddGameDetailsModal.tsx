@@ -475,7 +475,7 @@ export default function AddGameDetailsModal({
         router.refresh();
       }
       router.refresh();
-      showToast("Game details submitted successfully!", 3000, "success");
+      showToast("Game submission submitted! Check your profile to track the review status.", 5000, "success");
     } catch (error) {
       safeLog.error("Error submitting game details:", error);
       showToast(
@@ -567,7 +567,7 @@ export default function AddGameDetailsModal({
                 onChange={(e) =>
                   setFormData({ ...formData, title: e.target.value })
                 }
-                className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
+                className="select-chevron w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
                 placeholder="Game title"
               />
             </div>
@@ -582,7 +582,7 @@ export default function AddGameDetailsModal({
                   setFormData({ ...formData, description: e.target.value })
                 }
                 rows={4}
-                className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
+                className="select-chevron w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
                 placeholder="Brief description of the game"
               />
             </div>
@@ -627,7 +627,7 @@ export default function AddGameDetailsModal({
                   onChange={(e) =>
                     setFormData({ ...formData, developer: e.target.value })
                   }
-                  className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
+                  className="select-chevron w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
                   placeholder="Developer name"
                 />
               </div>
@@ -642,7 +642,7 @@ export default function AddGameDetailsModal({
                   onChange={(e) =>
                     setFormData({ ...formData, publisher: e.target.value })
                   }
-                  className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
+                  className="select-chevron w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
                   placeholder="Publisher name"
                 />
               </div>
@@ -844,7 +844,7 @@ export default function AddGameDetailsModal({
                     });
                   }
                 }}
-                className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
+                className="select-chevron w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
               >
                 <option value="">None</option>
                 <option value="Disc (SafeDisc/SecuROM/etc)">
@@ -895,7 +895,7 @@ export default function AddGameDetailsModal({
                         | "SSA",
                     })
                   }
-                  className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
+                  className="select-chevron w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
                 >
                   <option value="Legacy (5x5)">Legacy (5x5)</option>
                   <option value="Legacy (Per-Title)">Legacy (Per-Title)</option>
@@ -918,7 +918,7 @@ export default function AddGameDetailsModal({
                         | "unsupported",
                     })
                   }
-                  className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
+                  className="select-chevron w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
                 >
                   <option value="supported">Supported</option>
                   <option value="testing">Testing</option>
@@ -1380,7 +1380,7 @@ export default function AddGameDetailsModal({
                         : formData.isUnplayable,
                   });
                 }}
-                className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
+                className="select-chevron w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
               >
                 <option value="">Select status...</option>
                 <option value="playable">Playable</option>
@@ -1431,7 +1431,7 @@ export default function AddGameDetailsModal({
                       })
                     }
                     placeholder="e.g., Project Name"
-                    className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
+                    className="select-chevron w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
                   />
                 </div>
                 <div>
@@ -1448,7 +1448,7 @@ export default function AddGameDetailsModal({
                       })
                     }
                     placeholder="https://example.com"
-                    className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
+                    className="select-chevron w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
                   />
                   <p className="text-gray-600 dark:text-[rgb(var(--text-secondary))] text-xs mt-1">
                     Link to the community alternative&apos;s website or store
@@ -1475,7 +1475,7 @@ export default function AddGameDetailsModal({
                       })
                     }
                     placeholder="https://example.com/download"
-                    className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
+                    className="select-chevron w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
                   />
                   <p className="text-gray-600 dark:text-[rgb(var(--text-secondary))] text-xs mt-1">
                     Direct download link for the community alternative (if
@@ -1511,7 +1511,7 @@ export default function AddGameDetailsModal({
                       })
                     }
                     placeholder="e.g., Remastered Name"
-                    className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
+                    className="select-chevron w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
                   />
                 </div>
 
@@ -1529,7 +1529,7 @@ export default function AddGameDetailsModal({
                       })
                     }
                     placeholder="e.g., Platform Name"
-                    className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
+                    className="select-chevron w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
                   />
                 </div>
               </div>

@@ -396,11 +396,11 @@ export default function DashboardLayout({
             )}
           </nav>
 
-          {/* Sidebar Footer */}
-          <div className="p-4 border-t border-[rgb(var(--border-color))] flex-shrink-0">
+          {/* Sidebar Footer - z-10 and min-h so it stays above nav and doesn't clip */}
+          <div className="p-4 border-t border-[rgb(var(--border-color))] flex-shrink-0 min-h-[3.5rem] relative z-10 bg-[rgb(var(--bg-sidebar))]">
             <Link
               href="/"
-              className="flex items-center gap-2 text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] text-sm transition-colors"
+              className="flex items-center gap-2 text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] text-sm transition-colors whitespace-nowrap"
             >
               ← Back to Site
             </Link>

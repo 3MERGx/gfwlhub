@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   FaSearch,
   FaFilter,
@@ -14,9 +14,18 @@ import {
   FaSort,
   FaSortDown,
   FaSortUp,
+  FaExternalLinkAlt,
 } from "react-icons/fa";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { LoadingSkeleton, TableSkeleton } from "@/components/ui/loading-skeleton";
 import { safeLog } from "@/lib/security";
 import { useDebounce } from "@/hooks/useDebounce";
 
@@ -49,11 +58,77 @@ export default function ModerationPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedLog, setSelectedLog] = useState<ModerationLog | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [loading, setLoading] = useState(true);
+  const [userFilter, setUserFilter] = useState<string>("all");
+  const [moderatorFilter, setModeratorFilter] = useState<string>("all");
+  const [dateRangeFilter, setDateRangeFilter] = useState<string>("all");
+  const modalRef = useRef<HTMLDivElement>(null);
 
   // Debounce search query
   const debouncedSearchQuery = useDebounce(searchQuery, 400);
+
+  // Action filter options: only show action types that exist in the loaded logs
+  const actionFilterOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = [{ value: "all", label: "All Actions" }];
+    const hasRoleChange = logs.some(
+      (log) =>
+        log.action.toLowerCase().includes("role") ||
+        (log.previousRole != null && log.newRole != null)
+    );
+    const hasStatusChange = logs.some(
+      (log) =>
+        log.action.toLowerCase().includes("status") ||
+        (log.previousStatus != null && log.newStatus != null)
+    );
+    const hasSuspended = logs.some((log) => log.action.toLowerCase().includes("suspended"));
+    const hasBlocked = logs.some((log) => log.action.toLowerCase().includes("blocked"));
+    if (hasRoleChange) opts.push({ value: "role_change", label: "Role Changes" });
+    if (hasStatusChange) opts.push({ value: "status_change", label: "Status Changes" });
+    if (hasSuspended) opts.push({ value: "suspended", label: "Suspensions" });
+    if (hasBlocked) opts.push({ value: "blocked", label: "Blocks" });
+    return opts;
+  }, [logs]);
+
+  // User filter options: unique moderated users from loaded logs (sorted by name)
+  const userFilterOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    logs.forEach((log) => {
+      const id = log.moderatedUser.id;
+      if (id && !seen.has(id)) seen.set(id, log.moderatedUser.name);
+    });
+    return Array.from(seen.entries())
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([id, name]) => ({ value: id, label: name }));
+  }, [logs]);
+
+  // Moderator filter options: unique moderators from loaded logs (sorted by name)
+  const moderatorFilterOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    logs.forEach((log) => {
+      const id = log.moderator.id;
+      if (id && !seen.has(id)) seen.set(id, log.moderator.name);
+    });
+    return Array.from(seen.entries())
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([id, name]) => ({ value: id, label: name }));
+  }, [logs]);
+
+  // Reset filters if selected value no longer exists in options
+  useEffect(() => {
+    const actionValues = actionFilterOptions.map((o) => o.value);
+    if (actionFilter !== "all" && actionValues.length > 1 && !actionValues.includes(actionFilter)) {
+      setActionFilter("all");
+    }
+    const userValues = userFilterOptions.map((o) => o.value);
+    if (userFilter !== "all" && userValues.length > 0 && !userValues.includes(userFilter)) {
+      setUserFilter("all");
+    }
+    const modValues = moderatorFilterOptions.map((o) => o.value);
+    if (moderatorFilter !== "all" && modValues.length > 0 && !modValues.includes(moderatorFilter)) {
+      setModeratorFilter("all");
+    }
+  }, [actionFilter, actionFilterOptions, userFilter, userFilterOptions, moderatorFilter, moderatorFilterOptions]);
 
   // Fetch moderation logs from API
   useEffect(() => {
@@ -99,14 +174,12 @@ export default function ModerationPage() {
     if (actionFilter !== "all") {
       filtered = filtered.filter((log) => {
         if (actionFilter === "role_change") {
-          // Check if action contains "role" or if newRole/previousRole exist
           return (
             log.action.toLowerCase().includes("role") ||
             (log.previousRole !== undefined && log.newRole !== undefined)
           );
         }
         if (actionFilter === "status_change") {
-          // Check if action contains "status" or if newStatus/previousStatus exist
           return (
             log.action.toLowerCase().includes("status") ||
             (log.previousStatus !== undefined && log.newStatus !== undefined)
@@ -114,6 +187,31 @@ export default function ModerationPage() {
         }
         return log.action.toLowerCase().includes(actionFilter.toLowerCase());
       });
+    }
+
+    // User filter (moderated user)
+    if (userFilter !== "all") {
+      filtered = filtered.filter((log) => log.moderatedUser.id === userFilter);
+    }
+
+    // Moderator filter
+    if (moderatorFilter !== "all") {
+      filtered = filtered.filter((log) => log.moderator.id === moderatorFilter);
+    }
+
+    // Date range filter
+    if (dateRangeFilter !== "all") {
+      const now = Date.now();
+      const msPerDay = 86400000;
+      const cutoff =
+        dateRangeFilter === "7"
+          ? now - 7 * msPerDay
+          : dateRangeFilter === "30"
+            ? now - 30 * msPerDay
+            : 0;
+      if (cutoff > 0) {
+        filtered = filtered.filter((log) => new Date(log.timestamp).getTime() >= cutoff);
+      }
     }
 
     // Sort by selected column
@@ -142,9 +240,33 @@ export default function ModerationPage() {
     });
 
     setFilteredLogs(filtered);
-    // Reset to page 1 when filters change
     setCurrentPage(1);
-  }, [logs, debouncedSearchQuery, actionFilter, sortBy, sortOrder]);
+  }, [
+    logs,
+    debouncedSearchQuery,
+    actionFilter,
+    userFilter,
+    moderatorFilter,
+    dateRangeFilter,
+    sortBy,
+    sortOrder,
+  ]);
+
+  // Reset to page 1 when items per page changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [itemsPerPage]);
+
+  // Focus first focusable when modal opens (for focus trap and accessibility)
+  useEffect(() => {
+    if (!selectedLog || !modalRef.current) return;
+    const el = modalRef.current;
+    const focusable = el.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    const first = focusable[0];
+    first?.focus();
+  }, [selectedLog]);
 
   // Pagination
   const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
@@ -152,16 +274,37 @@ export default function ModerationPage() {
   const endIndex = startIndex + itemsPerPage;
   const paginatedLogs = filteredLogs.slice(startIndex, endIndex);
 
-  const formatDate = (date: Date | string) => {
+  const formatDateFull = (date: Date | string) => {
     const d = new Date(date);
-    // Use browser's locale and timezone automatically
     return d.toLocaleString(undefined, {
+      month: "2-digit",
+      day: "2-digit",
       year: "numeric",
-      month: "short",
-      day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  const formatDate = (date: Date | string) => {
+    const d = new Date(date);
+    const now = Date.now();
+    const diffMs = now - d.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return "just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return formatDateFull(date);
+  };
+
+  const formatReasonDisplay = (reason: string) => {
+    if (!reason?.trim() || reason.toLowerCase() === "no reason provided") {
+      return { text: "No reason provided", muted: true };
+    }
+    return { text: reason, muted: false };
   };
 
   const getStatusBadgeColor = (status?: string) => {
@@ -229,6 +372,9 @@ export default function ModerationPage() {
                 onClick={() => {
                   setSearchQuery("");
                   setActionFilter("all");
+                  setUserFilter("all");
+                  setModeratorFilter("all");
+                  setDateRangeFilter("all");
                 }}
                 className="px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10] transition-colors whitespace-nowrap"
               >
@@ -264,19 +410,58 @@ export default function ModerationPage() {
               } md:block`}
             >
               {/* Filters Row - Large Screens */}
-              <div className="hidden lg:flex items-center gap-3">
-                <select
-                  value={actionFilter}
-                  onChange={(e) => setActionFilter(e.target.value)}
-                  className="px-4 py-2 pr-10 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
-                  style={{ paddingRight: "2.75rem" }}
-                >
-                  <option value="all">All Actions</option>
-                  <option value="role_change">Role Changes</option>
-                  <option value="status_change">Status Changes</option>
-                  <option value="suspended">Suspensions</option>
-                  <option value="blocked">Blocks</option>
-                </select>
+              <div className="hidden lg:flex items-center gap-3 flex-wrap">
+                <Select value={actionFilter} onValueChange={setActionFilter}>
+                  <SelectTrigger className="min-w-[140px]">
+                    <SelectValue placeholder="All Actions" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {actionFilterOptions.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={userFilter} onValueChange={setUserFilter}>
+                  <SelectTrigger className="min-w-[140px]">
+                    <SelectValue placeholder="All users" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All users</SelectItem>
+                    {userFilterOptions.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={moderatorFilter} onValueChange={setModeratorFilter}>
+                  <SelectTrigger className="min-w-[140px]">
+                    <SelectValue placeholder="All moderators" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All moderators</SelectItem>
+                    {moderatorFilterOptions.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={dateRangeFilter} onValueChange={setDateRangeFilter}>
+                  <SelectTrigger className="min-w-[140px]">
+                    <SelectValue placeholder="Date range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All time</SelectItem>
+                    <SelectItem value="7">Last 7 days</SelectItem>
+                    <SelectItem value="30">Last 30 days</SelectItem>
+                  </SelectContent>
+                </Select>
 
                 <button
                   onClick={() =>
@@ -300,18 +485,18 @@ export default function ModerationPage() {
 
               {/* Filters - Mobile/Tablet */}
               <div className="lg:hidden space-y-3">
-                <select
-                  value={actionFilter}
-                  onChange={(e) => setActionFilter(e.target.value)}
-                  className="w-full px-4 py-2 pr-10 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
-                  style={{ paddingRight: "2.75rem" }}
-                >
-                  <option value="all">All Actions</option>
-                  <option value="role_change">Role Changes</option>
-                  <option value="status_change">Status Changes</option>
-                  <option value="suspended">Suspensions</option>
-                  <option value="blocked">Blocks</option>
-                </select>
+                <Select value={actionFilter} onValueChange={setActionFilter}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="All Actions" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {actionFilterOptions.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
                 <div className="flex flex-col sm:flex-row gap-3">
                   <button
@@ -336,6 +521,9 @@ export default function ModerationPage() {
                     onClick={() => {
                       setSearchQuery("");
                       setActionFilter("all");
+                      setUserFilter("all");
+                      setModeratorFilter("all");
+                      setDateRangeFilter("all");
                     }}
                     className="w-full sm:flex-1 px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10] transition-colors"
                   >
@@ -343,28 +531,94 @@ export default function ModerationPage() {
                   </button>
                 </div>
               </div>
+
+              {/* Mobile: User, moderator, date range filters */}
+              <div className="lg:hidden grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                <Select value={userFilter} onValueChange={setUserFilter}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="All users" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All users</SelectItem>
+                    {userFilterOptions.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={moderatorFilter} onValueChange={setModeratorFilter}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="All moderators" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All moderators</SelectItem>
+                    {moderatorFilterOptions.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={dateRangeFilter} onValueChange={setDateRangeFilter}>
+                  <SelectTrigger className="w-full sm:col-span-2">
+                    <SelectValue placeholder="Date range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All time</SelectItem>
+                    <SelectItem value="7">Last 7 days</SelectItem>
+                    <SelectItem value="30">Last 30 days</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
-          {/* Results Count */}
-          <div className="text-[rgb(var(--text-secondary))] text-sm mb-4">
-            Showing {startIndex + 1}-{Math.min(endIndex, filteredLogs.length)}{" "}
-            of {filteredLogs.length} moderation actions
-            {filteredLogs.length !== logs.length &&
-              ` (filtered from ${logs.length} total)`}
+          {/* Results Count and Items per page */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <div className="text-[rgb(var(--text-secondary))] text-sm">
+              Showing {startIndex + 1}-{Math.min(endIndex, filteredLogs.length)}{" "}
+              of {filteredLogs.length} moderation actions
+              {filteredLogs.length !== logs.length &&
+                ` (filtered from ${logs.length} total)`}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[rgb(var(--text-muted))] text-sm">Per page:</span>
+              <Select
+                value={String(itemsPerPage)}
+                onValueChange={(v) => setItemsPerPage(Number(v))}
+              >
+                <SelectTrigger className="w-[72px] h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Moderation Log Table - Desktop */}
           <div className="hidden lg:block bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] overflow-hidden">
             {loading ? (
-              <div className="p-12 text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#107c10] mx-auto mb-4"></div>
-                <p className="text-[rgb(var(--text-secondary))]">Loading moderation logs...</p>
+              <div className="p-4">
+                <TableSkeleton rows={8} cols={6} />
               </div>
             ) : paginatedLogs.length === 0 ? (
               <div className="p-8 text-center">
                 <FaUserShield className="mx-auto text-[rgb(var(--text-muted))] mb-4" size={48} />
-                <p className="text-[rgb(var(--text-secondary))]">No moderation logs found</p>
+                <p className="text-[rgb(var(--text-secondary))]">
+                  {logs.length > 0 &&
+                  (debouncedSearchQuery ||
+                    actionFilter !== "all" ||
+                    userFilter !== "all" ||
+                    moderatorFilter !== "all" ||
+                    dateRangeFilter !== "all")
+                    ? "No logs match the current filters. Try clearing filters or changing search."
+                    : "No moderation logs found"}
+                </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -488,9 +742,13 @@ export default function ModerationPage() {
                               className="text-[#107c10] flex-shrink-0"
                               size={12}
                             />
-                            <span className="text-[rgb(var(--text-primary))] text-sm truncate">
+                            <Link
+                              href={`/profile/${log.moderatedUser.id}`}
+                              className="text-[#107c10] hover:text-[#0d6b0d] hover:underline text-sm truncate"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               {log.moderatedUser.name}
-                            </span>
+                            </Link>
                           </div>
                         </td>
                         <td className="px-4 py-3 w-[15%]">
@@ -539,34 +797,55 @@ export default function ModerationPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3 w-[20%]">
-                          {log.reason.length > 60 ? (
-                            <div className="flex items-center gap-2">
-                              <span className="text-[rgb(var(--text-secondary))] text-sm truncate max-w-[120px]">
-                                {log.reason.substring(0, 60)}...
-                              </span>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedLog(log);
-                                }}
-                                className="text-[#107c10] hover:text-[#0d6b0d] text-xs font-medium whitespace-nowrap flex-shrink-0"
+                          {(() => {
+                            const { text, muted } = formatReasonDisplay(log.reason);
+                            if (text.length > 60) {
+                              return (
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className={`text-sm truncate max-w-[120px] ${
+                                      muted ? "text-[rgb(var(--text-muted))] italic" : "text-[rgb(var(--text-secondary))]"
+                                    }`}
+                                  >
+                                    {text.substring(0, 60)}...
+                                  </span>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedLog(log);
+                                    }}
+                                    className="text-[#107c10] hover:text-[#0d6b0d] text-xs font-medium whitespace-nowrap flex-shrink-0"
+                                  >
+                                    View
+                                  </button>
+                                </div>
+                              );
+                            }
+                            return (
+                              <span
+                                className={`text-sm truncate ${
+                                  muted ? "text-[rgb(var(--text-muted))] italic" : "text-[rgb(var(--text-secondary))]"
+                                }`}
                               >
-                                View
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="text-[rgb(var(--text-secondary))] text-sm truncate">
-                              {log.reason}
-                            </span>
-                          )}
+                                {text}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="px-4 py-3 w-[15%]">
-                          <span className="text-[rgb(var(--text-secondary))] text-sm truncate">
+                          <Link
+                            href={`/profile/${log.moderator.id}`}
+                            className="text-[#107c10] hover:text-[#0d6b0d] hover:underline text-sm truncate"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             {log.moderator.name}
-                          </span>
+                          </Link>
                         </td>
                         <td className="px-4 py-3 w-[20%]">
-                          <div className="flex items-center gap-2 text-[rgb(var(--text-secondary))] text-sm">
+                          <div
+                            className="flex items-center gap-2 text-[rgb(var(--text-secondary))] text-sm"
+                            title={formatDateFull(log.timestamp)}
+                          >
                             <FaClock size={12} />
                             {formatDate(log.timestamp)}
                           </div>
@@ -582,14 +861,35 @@ export default function ModerationPage() {
           {/* Moderation Log Cards - Mobile */}
           <div className="lg:hidden space-y-4">
             {loading ? (
-              <div className="bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] p-12 text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#107c10] mx-auto mb-4"></div>
-                <p className="text-[rgb(var(--text-secondary))]">Loading moderation logs...</p>
+              <div className="space-y-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] p-4"
+                  >
+                    <div className="flex justify-between mb-3">
+                      <LoadingSkeleton height="h-5" width="w-24" />
+                      <LoadingSkeleton height="h-4" width="w-28" />
+                    </div>
+                    <LoadingSkeleton height="h-4" width="w-full" className="mb-2" />
+                    <LoadingSkeleton height="h-8" width="w-3/4" className="mb-2" />
+                    <LoadingSkeleton height="h-4" width="w-full" />
+                  </div>
+                ))}
               </div>
             ) : paginatedLogs.length === 0 ? (
               <div className="bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] p-8 text-center">
                 <FaUserShield className="mx-auto text-[rgb(var(--text-muted))] mb-4" size={48} />
-                <p className="text-[rgb(var(--text-secondary))]">No moderation logs found</p>
+                <p className="text-[rgb(var(--text-secondary))]">
+                  {logs.length > 0 &&
+                  (debouncedSearchQuery ||
+                    actionFilter !== "all" ||
+                    userFilter !== "all" ||
+                    moderatorFilter !== "all" ||
+                    dateRangeFilter !== "all")
+                    ? "No logs match the current filters. Try clearing filters or changing search."
+                    : "No moderation logs found"}
+                </p>
               </div>
             ) : (
               paginatedLogs.map((log) => (
@@ -601,11 +901,18 @@ export default function ModerationPage() {
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <FaUser className="text-[#107c10]" size={14} />
-                      <span className="text-[rgb(var(--text-primary))] font-medium">
+                      <Link
+                        href={`/profile/${log.moderatedUser.id}`}
+                        className="text-[#107c10] hover:text-[#0d6b0d] hover:underline font-medium"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {log.moderatedUser.name}
-                      </span>
+                      </Link>
                     </div>
-                    <div className="flex items-center gap-2 text-[rgb(var(--text-secondary))] text-xs">
+                    <div
+                    className="flex items-center gap-2 text-[rgb(var(--text-secondary))] text-xs"
+                    title={formatDateFull(log.timestamp)}
+                  >
                       <FaClock size={10} />
                       {formatDate(log.timestamp)}
                     </div>
@@ -659,30 +966,50 @@ export default function ModerationPage() {
                   )}
                   <div className="mb-2">
                     <span className="text-[rgb(var(--text-secondary))] text-xs">Reason:</span>
-                    {log.reason.length > 100 ? (
-                      <div className="mt-1">
-                        <p className="text-[rgb(var(--text-primary))] text-sm line-clamp-2">
-                          {log.reason}
-                        </p>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedLog(log);
-                          }}
-                          className="text-[#107c10] hover:text-[#0d6b0d] text-xs font-medium mt-1"
+                    {(() => {
+                      const { text, muted } = formatReasonDisplay(log.reason);
+                      if (text.length > 100) {
+                        return (
+                          <div className="mt-1">
+                            <p
+                              className={`text-sm line-clamp-2 mt-1 ${
+                                muted ? "text-[rgb(var(--text-muted))] italic" : "text-[rgb(var(--text-primary))]"
+                              }`}
+                            >
+                              {text}
+                            </p>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedLog(log);
+                              }}
+                              className="text-[#107c10] hover:text-[#0d6b0d] text-xs font-medium mt-1"
+                            >
+                              View full reason
+                            </button>
+                          </div>
+                        );
+                      }
+                      return (
+                        <p
+                          className={`text-sm mt-1 ${
+                            muted ? "text-[rgb(var(--text-muted))] italic" : "text-[rgb(var(--text-primary))]"
+                          }`}
                         >
-                          View full reason
-                        </button>
-                      </div>
-                    ) : (
-                      <p className="text-[rgb(var(--text-primary))] text-sm mt-1">{log.reason}</p>
-                    )}
+                          {text}
+                        </p>
+                      );
+                    })()}
                   </div>
                   <div>
                     <span className="text-[rgb(var(--text-secondary))] text-xs">Moderator:</span>
-                    <span className="text-[rgb(var(--text-primary))] text-sm ml-2">
+                    <Link
+                      href={`/profile/${log.moderator.id}`}
+                      className="text-[#107c10] hover:text-[#0d6b0d] hover:underline text-sm ml-2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       {log.moderator.name}
-                    </span>
+                    </Link>
                   </div>
                 </div>
               ))
@@ -751,22 +1078,63 @@ export default function ModerationPage() {
               onClick={() => setSelectedLog(null)}
             >
               <div
+                ref={modalRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="moderation-modal-title"
                 className="bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] max-w-2xl w-full max-h-[90vh] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setSelectedLog(null);
+                  if (e.key !== "Tab") return;
+                  const el = modalRef.current;
+                  if (!el) return;
+                  const focusable = el.querySelectorAll<HTMLElement>(
+                    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+                  );
+                  const first = focusable[0];
+                  const last = focusable[focusable.length - 1];
+                  if (e.shiftKey) {
+                    if (document.activeElement === first) {
+                      e.preventDefault();
+                      last?.focus();
+                    }
+                  } else {
+                    if (document.activeElement === last) {
+                      e.preventDefault();
+                      first?.focus();
+                    }
+                  }
+                }}
               >
                 {/* Header */}
                 <div className="sticky top-0 bg-[rgb(var(--bg-card))] border-b border-[rgb(var(--border-color))] p-6 flex items-start justify-between">
                   <div>
-                    <h2 className="text-xl font-bold text-[rgb(var(--text-primary))] mb-1">
+                    <h2 id="moderation-modal-title" className="text-xl font-bold text-[rgb(var(--text-primary))] mb-1">
                       Moderation Details
                     </h2>
-                    <p className="text-[rgb(var(--text-secondary))] text-sm">
-                      {selectedLog.moderatedUser.name}
-                    </p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Link
+                        href={`/profile/${selectedLog.moderatedUser.id}`}
+                        className="text-[#107c10] hover:text-[#0d6b0d] hover:underline text-sm"
+                      >
+                        {selectedLog.moderatedUser.name}
+                      </Link>
+                      <Link
+                        href={`/profile/${selectedLog.moderatedUser.id}`}
+                        className="inline-flex items-center gap-1 text-[#107c10] hover:text-[#0d6b0d] hover:underline text-sm"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <FaExternalLinkAlt size={12} />
+                        View profile
+                      </Link>
+                    </div>
                   </div>
                   <button
+                    type="button"
                     onClick={() => setSelectedLog(null)}
                     className="text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] text-2xl"
+                    aria-label="Close"
                   >
                     ×
                   </button>
@@ -774,6 +1142,14 @@ export default function ModerationPage() {
                 
                 {/* Content */}
                 <div className="p-6 space-y-6">
+                  {/* Action */}
+                  <div>
+                    <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">Action</h3>
+                    <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3">
+                      <p className="text-[rgb(var(--text-primary))]">{selectedLog.action}</p>
+                    </div>
+                  </div>
+
                   {/* Changes */}
                   {(selectedLog.previousRole || selectedLog.previousStatus) && (
                     <div>
@@ -827,9 +1203,16 @@ export default function ModerationPage() {
                   <div>
                     <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">Reason</h3>
                     <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3 border-l-4 border-[#107c10]">
-                      <p className="text-[rgb(var(--text-primary))] whitespace-pre-wrap break-words">
-                        {selectedLog.reason}
-                      </p>
+                      {!selectedLog.reason?.trim() ||
+                      selectedLog.reason.toLowerCase() === "no reason provided" ? (
+                        <p className="text-[rgb(var(--text-muted))] italic">
+                          No reason provided
+                        </p>
+                      ) : (
+                        <p className="text-[rgb(var(--text-primary))] whitespace-pre-wrap break-words">
+                          {selectedLog.reason}
+                        </p>
+                      )}
                     </div>
                   </div>
                   
@@ -837,7 +1220,12 @@ export default function ModerationPage() {
                   <div>
                     <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">Moderator</h3>
                     <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3">
-                      <p className="text-[rgb(var(--text-primary))]">{selectedLog.moderator.name}</p>
+                      <Link
+                        href={`/profile/${selectedLog.moderator.id}`}
+                        className="text-[#107c10] hover:text-[#0d6b0d] hover:underline"
+                      >
+                        {selectedLog.moderator.name}
+                      </Link>
                     </div>
                   </div>
                   
@@ -845,9 +1233,20 @@ export default function ModerationPage() {
                   <div>
                     <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">Date</h3>
                     <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3">
-                      <p className="text-[rgb(var(--text-primary))]">{formatDate(selectedLog.timestamp)}</p>
+                      <p className="text-[rgb(var(--text-primary))]">{formatDateFull(selectedLog.timestamp)}</p>
                     </div>
                   </div>
+                </div>
+
+                {/* Footer */}
+                <div className="sticky bottom-0 bg-[rgb(var(--bg-card))] border-t border-[rgb(var(--border-color))] p-6">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedLog(null)}
+                    className="w-full px-4 py-2 bg-[#107c10] hover:bg-[#0d6b0d] text-white rounded-lg transition-colors"
+                  >
+                    Close
+                  </button>
                 </div>
               </div>
             </div>

@@ -1,11 +1,19 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { safeLog } from "@/lib/security";
 import { getAvatarUrl } from "@/lib/image-utils";
+import { getFieldDisplayName } from "@/lib/field-display";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   FaUser,
   FaCalendar,
@@ -20,6 +28,8 @@ import {
   FaChartLine,
   FaHistory,
   FaEye,
+  FaCog,
+  FaFilter,
 } from "react-icons/fa";
 import Tooltip from "@/components/ui/tooltip";
 
@@ -54,6 +64,28 @@ interface Correction {
   reviewedAt?: Date;
 }
 
+interface GameSubmission {
+  id: string;
+  gameSlug: string;
+  gameTitle: string;
+  status: "pending" | "approved" | "rejected" | "superseded";
+  submittedAt: Date;
+  reviewedAt?: Date;
+}
+
+// Union type for display
+type Submission = (Correction & { type: "correction" }) | (GameSubmission & { type: "gameSubmission" });
+
+type SubmissionStatus = "pending" | "approved" | "rejected" | "modified" | "superseded";
+const STATUS_DISPLAY_ORDER: SubmissionStatus[] = ["pending", "approved", "rejected", "modified", "superseded"];
+const STATUS_LABELS: Record<string, string> = {
+  pending: "Pending",
+  approved: "Approved",
+  rejected: "Rejected",
+  modified: "Modified",
+  superseded: "Superseded",
+};
+
 export default function ProfilePage({
   params,
 }: {
@@ -63,12 +95,14 @@ export default function ProfilePage({
   const resolvedParams = use(params);
   const [isOwnProfile, setIsOwnProfile] = useState(false);
   const [profileUser, setProfileUser] = useState<User | null>(null);
-  const [allSubmissions, setAllSubmissions] = useState<Correction[]>([]);
+  const [allSubmissions, setAllSubmissions] = useState<Submission[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [submissionsLoading, setSubmissionsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  const [typeFilter, setTypeFilter] = useState<"all" | "correction" | "gameSubmission">("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   useEffect(() => {
     let isMounted = true; // Prevent state updates if component unmounts
@@ -101,28 +135,57 @@ export default function ProfilePage({
 
     const fetchSubmissions = async () => {
       try {
-        const response = await fetch(
-          `/api/corrections?userId=${resolvedParams.id}`
-        );
-        if (response.status === 429) {
-          // Rate limited - retry after a delay
+        // Fetch both corrections and game submissions in parallel
+        const [correctionsResponse, gameSubmissionsResponse] = await Promise.all([
+          fetch(`/api/corrections?userId=${resolvedParams.id}`),
+          fetch(`/api/game-submissions?userId=${resolvedParams.id}`),
+        ]);
+
+        // Handle rate limiting with retry
+        if (correctionsResponse.status === 429 || gameSubmissionsResponse.status === 429) {
           safeLog.warn("Rate limited, retrying submissions fetch after delay...");
           setTimeout(() => {
             if (isMounted) fetchSubmissions();
           }, 2000);
           return;
         }
-        if (response.ok) {
-          const data = await response.json();
-          const corrections = data.corrections || [];
-          if (isMounted) {
-            // Store all submissions
-            setAllSubmissions(corrections);
-            // Count pending
-            setPendingCount(
-              corrections.filter((c: Correction) => c.status === "pending").length
-            );
-          }
+
+        let allSubs: Submission[] = [];
+
+        // Process corrections
+        if (correctionsResponse.ok) {
+          const correctionsData = await correctionsResponse.json();
+          const corrections = (correctionsData.corrections || []).map((c: Correction) => ({
+            ...c,
+            type: "correction" as const,
+          }));
+          allSubs = [...allSubs, ...corrections];
+        }
+
+        // Process game submissions (API returns array directly, not { submissions })
+        if (gameSubmissionsResponse.ok) {
+          const gameSubmissionsData = await gameSubmissionsResponse.json();
+          const rawList = Array.isArray(gameSubmissionsData)
+            ? gameSubmissionsData
+            : gameSubmissionsData?.submissions ?? [];
+          const gameSubmissions = rawList.map((gs: GameSubmission) => ({
+            ...gs,
+            type: "gameSubmission" as const,
+          }));
+          allSubs = [...allSubs, ...gameSubmissions];
+        }
+
+        if (isMounted) {
+          // Sort by submittedAt (most recent first)
+          allSubs.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+          
+          // Store all submissions
+          setAllSubmissions(allSubs);
+          
+          // Count pending across both types
+          setPendingCount(
+            allSubs.filter((s) => s.status === "pending").length
+          );
         }
       } catch (error) {
         safeLog.error("Error fetching submissions:", error);
@@ -146,12 +209,44 @@ export default function ProfilePage({
     };
   }, [session, resolvedParams.id]);
 
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [typeFilter, statusFilter]);
+
+  // Submissions filtered by type only (used to derive available statuses)
+  const submissionsByType = useMemo(
+    () =>
+      allSubmissions.filter((s) =>
+        typeFilter === "all" ? true : s.type === typeFilter
+      ),
+    [allSubmissions, typeFilter]
+  );
+
+  // Unique statuses present in current data (respecting type filter), in display order
+  const availableStatuses = useMemo(() => {
+    const set = new Set(submissionsByType.map((s) => s.status));
+    return STATUS_DISPLAY_ORDER.filter((status) => set.has(status));
+  }, [submissionsByType]);
+
+  // Reset status filter when selected value is no longer in the available list
+  useEffect(() => {
+    if (statusFilter !== "all" && !(availableStatuses as readonly string[]).includes(statusFilter)) {
+      setStatusFilter("all");
+    }
+  }, [statusFilter, availableStatuses]);
+
   if (status === "loading" || loading) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div
+        className="container mx-auto px-4 py-8"
+        aria-live="polite"
+        aria-busy="true"
+        aria-label="Loading profile"
+      >
         <div className="max-w-4xl mx-auto">
           <div className="bg-[rgb(var(--bg-card))] rounded-lg p-8 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#107c10] mx-auto"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#107c10] mx-auto" aria-hidden="true" />
             <p className="text-[rgb(var(--text-secondary))] mt-4">
               Loading profile...
             </p>
@@ -291,67 +386,11 @@ export default function ProfilePage({
         return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
       case "modified":
         return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+      case "superseded":
+        return "bg-gray-500/20 text-gray-400 border-gray-500/30";
       default:
         return "bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] border-[rgb(var(--border-color))]";
     }
-  };
-
-  const getFieldDisplayName = (field: string) => {
-    // Map of field names to their display names
-    const fieldDisplayMap: Record<string, string> = {
-      imageUrl: "Image URL",
-      additionalDRM: "Additional DRM",
-      discordLink: "Discord Link",
-      redditLink: "Reddit Link",
-      wikiLink: "Wiki Link",
-      steamDBLink: "SteamDB Link",
-      purchaseLink: "Purchase Link",
-      gogDreamlistLink: "GOG Dreamlist Link",
-      releaseDate: "Release Date",
-      activationType: "Activation Type",
-      playabilityStatus: "Playability Status",
-      communityTips: "Community Tips",
-      knownIssues: "Known Issues",
-      communityAlternativeName: "Community Alternative Name",
-      remasteredName: "Remastered Name",
-      remasteredPlatform: "Remastered Platform",
-      virusTotalUrl: "VirusTotal URL",
-    };
-
-    // Check if we have a direct mapping
-    if (fieldDisplayMap[field]) {
-      return fieldDisplayMap[field];
-    }
-
-    // Otherwise, format it generically
-    // First, protect acronyms by replacing them with placeholders
-    let formatted = field;
-    const acronyms = ["URL", "DRM", "API", "ID", "FAQ", "DB", "GOG"];
-    const placeholderMap: Record<string, string> = {};
-
-    acronyms.forEach((acronym, index) => {
-      const placeholder = `__ACRONYM_${index}__`;
-      placeholderMap[placeholder] = acronym;
-      // Match the acronym case-insensitively
-      const regex = new RegExp(acronym, "gi");
-      formatted = formatted.replace(regex, placeholder);
-    });
-
-    // Now split on capital letters
-    formatted = formatted.replace(/([A-Z])/g, " $1");
-
-    // Capitalize first letter
-    formatted = formatted.replace(/^./, (str) => str.toUpperCase()).trim();
-
-    // Restore acronyms
-    Object.entries(placeholderMap).forEach(([placeholder, acronym]) => {
-      formatted = formatted.replace(new RegExp(placeholder, "g"), acronym);
-    });
-
-    // Clean up any double spaces
-    formatted = formatted.replace(/\s+/g, " ");
-
-    return formatted;
   };
 
   const formatDate = (date: Date | string) => {
@@ -372,11 +411,18 @@ export default function ProfilePage({
     });
   };
 
-  // Calculate pagination for submissions
-  const totalPages = Math.ceil(allSubmissions.length / itemsPerPage);
+  // Filter submissions by type and status
+  const filteredSubmissions = allSubmissions.filter((s) => {
+    if (typeFilter !== "all" && s.type !== typeFilter) return false;
+    if (statusFilter !== "all" && s.status !== statusFilter) return false;
+    return true;
+  });
+
+  // Pagination uses filtered list; reset to page 1 when filters change is handled in filter onChange
+  const totalPages = Math.ceil(filteredSubmissions.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedSubmissions = allSubmissions.slice(startIndex, endIndex);
+  const paginatedSubmissions = filteredSubmissions.slice(startIndex, endIndex);
 
   return (
     <div className="container mx-auto px-4 py-6 md:py-8">
@@ -399,6 +445,15 @@ export default function ProfilePage({
                 : "View user profile and contributions"}
             </p>
           </div>
+          {isOwnProfile && session?.user?.id && (
+            <Link
+              href="/settings"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[rgb(var(--bg-card))] hover:bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10]/50 transition-colors font-medium"
+            >
+              <FaCog size={16} />
+              Settings
+            </Link>
+          )}
         </div>
 
         {/* Profile Card */}
@@ -486,17 +541,17 @@ export default function ProfilePage({
             </div>
 
             {/* Last Login */}
-            {profileUser.lastLoginAt && (
-              <div className="space-y-2">
-                <label className="text-sm text-[rgb(var(--text-muted))] flex items-center gap-2">
-                  <FaHistory size={14} />
-                  Last Login
-                </label>
-                <p className="text-[rgb(var(--text-primary))] font-medium">
-                  {formatDate(profileUser.lastLoginAt)}
-                </p>
-              </div>
-            )}
+            <div className="space-y-2">
+              <label className="text-sm text-[rgb(var(--text-muted))] flex items-center gap-2">
+                <FaHistory size={14} />
+                Last Login
+              </label>
+              <p className="text-[rgb(var(--text-primary))] font-medium">
+                {profileUser.lastLoginAt
+                  ? formatDate(profileUser.lastLoginAt)
+                  : "Not recorded"}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -510,7 +565,7 @@ export default function ProfilePage({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-[rgb(var(--bg-card-alt))] p-4 rounded-lg border border-[rgb(var(--border-color))]">
               <p className="text-[rgb(var(--text-secondary))] text-xs mb-1">
-                Total
+                Submissions
               </p>
               <p className="text-2xl font-bold text-[rgb(var(--text-primary))]">
                 {profileUser.submissionsCount}
@@ -620,7 +675,8 @@ export default function ProfilePage({
                       Recent activity is hidden by this user
                     </p>
                     <p className="text-[rgb(var(--text-muted))] text-sm">
-                      This user has chosen to keep their activity private
+                      This user has chosen to keep their activity private.
+                      {!isOwnProfile && " They can make this visible in their settings."}
                     </p>
                   </div>
                 ) : (
@@ -651,8 +707,8 @@ export default function ProfilePage({
                     )}
 
                     {submissionsLoading ? (
-                      <div className="text-center py-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#107c10] mx-auto"></div>
+                      <div className="text-center py-8" aria-live="polite" aria-busy="true">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#107c10] mx-auto" aria-hidden="true" />
                         <p className="text-gray-400 mt-4 text-sm">
                           Loading submissions...
                         </p>
@@ -663,14 +719,93 @@ export default function ProfilePage({
                           className="mx-auto text-gray-600 mb-4"
                           size={32}
                         />
-                        <p className="text-gray-400">No submissions yet</p>
+                        {!isOwnProfile &&
+                        session?.user?.role !== "admin" &&
+                        profileUser.submissionsCount > 0 ? (
+                          <p className="text-[rgb(var(--text-secondary))]">
+                            Recent activity is only visible to this user and
+                            admins.
+                          </p>
+                        ) : (
+                          <p className="text-gray-400">No submissions yet</p>
+                        )}
                       </div>
                     ) : (
+                      <>
+                      {/* Type and status filters */}
+                      <div className="flex flex-wrap items-center gap-3 mb-4">
+                        <span className="text-[rgb(var(--text-muted))] text-sm flex items-center gap-2">
+                          <FaFilter size={14} />
+                          Filter:
+                        </span>
+                        <Select
+                          value={typeFilter}
+                          onValueChange={(value) => setTypeFilter(value as "all" | "correction" | "gameSubmission")}
+                        >
+                          <SelectTrigger
+                            className="w-[180px]"
+                            aria-label="Filter by type"
+                          >
+                            <SelectValue placeholder="All types" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All types</SelectItem>
+                            <SelectItem value="correction">Corrections</SelectItem>
+                            <SelectItem value="gameSubmission">Game submissions</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={statusFilter}
+                          onValueChange={setStatusFilter}
+                        >
+                          <SelectTrigger
+                            className="w-[180px]"
+                            aria-label="Filter by status"
+                          >
+                            <SelectValue placeholder="All statuses" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All statuses</SelectItem>
+                            {availableStatuses.map((status) => (
+                              <SelectItem key={status} value={status}>
+                                {STATUS_LABELS[status] ?? status}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {(typeFilter !== "all" || statusFilter !== "all") && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTypeFilter("all");
+                              setStatusFilter("all");
+                            }}
+                            className="text-[#107c10] hover:underline text-sm"
+                          >
+                            Clear filters
+                          </button>
+                        )}
+                      </div>
+                      {filteredSubmissions.length === 0 ? (
+                        <div className="text-center py-8">
+                          <p className="text-[rgb(var(--text-secondary))]">No submissions match the current filters.</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTypeFilter("all");
+                              setStatusFilter("all");
+                            }}
+                            className="mt-2 text-[#107c10] hover:underline text-sm"
+                          >
+                            Clear filters
+                          </button>
+                        </div>
+                      ) : (
                       <>
                       <div className="space-y-3">
                           {paginatedSubmissions.map((submission) => (
                           <Link
-                            key={submission.id}
+                            key={`${submission.type}-${submission.id}`}
                             href={`/games/${submission.gameSlug}`}
                             className="block bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] rounded-lg p-4 border border-[rgb(var(--border-color))] hover:border-[#107c10]/50 transition-all group"
                           >
@@ -685,9 +820,16 @@ export default function ProfilePage({
                                     {submission.gameTitle}
                                   </h4>
                                 </div>
-                                <p className="text-[rgb(var(--text-secondary))] text-sm">
-                                  {getFieldDisplayName(submission.field)}
-                                </p>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-[rgb(var(--text-muted))] text-xs px-2 py-0.5 bg-[rgb(var(--bg-card))] rounded">
+                                    {submission.type === "correction" ? "Correction" : "Game Submission"}
+                                  </span>
+                                  {submission.type === "correction" && (
+                                    <span className="text-[rgb(var(--text-secondary))] text-xs">
+                                      {getFieldDisplayName((submission as Correction & { type: "correction" }).field)}
+                                    </span>
+                                  )}
+                                </div>
                                 <p className="text-[rgb(var(--text-muted))] text-xs mt-1">
                                   {formatDateTime(submission.submittedAt)}
                                 </p>
@@ -712,9 +854,12 @@ export default function ProfilePage({
                       </div>
                         {/* Pagination */}
                         {totalPages > 1 && (
-                          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
+                          <nav
+                            className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6"
+                            aria-label="Submissions pagination"
+                          >
                             <div className="text-sm text-[rgb(var(--text-secondary))]">
-                              Showing {startIndex + 1}-{Math.min(endIndex, allSubmissions.length)} of {allSubmissions.length} submissions
+                              Showing {startIndex + 1}-{Math.min(endIndex, filteredSubmissions.length)} of {filteredSubmissions.length} submissions
                             </div>
                             <div className="flex items-center gap-2">
                               <button
@@ -725,7 +870,7 @@ export default function ProfilePage({
                               >
                                 Previous
                               </button>
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-1" role="group" aria-label="Page numbers">
                                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                                   let pageNum: number;
                                   if (totalPages <= 5) {
@@ -746,6 +891,8 @@ export default function ProfilePage({
                                           ? "bg-[#107c10] text-white border-[#107c10]"
                                           : "bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] border-[rgb(var(--border-color))] hover:border-[#107c10]"
                                       }`}
+                                      aria-label={`Page ${pageNum}`}
+                                      aria-current={currentPage === pageNum ? "page" : undefined}
                                     >
                                       {pageNum}
                                     </button>
@@ -761,11 +908,13 @@ export default function ProfilePage({
                                 Next
                               </button>
                             </div>
-                          </div>
+                          </nav>
                         )}
                       </>
                     )}
                   </>
+                )}
+                </>
                 )}
               </div>
             );

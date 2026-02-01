@@ -619,7 +619,7 @@ export default function CorrectionModal({
                 setRelatedRemasteredName("");
                 setRelatedRemasteredPlatform("");
               }}
-              className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
+              className="select-chevron w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
               required
             >
               <option value="">Select a field...</option>
@@ -896,7 +896,7 @@ export default function CorrectionModal({
               <select
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value)}
-                className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
+                className="select-chevron w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                 required
               >
                 <option value="">Select activation type...</option>
@@ -908,7 +908,7 @@ export default function CorrectionModal({
               <select
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value)}
-                className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
+                className="select-chevron w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                 required
               >
                 <option value="">Select status...</option>
@@ -930,7 +930,7 @@ export default function CorrectionModal({
                       setNewValue("");
                     }
                   }}
-                  className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
+                  className="select-chevron w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                 >
                   <option value="">Select DRM type...</option>
                   <option value="Disc (SafeDisc/SecuROM/etc)">
@@ -953,7 +953,7 @@ export default function CorrectionModal({
                       setNewValue(e.target.value);
                     }}
                     placeholder="Enter custom DRM..."
-                    className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
+                    className="select-chevron w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                   />
                 )}
               </div>
@@ -1002,7 +1002,7 @@ export default function CorrectionModal({
                       // (but don't auto-set it, let user decide)
                     }
                   }}
-                  className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
+                  className="select-chevron w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                 >
                   <option value="">Select playability status...</option>
                   <option value="playable">Playable</option>
@@ -1028,7 +1028,7 @@ export default function CorrectionModal({
                         setRelatedCommunityAlternativeName(e.target.value)
                       }
                       placeholder="e.g., Project Name"
-                      className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
+                      className="select-chevron w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                     />
                   </div>
                 )}
@@ -1046,7 +1046,7 @@ export default function CorrectionModal({
                           setRelatedRemasteredName(e.target.value)
                         }
                         placeholder="e.g., Remastered Name"
-                        className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
+                        className="select-chevron w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                       />
                     </div>
                     <div>
@@ -1060,7 +1060,7 @@ export default function CorrectionModal({
                           setRelatedRemasteredPlatform(e.target.value)
                         }
                         placeholder="e.g., Platform Name"
-                        className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
+                        className="select-chevron w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                       />
                     </div>
                   </div>
@@ -1126,7 +1126,7 @@ export default function CorrectionModal({
                       ? "e.g., Remastered Name"
                       : "e.g., Platform Name"
                   }
-                  className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
+                  className="select-chevron w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                 />
                 {newValue.trim() && (
                   <>
@@ -1160,7 +1160,7 @@ export default function CorrectionModal({
                       setNewValue("");
                     }
                   }}
-                  className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
+                  className="select-chevron w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
                   min="1900-01-01"
                   max={new Date().toISOString().split("T")[0]}
                 />

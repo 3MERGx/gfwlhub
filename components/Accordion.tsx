@@ -7,23 +7,37 @@ interface AccordionProps {
   title: string;
   content: React.ReactNode;
   footer?: React.ReactNode; // Additional content to show at the bottom of expanded content
+  contentId?: string; // Optional id for content panel (enables aria-controls, role="region")
 }
 
-const Accordion = ({ title, content, footer }: AccordionProps) => {
+const Accordion = ({ title, content, footer, contentId }: AccordionProps) => {
   const [isOpen, setIsOpen] = useState(false);
+  const titleId = contentId ? `${contentId}-title` : undefined;
 
   return (
     <div className="mb-4 border border-[rgb(var(--border-color))] rounded-lg overflow-hidden">
       <button
-        className="w-full p-4 text-left bg-gradient-to-r from-[#107c10] to-[#0e6b0e] hover:from-[#0e6b0e] hover:to-[#107c10] transition-colors flex justify-between items-center text-white"
+        type="button"
+        className="w-full p-4 text-left bg-gradient-to-r from-[#107c10] to-[#0e6b0e] hover:from-[#0e6b0e] hover:to-[#107c10] transition-colors flex justify-between items-center text-white focus:ring-2 focus:ring-white/50 focus:outline-none focus:ring-offset-2 focus:ring-offset-[#0e6b0e]"
         onClick={() => setIsOpen(!isOpen)}
+        aria-expanded={isOpen}
+        {...(contentId && { "aria-controls": contentId, "aria-labelledby": titleId })}
       >
-        <span className="font-medium text-lg">{title}</span>
-        {isOpen ? <FaChevronUp /> : <FaChevronDown />}
+        <span {...(titleId && { id: titleId })} className="font-medium text-lg">
+          {title}
+        </span>
+        {isOpen ? (
+          <FaChevronUp size={18} aria-hidden />
+        ) : (
+          <FaChevronDown size={18} aria-hidden />
+        )}
       </button>
 
       {isOpen && (
-        <div className="bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))]">
+        <div
+          {...(contentId && { id: contentId, role: "region" as const, "aria-labelledby": titleId })}
+          className="bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))]"
+        >
           <div className="p-4">{content}</div>
           {footer && (
             <div className="px-4 pb-4 pt-2 border-t border-[rgb(var(--border-color))]">

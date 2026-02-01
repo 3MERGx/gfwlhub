@@ -473,13 +473,15 @@ export async function GET(request: NextRequest) {
     const gameSlug = sanitizeString(searchParams.get("gameSlug") || "", 200);
     const userId = sanitizeString(searchParams.get("userId") || "", 50);
 
-    // Only reviewers and admins can see all corrections
-    // Regular users can only see their own
+    // Regular users can only see their own corrections
     if (user.role === "user") {
-      // Fetch user's own corrections
       const { getCorrectionsByUser } = await import(
         "@/lib/crowdsource-service-mongodb"
       );
+      if (userId && userId !== user.id) {
+        // Viewing another user's profile: don't expose their submissions
+        return NextResponse.json({ corrections: [] });
+      }
       const corrections = await getCorrectionsByUser(user.id);
       return NextResponse.json({ corrections });
     }

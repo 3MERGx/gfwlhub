@@ -28,6 +28,13 @@ import {
 import Link from "next/link";
 import Image from "next/image";
 import DashboardLayout from "@/components/DashboardLayout";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { getAvatarUrl } from "@/lib/image-utils";
 import { useSession } from "next-auth/react";
 import { safeLog } from "@/lib/security";
@@ -780,32 +787,30 @@ export default function UsersPage() {
                 </span>
               </button>
               {/* Role Filter */}
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                className="w-full md:w-auto px-3 sm:px-4 py-2 pr-10 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none text-sm sm:text-base"
-                style={{ paddingRight: "2.75rem" }}
-                disabled={showDeletedUsers}
-              >
-                <option value="all">All Roles</option>
-                <option value="user">Users</option>
-                <option value="reviewer">Reviewers</option>
-                <option value="admin">Admins</option>
-              </select>
+              <Select value={roleFilter} onValueChange={setRoleFilter} disabled={showDeletedUsers}>
+                <SelectTrigger className="w-full md:w-auto min-w-[130px] text-sm sm:text-base">
+                  <SelectValue placeholder="All Roles" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Roles</SelectItem>
+                  <SelectItem value="user">Users</SelectItem>
+                  <SelectItem value="reviewer">Reviewers</SelectItem>
+                  <SelectItem value="admin">Admins</SelectItem>
+                </SelectContent>
+              </Select>
 
               {/* Status Filter */}
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full md:w-auto px-3 sm:px-4 py-2 pr-10 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none text-sm sm:text-base"
-                style={{ paddingRight: "2.75rem" }}
-                disabled={showDeletedUsers}
-              >
-                <option value="all">All Statuses</option>
-                <option value="active">Active</option>
-                <option value="suspended">Suspended</option>
-                <option value="blocked">Blocked</option>
-              </select>
+              <Select value={statusFilter} onValueChange={setStatusFilter} disabled={showDeletedUsers}>
+                <SelectTrigger className="w-full md:w-auto min-w-[130px] text-sm sm:text-base">
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="suspended">Suspended</SelectItem>
+                  <SelectItem value="blocked">Blocked</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -897,7 +902,7 @@ export default function UsersPage() {
                   const approvalRate =
                     reviewedCount > 0
                       ? ((user.approvedCount / reviewedCount) * 100).toFixed(1)
-                      : "0.0";
+                      : null;
 
                   return (
                     <div
@@ -1094,14 +1099,16 @@ export default function UsersPage() {
                         <div className="flex flex-col items-center">
                           <span
                             className={`text-sm font-bold ${
-                              parseFloat(approvalRate) >= 75
+                              approvalRate === null
+                                ? "text-[rgb(var(--text-muted))]"
+                                : parseFloat(approvalRate) >= 75
                                 ? "text-green-400"
                                 : parseFloat(approvalRate) >= 50
                                 ? "text-yellow-400"
                                 : "text-red-400"
                             }`}
                           >
-                            {approvalRate}%
+                            {approvalRate !== null ? `${approvalRate}%` : "—"}
                           </span>
                         </div>
                       </div>
@@ -1232,7 +1239,7 @@ export default function UsersPage() {
                 const approvalRate =
                   reviewedCount > 0
                     ? ((user.approvedCount / reviewedCount) * 100).toFixed(1)
-                    : "0.0";
+                    : null;
 
                 return (
                   <div
@@ -1499,7 +1506,7 @@ export default function UsersPage() {
                           Approval Rate
                         </div>
                         <p className="text-[rgb(var(--text-primary))] text-sm font-medium">
-                          {approvalRate}%
+                          {approvalRate !== null ? `${approvalRate}%` : "—"}
                         </p>
                       </div>
                     </div>

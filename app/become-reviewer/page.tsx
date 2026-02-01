@@ -29,6 +29,8 @@ interface EligibilityDetails {
   accountAgeDays: number;
   submissionsCount: number;
   approvedCount: number;
+  rejectedCount: number;
+  approvalRate: number;
   missingRequirements: string[];
 }
 
@@ -401,6 +403,41 @@ export default function BecomeReviewerPage() {
                   <span className="text-xs text-[rgb(var(--text-secondary))] block">
                     (Required:{" "}
                     {REVIEWER_APPLICATION_CONFIG.MIN_CORRECTIONS_ACCEPTED})
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[rgb(var(--text-secondary))]">
+                    Corrections Rejected:{" "}
+                  </span>
+                  <strong className="text-[rgb(var(--text-primary))]">
+                    {eligibility.rejectedCount ?? 0}
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-[rgb(var(--text-secondary))]">
+                    Approval Rate:{" "}
+                  </span>
+                  <strong
+                    className={
+                      (eligibility.approvalRate ?? 0) >=
+                      REVIEWER_APPLICATION_CONFIG.MIN_APPROVAL_RATE
+                        ? "text-green-500"
+                        : "text-red-500"
+                    }
+                  >
+                    {eligibility.rejectedCount !== undefined &&
+                    eligibility.approvedCount !== undefined &&
+                    eligibility.approvedCount + (eligibility.rejectedCount ?? 0) >
+                      0
+                      ? `${Math.round((eligibility.approvalRate ?? 0) * 100)}%`
+                      : "—"}
+                  </strong>
+                  <span className="text-xs text-[rgb(var(--text-secondary))] block">
+                    (Required:{" "}
+                    {Math.round(
+                      REVIEWER_APPLICATION_CONFIG.MIN_APPROVAL_RATE * 100
+                    )}
+                    %)
                   </span>
                 </div>
               </div>

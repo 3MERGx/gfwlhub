@@ -24,4 +24,8 @@ export const REVIEWER_APPLICATION_CONFIG = {
     process.env.REAPPLICATION_COOLDOWN_DAYS || "30",
     10
   ),
+  // Minimum approval rate (0–1) among reviewed corrections to be eligible
+  MIN_APPROVAL_RATE: parseFloat(
+    process.env.MIN_APPROVAL_RATE || "0.8"
+  ),
 } as const;

@@ -435,11 +435,21 @@ export default function SettingsPage() {
               <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 rounded-lg p-3 mt-4">
                 <div className="flex items-start gap-2">
                   <FaInfoCircle className="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-                  <p className="text-blue-900 dark:text-[rgb(var(--text-primary))] text-sm">
-                    Email notifications require email provider configuration.
-                    This feature will be available soon. In the meantime, you
-                    can check your submissions status on your profile page.
-                  </p>
+                  <div className="text-sm">
+                    <p className="text-blue-900 dark:text-[rgb(var(--text-primary))] mb-2">
+                      Email notifications require email provider configuration and will be available soon.
+                    </p>
+                    <p className="text-blue-900 dark:text-[rgb(var(--text-secondary))]">
+                      <strong>In the meantime:</strong> All your corrections and game submissions are visible on{" "}
+                      <Link 
+                        href={`/profile/${session?.user?.id}`}
+                        className="text-[#107c10] hover:underline font-medium"
+                      >
+                        your profile page
+                      </Link>
+                      {" "}with their current status (Pending, Approved, Rejected, etc.).
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

@@ -529,6 +529,54 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
               <MakeCorrectionButton game={game} />
             </div>
           )}
+
+          {/* Get Help - Questions, errors, troubleshooting */}
+          <div className="mt-8 pt-6 border-t border-[rgb(var(--border-color))]">
+            <h2 className="text-xl font-bold mb-3 text-[rgb(var(--text-primary))]">
+              Get Help
+            </h2>
+            <p className="text-[rgb(var(--text-secondary))] mb-4 text-sm leading-relaxed">
+              Have a question, ran into an error, or need troubleshooting for{" "}
+              {game.title}? Ask in these communities:
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {(game.discordLink || game.redditLink) && (
+                <>
+                  {game.discordLink && (
+                    <Link
+                      href={game.discordLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                    >
+                      <FaDiscord size={18} />
+                      {game.title} Discord
+                    </Link>
+                  )}
+                  {game.redditLink && (
+                    <Link
+                      href={game.redditLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 bg-[#FF4500] hover:bg-[#E03D00] text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                    >
+                      <FaReddit size={18} />
+                      {game.title} Reddit
+                    </Link>
+                  )}
+                </>
+              )}
+              <Link
+                href="https://discord.gg/PR75T8xMWS"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+              >
+                <FaDiscord size={18} />
+                GFWL Hub Discord
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
     </div>

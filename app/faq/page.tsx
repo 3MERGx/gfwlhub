@@ -4,8 +4,9 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useToast } from "@/components/ui/toast-context";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import Accordion from "@/components/Accordion";
-import { sanitizeHtml } from "@/lib/security";
+import { sanitizeHtml, safeLog } from "@/lib/security";
 import { useCSRF } from "@/hooks/useCSRF";
 import {
   FaEdit,
@@ -47,6 +48,7 @@ export default function FAQ() {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const debouncedSearchQuery = useDebounce(searchQuery, 400);
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
 
@@ -68,7 +70,7 @@ export default function FAQ() {
         setFaqs(data);
       }
     } catch (error) {
-      console.error("Error fetching FAQs:", error);
+      safeLog.error("Error fetching FAQs:", error);
     } finally {
       setLoading(false);
     }
@@ -114,15 +116,21 @@ export default function FAQ() {
         showToast(error.error || "Failed to update FAQ", 3000, "error");
       }
     } catch (error) {
-      console.error("Error updating FAQ:", error);
+      safeLog.error("Error updating FAQ:", error);
       showToast("Failed to update FAQ", 3000, "error");
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this FAQ?")) return;
+  const handleDeleteClick = (id: string) => {
+    setDeleteConfirmId(id);
+  };
+
+  const handleDeleteConfirm = async () => {
+    const id = deleteConfirmId;
+    if (!id) return;
+    setDeleteConfirmId(null);
 
     try {
       const response = await fetch(`/api/faqs?id=${id}`, {
@@ -140,7 +148,7 @@ export default function FAQ() {
         showToast(error.error || "Failed to delete FAQ", 3000, "error");
       }
     } catch (error) {
-      console.error("Error deleting FAQ:", error);
+      safeLog.error("Error deleting FAQ:", error);
       showToast("Failed to delete FAQ", 3000, "error");
     }
   };
@@ -179,7 +187,7 @@ export default function FAQ() {
         showToast(error.error || "Failed to create FAQ", 3000, "error");
       }
     } catch (error) {
-      console.error("Error creating FAQ:", error);
+      safeLog.error("Error creating FAQ:", error);
       showToast("Failed to create FAQ", 3000, "error");
     } finally {
       setIsSaving(false);
@@ -245,7 +253,7 @@ export default function FAQ() {
 
       await fetchFAQs(); // Refresh to get updated data
     } catch (error) {
-      console.error("Error saving order:", error);
+      safeLog.error("Error saving order:", error);
       showToast("Failed to save order", 3000, "error");
     }
   };
@@ -405,8 +413,19 @@ export default function FAQ() {
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto text-center text-[rgb(var(--text-primary))]">
-          Loading FAQs...
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-[rgb(var(--bg-card))] p-8 rounded-lg shadow-xl border border-[rgb(var(--border-color))]">
+            <div className="h-9 w-3/4 bg-[rgb(var(--bg-card-alt))] rounded animate-pulse mb-6" />
+            <div className="space-y-3">
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className="h-14 bg-[rgb(var(--bg-card-alt))] rounded-lg animate-pulse"
+                  aria-hidden
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -417,7 +436,7 @@ export default function FAQ() {
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="bg-[rgb(var(--bg-card))] p-8 rounded-lg shadow-xl mb-8">
-          <div className="mb-6 pb-4 border-b border-gray-700">
+          <div className="mb-6 pb-4 border-b border-[rgb(var(--border-color))]">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
               <h1 className="text-3xl font-bold text-[rgb(var(--text-primary))] flex-1">
                 Frequently Asked Questions
@@ -448,20 +467,23 @@ export default function FAQ() {
             
             {/* Search Bar */}
             <div className="relative">
-              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[rgb(var(--text-muted))]" size={16} />
+              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[rgb(var(--text-muted))]" size={16} aria-hidden />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search FAQs..."
                 className="w-full pl-10 pr-4 py-2.5 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none focus:ring-2 focus:ring-[#107c10]/20"
+                aria-label="Search FAQs"
               />
               {searchQuery && (
                 <button
+                  type="button"
                   onClick={() => setSearchQuery("")}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[rgb(var(--text-muted))] hover:text-[rgb(var(--text-primary))] transition-colors"
+                  aria-label="Clear search"
                 >
-                  <FaTimes size={14} />
+                  <FaTimes size={14} aria-hidden />
                 </button>
               )}
             </div>
@@ -477,6 +499,15 @@ export default function FAQ() {
                       ? `No FAQs found. ${isAdmin ? "Click 'Add FAQ' to create one!" : ""}`
                       : "No FAQs match your search"}
                   </p>
+                  {debouncedSearchQuery.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      className="mt-3 text-sm font-medium text-[#107c10] hover:text-[#0d6b0d] hover:underline focus:ring-2 focus:ring-[#107c10]/50 focus:outline-none rounded px-2 py-1"
+                    >
+                      Clear search
+                    </button>
+                  )}
                 </div>
               ) : (
                 filteredFaqs.map((faq) => {
@@ -494,7 +525,7 @@ export default function FAQ() {
                         : ""
                     } ${
                       dragOverIndex === index && draggedIndex !== null
-                        ? "ring-2 ring-[#107c10] ring-offset-2 ring-offset-[#202020]"
+                        ? "ring-2 ring-[#107c10] ring-offset-2 ring-offset-[rgb(var(--bg-card))]"
                         : ""
                     } ${isReorderMode ? "cursor-move" : ""}`}
                     draggable={isReorderMode}
@@ -509,7 +540,7 @@ export default function FAQ() {
                     {isAdmin && editingId === faq._id ? (
                       // Edit Mode
                       <div className="p-5 bg-[rgb(var(--bg-card-alt))] rounded-lg border-2 border-yellow-500/50 shadow-lg">
-                        <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-700">
+                        <div className="flex items-center gap-2 mb-4 pb-3 border-b border-[rgb(var(--border-color))]">
                           <div className="p-1.5 bg-yellow-500/20 rounded">
                             <FaGripVertical className="text-yellow-400" size={14} />
                           </div>
@@ -575,6 +606,7 @@ export default function FAQ() {
                           {/* FAQ Content */}
                           <div className="flex-1 min-w-0">
                             <Accordion
+                              contentId={`faq-answer-${faq._id}`}
                               title={faq.question}
                               content={renderAnswer(faq.answer)}
                               footer={
@@ -613,7 +645,7 @@ export default function FAQ() {
                                           Edit
                                         </button>
                                         <button
-                                          onClick={() => handleDelete(faq._id)}
+                                          onClick={() => handleDeleteClick(faq._id)}
                                           className="w-full sm:w-auto px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2 text-sm touch-manipulation font-medium"
                                         >
                                           <FaTrash size={14} />
@@ -637,7 +669,7 @@ export default function FAQ() {
 
             {/* Admin buttons at bottom on small screens */}
             {isAdmin && (
-              <div className="flex flex-col sm:hidden gap-2.5 mt-6 pt-4 border-t border-gray-700">
+              <div className="flex flex-col sm:hidden gap-2.5 mt-6 pt-4 border-t border-[rgb(var(--border-color))]">
                 <button
                   onClick={() => setIsReorderMode(!isReorderMode)}
                   className={`w-full px-4 py-2.5 rounded-lg transition-all flex items-center justify-center gap-2 text-sm font-medium shadow-sm ${
@@ -658,6 +690,17 @@ export default function FAQ() {
                 </button>
               </div>
             )}
+
+            {(debouncedSearchQuery.trim() || filteredFaqs.length > 0) && (
+              <p
+                className="mt-6 pt-4 border-t border-[rgb(var(--border-color))] text-center text-sm text-[rgb(var(--text-secondary))]"
+                aria-live="polite"
+              >
+                {debouncedSearchQuery.trim()
+                  ? `Showing ${filteredFaqs.length} ${filteredFaqs.length === 1 ? "FAQ" : "FAQs"}`
+                  : `${faqs.length} ${faqs.length === 1 ? "FAQ" : "FAQs"}`}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -676,7 +719,7 @@ export default function FAQ() {
             className="bg-[rgb(var(--bg-card))] rounded-lg max-w-2xl w-full border border-[rgb(var(--border-color))] shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-6 border-b border-gray-700">
+            <div className="flex items-center justify-between p-6 border-b border-[rgb(var(--border-color))]">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 bg-[#107c10]/20 rounded">
                   <FaPlus className="text-[#107c10]" size={16} />
@@ -746,6 +789,17 @@ export default function FAQ() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={deleteConfirmId !== null}
+        title="Delete FAQ"
+        message="Are you sure you want to delete this FAQ? This cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteConfirmId(null)}
+      />
     </>
   );
 }

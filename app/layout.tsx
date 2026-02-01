@@ -1,7 +1,7 @@
 import "./globals.css";
 import { Metadata } from "next";
 import Header from "@/components/Header";
-import Footer from "@/components/Footer";
+import FooterWrapper from "@/components/FooterWrapper";
 import { Inter } from "next/font/google";
 import { ToastProvider } from "@/components/ui/toast-context";
 import { Analytics } from "@vercel/analytics/react";
@@ -105,7 +105,7 @@ export default function RootLayout({
               <SessionExpirationWarning />
               <Header />
               <main className="flex-1 flex flex-col">{children}</main>
-              <Footer />
+              <FooterWrapper />
               <SpeedInsights />
               <Analytics />
             </ToastProvider>

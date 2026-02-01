@@ -186,6 +186,7 @@ export default function Header() {
                   href="/supported-games"
                   className="hover:text-gray-200 transition-colors"
                   prefetch={true}
+                  title="View list of supported GFWL games"
                 >
                   Supported Games
                 </Link>
@@ -195,6 +196,7 @@ export default function Header() {
                   href="/faq"
                   className="hover:text-gray-200 transition-colors"
                   prefetch={true}
+                  title="Frequently asked questions"
                 >
                   FAQ
                 </Link>
@@ -203,8 +205,19 @@ export default function Header() {
                 <Link
                   href="/contact"
                   className="hover:text-gray-200 transition-colors"
+                  title="Contact us"
                 >
                   Contact
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/download"
+                  className="hover:text-gray-200 transition-colors"
+                  prefetch={true}
+                  title="Download GFWL Legacy 5x5 Bypass Tool"
+                >
+                  Legacy Bypass
                 </Link>
               </li>
               {/* Show dashboard link for reviewers and admins */}
@@ -216,6 +229,7 @@ export default function Header() {
                       href="/dashboard"
                       className="hover:text-gray-200 transition-colors"
                       prefetch={true}
+                      title="Reviewer and admin dashboard"
                     >
                       Dashboard
                     </Link>
@@ -226,13 +240,6 @@ export default function Header() {
 
           {/* Right side items */}
           <div className="hidden xl:flex items-center gap-4 order-3">
-            {/* <Link
-              href="/download"
-              className="bg-white text-[#107c10] hover:bg-gray-100 px-4 py-2 rounded-md font-medium flex items-center transition-colors"
-            >
-              <FaDownload className="mr-2" />
-              Download GFWL Fix
-            </Link> */}
             <UserMenu />
           </div>
 
@@ -253,6 +260,7 @@ export default function Header() {
                   href="/supported-games"
                   className="block hover:text-gray-200 transition-colors"
                   onClick={() => setIsMenuOpen(false)}
+                  title="View list of supported GFWL games"
                 >
                   Supported Games
                 </Link>
@@ -262,6 +270,7 @@ export default function Header() {
                   href="/faq"
                   className="block hover:text-gray-200 transition-colors"
                   onClick={() => setIsMenuOpen(false)}
+                  title="Frequently asked questions"
                 >
                   FAQ
                 </Link>
@@ -271,6 +280,7 @@ export default function Header() {
                   href="/contact"
                   className="block hover:text-gray-200 transition-colors"
                   onClick={() => setIsMenuOpen(false)}
+                  title="Contact us"
                 >
                   Contact
                 </Link>
@@ -286,6 +296,7 @@ export default function Header() {
                         href="/dashboard"
                         className="block hover:text-gray-200 transition-colors"
                         onClick={() => setIsMenuOpen(false)}
+                        title="Reviewer and admin dashboard"
                       >
                         Dashboard
                       </Link>
@@ -295,6 +306,7 @@ export default function Header() {
                         href="/dashboard/submissions"
                         className="flex items-center gap-2 hover:text-gray-200 transition-colors"
                         onClick={() => setIsMenuOpen(false)}
+                        title="Review correction submissions"
                       >
                         <span>Submissions</span>
                         {pendingCount > 0 && (
@@ -311,6 +323,7 @@ export default function Header() {
                             href="/dashboard/game-submissions"
                             className="flex items-center gap-2 hover:text-gray-200 transition-colors"
                             onClick={() => setIsMenuOpen(false)}
+                            title="Review game submissions"
                           >
                             <span>Game Submissions</span>
                             {pendingGameSubmissionsCount > 0 && (
@@ -327,6 +340,7 @@ export default function Header() {
                             href="/dashboard/games"
                             className="block hover:text-gray-200 transition-colors"
                             onClick={() => setIsMenuOpen(false)}
+                            title="Manage game entries"
                           >
                             Manage Games
                           </Link>
@@ -336,6 +350,7 @@ export default function Header() {
                             href="/dashboard/users"
                             className="block hover:text-gray-200 transition-colors"
                             onClick={() => setIsMenuOpen(false)}
+                            title="Manage users"
                           >
                             Users
                           </Link>
@@ -345,6 +360,7 @@ export default function Header() {
                             href="/dashboard/audit"
                             className="block hover:text-gray-200 transition-colors"
                             onClick={() => setIsMenuOpen(false)}
+                            title="View audit log"
                           >
                             Audit Log
                           </Link>
@@ -354,6 +370,7 @@ export default function Header() {
                             href="/dashboard/moderation"
                             className="block hover:text-gray-200 transition-colors"
                             onClick={() => setIsMenuOpen(false)}
+                            title="View moderation log"
                           >
                             Moderation Log
                           </Link>
@@ -366,6 +383,7 @@ export default function Header() {
                         href="/leaderboard"
                         className="flex items-center gap-2 hover:text-gray-200 transition-colors"
                         onClick={() => setIsMenuOpen(false)}
+                        title="View contributor leaderboard"
                       >
                         <span>Leaderboard</span>
                         <span className="bg-yellow-500/20 text-yellow-400 text-[10px] font-bold rounded px-1.5 py-0.5 uppercase">

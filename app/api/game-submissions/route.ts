@@ -34,15 +34,29 @@ export async function GET(request: NextRequest) {
     const statusParam = searchParams.get("status");
     const status = statusParam ? sanitizeString(statusParam, 50) : "";
     const gameSlug = sanitizeString(searchParams.get("gameSlug") || "", 200);
+    const userId = sanitizeString(searchParams.get("userId") || "", 50);
     const readyToPublish = searchParams.get("readyToPublish") === "true";
 
     // Build query
     const query: Record<string, unknown> = {};
 
     // Regular users can only see their own submissions
-    // Reviewers and admins can see all submissions
     if (session.user.role === "user") {
+      if (userId && userId !== session.user.id) {
+        // Viewing another user's profile: don't expose their submissions
+        return NextResponse.json(
+          [],
+          {
+            headers: {
+              "Cache-Control": "private, s-maxage=30, stale-while-revalidate=120",
+            },
+          }
+        );
+      }
       query.submittedBy = session.user.id;
+    } else if (userId) {
+      // Reviewers/admins can filter by specific userId
+      query.submittedBy = userId;
     }
 
     // If readyToPublish is enabled, we need approved submissions (overrides status filter)

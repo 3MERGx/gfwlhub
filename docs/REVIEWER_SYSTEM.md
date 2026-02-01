@@ -21,10 +21,11 @@ The reviewer application system allows users to apply for reviewer privileges af
 Edit `lib/reviewer-application-config.ts` or set environment variables:
 
 ```typescript
-MIN_CORRECTIONS_SUBMITTED: 20  // Minimum corrections submitted
+MIN_CORRECTIONS_SUBMITTED: 20   // Minimum corrections submitted
 MIN_CORRECTIONS_ACCEPTED: 10   // Minimum corrections accepted
 MIN_ACCOUNT_AGE_DAYS: 7        // Minimum account age in days
 REAPPLICATION_COOLDOWN_DAYS: 30 // Days to wait after rejection before re-applying
+MIN_APPROVAL_RATE: 0.8         // Minimum approval rate (0–1) among reviewed corrections
 ```
 
 ### Environment Variables:
@@ -33,6 +34,7 @@ MIN_CORRECTIONS_SUBMITTED=20
 MIN_CORRECTIONS_ACCEPTED=10
 MIN_ACCOUNT_AGE_DAYS=7
 REAPPLICATION_COOLDOWN_DAYS=30
+MIN_APPROVAL_RATE=0.8
 ```
 
 ## Reviewer Permissions & Access

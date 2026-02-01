@@ -1,11 +1,11 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Download GFWL Keygen - Fix for Games for Windows LIVE Activations",
+  title: "Download GFWL Legacy Bypass - Games for Windows LIVE",
   description:
-    "Download the community-made GFWL Keygen to fix Games for Windows LIVE activation issues on Windows 10/11. Free tool for GTA 4, Fallout 3, Shadowrun, and other GFWL games.",
+    "Download the GFWL Legacy Bypass for legacy 5x5 GFWL titles. Fixes Games for Windows LIVE activation on Windows 10/11. For compatible titles only.",
   keywords: [
-    "GFWL Keygen",
+    "GFWL Legacy Bypass",
     "Games for Windows LIVE fix",
     "GFWL activation key",
     "GTA 4 GFWL fix",
@@ -20,17 +20,17 @@ export const metadata: Metadata = {
     "XLLN alternative",
   ],
   openGraph: {
-    title: "Download GFWL Keygen - Fix for Games for Windows LIVE Activations",
+    title: "Download GFWL Legacy Bypass - Games for Windows LIVE",
     description:
-      "Free tool to help perserve access to GFWL titles like GTA 4, Fallout 3, and Shadowrun as well as other GFWL titles.",
+      "Free tool for legacy 5x5 GFWL titles. Helps preserve access to compatible games on Windows 10/11.",
     type: "website",
     url: "https://gfwl-hub.vercel.app/download",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Download GFWL Keygen - Fix for Games for Windows LIVE Activations",
+    title: "Download GFWL Legacy Bypass - Games for Windows LIVE",
     description:
-      "Free tool to help perserve access to GFWL titles like GTA 4, Fallout 3, and Shadowrun as well as other GFWL titles.",
+      "Free tool for legacy 5x5 GFWL titles. Helps preserve access to compatible games on Windows 10/11.",
   },
   alternates: {
     canonical: "https://gfwl-hub.vercel.app/download",

@@ -14,6 +14,13 @@ import {
 } from "react-icons/fa";
 import { GameSubmission } from "@/types/crowdsource";
 import DashboardLayout from "@/components/DashboardLayout";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import ConfirmPublishModal from "@/components/ConfirmPublishModal";
 import { useToast } from "@/components/ui/toast-context";
 import { safeLog } from "@/lib/security";
@@ -452,21 +459,23 @@ function GameSubmissionsPage() {
               <label className="block text-sm font-medium text-[rgb(var(--text-primary))] mb-2">
                 Status
               </label>
-              <select
+              <Select
                 value={statusFilter}
-                onChange={async (e) => {
-                  const newStatus = e.target.value;
-                  setStatusFilter(newStatus);
-                  // Refresh submissions with new filter - pass the new status directly to avoid race condition
-                  await fetchSubmissions(true, newStatus);
+                onValueChange={async (value) => {
+                  setStatusFilter(value);
+                  await fetchSubmissions(true, value);
                 }}
-                className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
               >
-                <option value="all">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-              </select>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex-1">
               <label className="block text-sm font-medium text-[rgb(var(--text-primary))] mb-2">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   FaSearch,
   FaFilter,
@@ -17,6 +17,14 @@ import {
 } from "react-icons/fa";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { getFieldDisplayName } from "@/lib/field-display";
 import { safeLog } from "@/lib/security";
 import { useDebounce } from "@/hooks/useDebounce";
 
@@ -55,6 +63,51 @@ export default function AuditPage() {
   // Debounce search query
   const debouncedSearchQuery = useDebounce(searchQuery, 400);
 
+  // Role filter options: unique changedByRole values from loaded logs (admin, reviewer, user order)
+  const roleOrder = ["admin", "reviewer", "user"];
+  const roleFilterOptions = useMemo(() => {
+    const seen = new Set<string>();
+    logs.forEach((log) => {
+      if (log.changedByRole) seen.add(log.changedByRole);
+    });
+    return Array.from(seen).sort(
+      (a, b) => roleOrder.indexOf(a) - roleOrder.indexOf(b) || a.localeCompare(b)
+    );
+  }, [logs]);
+
+  // Field filter options: unique fields from loaded logs, sorted (so filter stays in sync with data)
+  const fieldFilterOptions = useMemo(() => {
+    const seen = new Set<string>();
+    logs.forEach((log) => {
+      if (log.field) seen.add(log.field);
+    });
+    return Array.from(seen).sort((a, b) => a.localeCompare(b));
+  }, [logs]);
+
+  const getRoleDisplayName = (role: string) =>
+    role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
+
+  // Reset role/field filter if selected value no longer exists in loaded data
+  useEffect(() => {
+    if (
+      roleFilter !== "all" &&
+      roleFilterOptions.length > 0 &&
+      !roleFilterOptions.includes(roleFilter)
+    ) {
+      setRoleFilter("all");
+    }
+  }, [roleFilter, roleFilterOptions]);
+
+  useEffect(() => {
+    if (
+      fieldFilter !== "all" &&
+      fieldFilterOptions.length > 0 &&
+      !fieldFilterOptions.includes(fieldFilter)
+    ) {
+      setFieldFilter("all");
+    }
+  }, [fieldFilter, fieldFilterOptions]);
+
   // Fetch real audit logs from API
   useEffect(() => {
     const fetchLogs = async () => {
@@ -84,15 +137,15 @@ export default function AuditPage() {
 
     // Search filter (using debounced value)
     if (debouncedSearchQuery) {
+      const q = debouncedSearchQuery.toLowerCase();
       filtered = filtered.filter(
         (log) =>
-          log.gameTitle.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-          log.changedByName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+          log.gameTitle.toLowerCase().includes(q) ||
+          log.changedByName.toLowerCase().includes(q) ||
           (log.submittedByName &&
-            log.submittedByName
-              .toLowerCase()
-              .includes(debouncedSearchQuery.toLowerCase())) ||
-          log.field.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+            log.submittedByName.toLowerCase().includes(q)) ||
+          log.field.toLowerCase().includes(q) ||
+          (log.notes && log.notes.toLowerCase().includes(q))
       );
     }
 
@@ -126,11 +179,12 @@ export default function AuditPage() {
           comparison = a.changedByName.localeCompare(b.changedByName);
           break;
         case "date":
-        default:
+        default: {
           const timeA = new Date(a.changedAt).getTime();
           const timeB = new Date(b.changedAt).getTime();
-          comparison = timeB - timeA; // Default to newest first
-          break;
+          // asc = oldest first (smaller time first), desc = newest first (larger time first)
+          return sortOrder === "asc" ? timeA - timeB : timeB - timeA;
+        }
       }
 
       return sortOrder === "asc" ? -comparison : comparison;
@@ -158,20 +212,6 @@ export default function AuditPage() {
     }
   };
 
-  const getFieldDisplayName = (field: string) => {
-    // Handle special cases for acronyms
-    // First, add space after acronyms before following words (e.g., "DBLink" -> "DB Link")
-    const result = field
-      .replace(/(DB)([A-Z][a-z])/g, "$1 $2") // "DBLink" -> "DB Link"
-      .replace(/(DRM)([A-Z][a-z])/g, "$1 $2") // "DRMLink" -> "DRM Link"
-      .replace(/([a-z])(DB)([A-Z])/gi, "$1$2 $3") // "steamDBLink" -> "steamDB Link" (after above)
-      .replace(/([a-z])(DRM)([A-Z])/gi, "$1$2 $3") // "additionalDRMLink" -> "additionalDRM Link"
-      .replace(/([a-z])([A-Z])/g, "$1 $2") // Add space between other camelCase words
-      .replace(/^./, (str) => str.toUpperCase()) // Capitalize first letter
-      .trim();
-    return result;
-  };
-
   const formatValue = (value: string | number | boolean | string[] | null) => {
     if (value === null || value === undefined) return "N/A";
     if (Array.isArray(value)) return value.join(", ");
@@ -190,7 +230,11 @@ export default function AuditPage() {
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays < 7) return `${diffDays}d ago`;
-    return new Date(date).toLocaleDateString();
+    return new Date(date).toLocaleDateString(undefined, {
+      month: "2-digit",
+      day: "2-digit",
+      year: "numeric",
+    });
   };
 
   return (
@@ -221,7 +265,7 @@ export default function AuditPage() {
                 <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[rgb(var(--text-muted))]" />
                 <input
                   type="text"
-                  placeholder="Search by game, user, or field..."
+                  placeholder="Search by game, user, field, or notes..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
@@ -244,7 +288,7 @@ export default function AuditPage() {
               <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[rgb(var(--text-muted))]" />
               <input
                 type="text"
-                placeholder="Search by game, user, or field..."
+                placeholder="Search by game, user, field, or notes..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
@@ -264,33 +308,39 @@ export default function AuditPage() {
             <div className={`${showFilters ? "block" : "hidden"} md:block`}>
               {/* Filters Row - Large Screens */}
               <div className="hidden lg:flex items-center gap-3 mb-3">
-                <select
-                  value={roleFilter}
-                  onChange={(e) => setRoleFilter(e.target.value)}
-                  className="px-4 py-2 pr-10 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
-                  style={{ paddingRight: "2.75rem" }}
-                >
-                  <option value="all">All Roles</option>
-                  <option value="user">Users</option>
-                  <option value="reviewer">Reviewers</option>
-                  <option value="admin">Admins</option>
-                </select>
+                <span className="text-[rgb(var(--text-muted))] text-sm whitespace-nowrap">
+                  Approved by
+                </span>
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger
+                    className="min-w-[130px]"
+                    aria-label="Filter by who approved"
+                  >
+                    <SelectValue placeholder="All approvers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All approvers</SelectItem>
+                    {roleFilterOptions.map((role) => (
+                      <SelectItem key={role} value={role}>
+                        {getRoleDisplayName(role)}s
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-                <select
-                  value={fieldFilter}
-                  onChange={(e) => setFieldFilter(e.target.value)}
-                  className="px-4 py-2 pr-10 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
-                  style={{ paddingRight: "2.75rem" }}
-                >
-                  <option value="all">All Fields</option>
-                  <option value="title">Title</option>
-                  <option value="description">Description</option>
-                  <option value="developer">Developer</option>
-                  <option value="publisher">Publisher</option>
-                  <option value="releaseDate">Release Date</option>
-                  <option value="activationType">Activation Type</option>
-                  <option value="status">Status</option>
-                </select>
+                <Select value={fieldFilter} onValueChange={setFieldFilter}>
+                  <SelectTrigger className="min-w-[130px]">
+                    <SelectValue placeholder="All Fields" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Fields</SelectItem>
+                    {fieldFilterOptions.map((field) => (
+                      <SelectItem key={field} value={field}>
+                        {getFieldDisplayName(field)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
                 <button
                   onClick={() =>
@@ -315,33 +365,41 @@ export default function AuditPage() {
               {/* Filters - Mobile/Tablet */}
               <div className="lg:hidden space-y-3">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <select
-                    value={roleFilter}
-                    onChange={(e) => setRoleFilter(e.target.value)}
-                    className="w-full px-4 py-2 pr-10 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
-                    style={{ paddingRight: "2.75rem" }}
-                  >
-                    <option value="all">All Roles</option>
-                    <option value="user">Users</option>
-                    <option value="reviewer">Reviewers</option>
-                    <option value="admin">Admins</option>
-                  </select>
+                  <div className="space-y-1.5">
+                    <label className="text-[rgb(var(--text-muted))] text-sm block">
+                      Approved by
+                    </label>
+                    <Select value={roleFilter} onValueChange={setRoleFilter}>
+                      <SelectTrigger
+                        className="w-full"
+                        aria-label="Filter by who approved"
+                      >
+                        <SelectValue placeholder="All approvers" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All approvers</SelectItem>
+                        {roleFilterOptions.map((role) => (
+                          <SelectItem key={role} value={role}>
+                            {getRoleDisplayName(role)}s
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                  <select
-                    value={fieldFilter}
-                    onChange={(e) => setFieldFilter(e.target.value)}
-                    className="w-full px-4 py-2 pr-10 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
-                    style={{ paddingRight: "2.75rem" }}
-                  >
-                    <option value="all">All Fields</option>
-                    <option value="title">Title</option>
-                    <option value="description">Description</option>
-                    <option value="developer">Developer</option>
-                    <option value="publisher">Publisher</option>
-                    <option value="releaseDate">Release Date</option>
-                    <option value="activationType">Activation Type</option>
-                    <option value="status">Status</option>
-                  </select>
+                  <Select value={fieldFilter} onValueChange={setFieldFilter}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="All Fields" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Fields</SelectItem>
+                      {fieldFilterOptions.map((field) => (
+                        <SelectItem key={field} value={field}>
+                          {getFieldDisplayName(field)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3">
@@ -396,7 +454,11 @@ export default function AuditPage() {
             ) : paginatedLogs.length === 0 ? (
               <div className="p-8 text-center">
                 <FaHistory className="mx-auto text-[rgb(var(--text-muted))] mb-4" size={48} />
-                <p className="text-[rgb(var(--text-secondary))]">No audit logs found</p>
+                <p className="text-[rgb(var(--text-secondary))]">
+                  {logs.length > 0 && (debouncedSearchQuery || roleFilter !== "all" || fieldFilter !== "all")
+                    ? "No logs match the current filters. Try clearing filters or changing search."
+                    : "No audit logs found"}
+                </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -566,9 +628,18 @@ export default function AuditPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-[rgb(var(--text-secondary))] text-sm">
-                            {log.submittedByName || "—"}
-                          </span>
+                          {log.submittedBy && log.submittedByName ? (
+                            <Link
+                              href={`/profile/${log.submittedBy}`}
+                              className="text-[#107c10] hover:text-[#0d6b0d] hover:underline text-sm"
+                            >
+                              {log.submittedByName}
+                            </Link>
+                          ) : (
+                            <span className="text-[rgb(var(--text-secondary))] text-sm">
+                              {log.submittedByName || "—"}
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
@@ -609,7 +680,11 @@ export default function AuditPage() {
             ) : paginatedLogs.length === 0 ? (
               <div className="bg-[rgb(var(--bg-card))] rounded-lg p-8 text-center">
                 <FaHistory className="mx-auto text-[rgb(var(--text-muted))] mb-4" size={48} />
-                <p className="text-[rgb(var(--text-secondary))]">No audit logs found</p>
+                <p className="text-[rgb(var(--text-secondary))]">
+                  {logs.length > 0 && (debouncedSearchQuery || roleFilter !== "all" || fieldFilter !== "all")
+                    ? "No logs match the current filters. Try clearing filters or changing search."
+                    : "No audit logs found"}
+                </p>
               </div>
             ) : (
               paginatedLogs.map((log) => (
@@ -727,7 +802,11 @@ function AuditLogCard({
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays < 7) return `${diffDays}d ago`;
-    return new Date(date).toLocaleDateString();
+    return new Date(date).toLocaleDateString(undefined, {
+      month: "2-digit",
+      day: "2-digit",
+      year: "numeric",
+    });
   };
 
   return (
@@ -762,12 +841,22 @@ function AuditLogCard({
           <div className="flex items-center gap-1.5 text-[rgb(var(--text-muted))] whitespace-nowrap text-xs">
             {log.submittedByName && (
               <>
-                <span
-                  className="hidden lg:inline truncate max-w-[80px]"
-                  title={`Submitted by ${log.submittedByName}`}
-                >
-                  {log.submittedByName}
-                </span>
+                {log.submittedBy ? (
+                  <Link
+                    href={`/profile/${log.submittedBy}`}
+                    className="hidden lg:inline truncate max-w-[80px] text-[#107c10] hover:text-[#0d6b0d] hover:underline"
+                    title={`Submitted by ${log.submittedByName}`}
+                  >
+                    {log.submittedByName}
+                  </Link>
+                ) : (
+                  <span
+                    className="hidden lg:inline truncate max-w-[80px]"
+                    title={`Submitted by ${log.submittedByName}`}
+                  >
+                    {log.submittedByName}
+                  </span>
+                )}
                 <span className="hidden lg:inline">→</span>
               </>
             )}
@@ -807,7 +896,16 @@ function AuditLogCard({
           </div>
           {log.submittedByName && (
             <div className="flex items-center gap-1.5 text-xs text-[rgb(var(--text-muted))]">
-              <span>{log.submittedByName}</span>
+              {log.submittedBy ? (
+                <Link
+                  href={`/profile/${log.submittedBy}`}
+                  className="text-[#107c10] hover:text-[#0d6b0d] hover:underline"
+                >
+                  {log.submittedByName}
+                </Link>
+              ) : (
+                <span>{log.submittedByName}</span>
+              )}
               <span>→</span>
               {getRoleIcon(log.changedByRole)}
               <span>{log.changedByName}</span>
@@ -833,10 +931,42 @@ function AuditDetailModal({
   getRoleIcon,
   getFieldDisplayName,
 }: AuditDetailModalProps) {
-  const formatValue = (value: string | number | boolean | string[] | null) => {
-    if (value === null || value === undefined) return "N/A";
-    if (Array.isArray(value)) return JSON.stringify(value, null, 2);
+  const formatValueForDisplay = (value: string | number | boolean | string[] | null) => {
+    if (value === null || value === undefined) return "—";
+    if (Array.isArray(value)) {
+      if (value.length === 0) return "—";
+      // Array of strings (e.g. instructions): show as numbered list
+      if (value.every((item) => typeof item === "string")) {
+        return value as string[];
+      }
+      return JSON.stringify(value, null, 2);
+    }
+    if (typeof value === "boolean") return value ? "Yes" : "No";
     return String(value);
+  };
+
+  const renderValue = (value: string | number | boolean | string[] | null, isNew = false) => {
+    const formatted = formatValueForDisplay(value);
+    const textClass = isNew
+      ? "text-[#107c10] text-sm"
+      : "text-[rgb(var(--text-secondary))] text-sm";
+    if (Array.isArray(formatted)) {
+      return (
+        <ol className={`list-decimal list-inside space-y-2 ${textClass}`}>
+          {formatted.map((line, i) => (
+            <li key={i} className="pl-1">
+              {line}
+            </li>
+          ))}
+        </ol>
+      );
+    }
+    if (formatted === "—") {
+      return <span className={`${textClass} italic`}>{formatted}</span>;
+    }
+    return (
+      <pre className={`${textClass} whitespace-pre-wrap break-words`}>{formatted}</pre>
+    );
   };
 
   return (
@@ -877,20 +1007,16 @@ function AuditDetailModal({
           {/* Old Value */}
           <div>
             <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">Previous Value</h3>
-            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3">
-              <pre className="text-[rgb(var(--text-secondary))] text-sm whitespace-pre-wrap break-all">
-                {formatValue(log.oldValue)}
-              </pre>
+            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3 max-h-[40vh] overflow-y-auto">
+              {renderValue(log.oldValue, false)}
             </div>
           </div>
 
           {/* New Value */}
           <div>
             <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">New Value</h3>
-            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3 border-l-4 border-[#107c10]">
-              <pre className="text-[#107c10] text-sm whitespace-pre-wrap break-all">
-                {formatValue(log.newValue)}
-              </pre>
+            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3 border-l-4 border-[#107c10] max-h-[40vh] overflow-y-auto">
+              {renderValue(log.newValue, true)}
             </div>
           </div>
 
@@ -899,7 +1025,16 @@ function AuditDetailModal({
             <div>
               <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">Submitted By</h3>
               <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3">
-                <span className="text-[rgb(var(--text-primary))]">{log.submittedByName}</span>
+                {log.submittedBy ? (
+                  <Link
+                    href={`/profile/${log.submittedBy}`}
+                    className="text-[#107c10] hover:text-[#0d6b0d] hover:underline"
+                  >
+                    {log.submittedByName}
+                  </Link>
+                ) : (
+                  <span className="text-[rgb(var(--text-primary))]">{log.submittedByName}</span>
+                )}
               </div>
             </div>
           )}
@@ -909,7 +1044,16 @@ function AuditDetailModal({
             <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">Approved By</h3>
             <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3 flex items-center gap-2">
               {getRoleIcon(log.changedByRole)}
-              <span className="text-[rgb(var(--text-primary))]">{log.changedByName}</span>
+              {log.changedBy ? (
+                <Link
+                  href={`/profile/${log.changedBy}`}
+                  className="text-[#107c10] hover:text-[#0d6b0d] hover:underline"
+                >
+                  {log.changedByName}
+                </Link>
+              ) : (
+                <span className="text-[rgb(var(--text-primary))]">{log.changedByName}</span>
+              )}
               <span className="text-[rgb(var(--text-muted))] text-sm">
                 ({log.changedByRole})
               </span>
@@ -921,7 +1065,13 @@ function AuditDetailModal({
             <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">Changed At</h3>
             <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3">
               <p className="text-[rgb(var(--text-primary))]">
-                {new Date(log.changedAt).toLocaleString()}
+                {new Date(log.changedAt).toLocaleString(undefined, {
+                  month: "2-digit",
+                  day: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
               </p>
             </div>
           </div>

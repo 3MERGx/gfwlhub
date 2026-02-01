@@ -665,6 +665,16 @@ export async function userEligibleForReviewer(userId: string): Promise<boolean> 
     return false;
   }
 
+  // Check minimum approval rate (only when user has at least one reviewed correction)
+  const reviewedCount =
+    (user.approvedCount || 0) + (user.rejectedCount || 0);
+  if (reviewedCount > 0) {
+    const approvalRate = (user.approvedCount || 0) / reviewedCount;
+    if (approvalRate < REVIEWER_APPLICATION_CONFIG.MIN_APPROVAL_RATE) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -676,6 +686,8 @@ export async function getUserEligibilityDetails(userId: string): Promise<{
   accountAgeDays: number;
   submissionsCount: number;
   approvedCount: number;
+  rejectedCount: number;
+  approvalRate: number;
   missingRequirements: string[];
 }> {
   const user = await getUserById(userId);
@@ -685,6 +697,8 @@ export async function getUserEligibilityDetails(userId: string): Promise<{
       accountAgeDays: 0,
       submissionsCount: 0,
       approvedCount: 0,
+      rejectedCount: 0,
+      approvalRate: 0,
       missingRequirements: ["User not found"],
     };
   }
@@ -692,6 +706,10 @@ export async function getUserEligibilityDetails(userId: string): Promise<{
   const accountAgeDays =
     (Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24);
   const missingRequirements: string[] = [];
+  const rejectedCount = user.rejectedCount ?? 0;
+  const reviewedCount = (user.approvedCount ?? 0) + rejectedCount;
+  const approvalRate =
+    reviewedCount > 0 ? (user.approvedCount ?? 0) / reviewedCount : 0;
 
   if (user.role !== "user") {
     missingRequirements.push("User must have 'user' role");
@@ -716,12 +734,23 @@ export async function getUserEligibilityDetails(userId: string): Promise<{
       `Must have at least ${REVIEWER_APPLICATION_CONFIG.MIN_CORRECTIONS_ACCEPTED} corrections accepted (currently ${user.approvedCount})`
     );
   }
+  if (reviewedCount > 0 && approvalRate < REVIEWER_APPLICATION_CONFIG.MIN_APPROVAL_RATE) {
+    const minPercent = Math.round(
+      REVIEWER_APPLICATION_CONFIG.MIN_APPROVAL_RATE * 100
+    );
+    const currentPercent = Math.round(approvalRate * 100);
+    missingRequirements.push(
+      `Approval rate must be at least ${minPercent}% (currently ${currentPercent}% — ${user.approvedCount} accepted, ${rejectedCount} rejected)`
+    );
+  }
 
   return {
     eligible: missingRequirements.length === 0,
     accountAgeDays: Math.floor(accountAgeDays),
     submissionsCount: user.submissionsCount,
     approvedCount: user.approvedCount,
+    rejectedCount,
+    approvalRate,
     missingRequirements,
   };
 }
@@ -1033,7 +1062,7 @@ export async function approveReviewerApplication(
       name: adminName,
     },
     timestamp: new Date(),
-    action: "Role changed to reviewer (from reviewer application approval)",
+    action: "Role changed to reviewer",
     reason: adminNotes || "Reviewer application approved",
     previousRole,
     newRole: "reviewer",
