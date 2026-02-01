@@ -768,7 +768,7 @@ export default function FAQ() {
                     router.push("/auth/signin?callbackUrl=" + encodeURIComponent("/faq"));
                   }
                 }}
-                className="px-4 py-2.5 bg-[#107c10] hover:bg-[#0d6b0d] text-white rounded-lg transition-all flex items-center gap-2 text-sm font-medium shadow-sm hover:shadow-md"
+                className="hidden sm:flex px-4 py-2.5 bg-[#107c10] hover:bg-[#0d6b0d] text-white rounded-lg transition-all items-center gap-2 text-sm font-medium shadow-sm hover:shadow-md"
               >
                 <FaPlus size={14} />
                 Submit FAQ
