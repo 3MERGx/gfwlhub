@@ -16,6 +16,7 @@ import {
 } from "@/lib/security";
 import { validateCSRFToken } from "@/lib/csrf";
 import { notifyReviewerApplicationReviewed } from "@/lib/discord-webhook";
+import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 
 // POST - Reject a reviewer application (admin only)
 export async function POST(
@@ -126,6 +127,8 @@ export async function POST(
         safeLog.error("Failed to send Discord notification:", error);
       });
     }
+
+    triggerPusherEvent(PUSHER_EVENTS.REVIEWER_APPLICATIONS_UPDATED);
 
     return NextResponse.json({ success: true });
   } catch (error) {

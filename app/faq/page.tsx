@@ -9,6 +9,8 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import Accordion from "@/components/Accordion";
 import { sanitizeHtml, safeLog } from "@/lib/security";
 import { useCSRF } from "@/hooks/useCSRF";
+import { usePusherChannel } from "@/hooks/usePusherChannel";
+import { PUSHER_EVENTS } from "@/lib/pusher-client";
 import {
   FaEdit,
   FaTrash,
@@ -151,7 +153,9 @@ export default function FAQ() {
 
   const fetchFAQs = async () => {
     try {
-      const response = await fetch("/api/faqs");
+      const response = await fetch(`/api/faqs?_t=${Date.now()}`, {
+        cache: "no-store",
+      });
       if (response.ok) {
         const data = await response.json();
         setFaqs(data);
@@ -162,6 +166,16 @@ export default function FAQ() {
       setLoading(false);
     }
   };
+
+  usePusherChannel(PUSHER_EVENTS.FAQ_UPDATED, () => {
+    fetchFAQs();
+  });
+
+  useEffect(() => {
+    const onFocus = () => fetchFAQs();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
 
   const handleEdit = (faq: FAQ) => {
     setEditingId(faq._id);

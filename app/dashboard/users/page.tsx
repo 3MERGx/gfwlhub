@@ -41,6 +41,8 @@ import { safeLog } from "@/lib/security";
 import { useToast } from "@/components/ui/toast-context";
 import { useCSRF } from "@/hooks/useCSRF";
 import { useDebounce } from "@/hooks/useDebounce";
+import { usePusherChannel } from "@/hooks/usePusherChannel";
+import { PUSHER_EVENTS } from "@/lib/pusher-client";
 
 interface User {
   id: string;
@@ -78,6 +80,7 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("lastActive");
+  const [refreshUsersTrigger, setRefreshUsersTrigger] = useState(0);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [showFilters, setShowFilters] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -119,7 +122,9 @@ export default function UsersPage() {
     async function fetchUsers() {
       setLoading(true);
       try {
-        const response = await fetch("/api/users");
+        const response = await fetch(`/api/users?_t=${Date.now()}`, {
+          cache: "no-store",
+        });
         if (response.ok) {
           const data = await response.json();
           setUsers(data);
@@ -134,7 +139,17 @@ export default function UsersPage() {
       }
     }
     fetchUsers();
-  }, [showToast]);
+  }, [showToast, refreshUsersTrigger]);
+
+  usePusherChannel(PUSHER_EVENTS.USERS_UPDATED, () => {
+    setRefreshUsersTrigger((t) => t + 1);
+  });
+
+  useEffect(() => {
+    const onFocus = () => setRefreshUsersTrigger((t) => t + 1);
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
 
   // Debounce search query
   const debouncedSearchQuery = useDebounce(searchQuery, 400);
@@ -282,12 +297,28 @@ export default function UsersPage() {
     if (diffHours < 24)
       return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
 
-    // More than 24 hours - show date
-    return new Date(date).toLocaleDateString();
+    // More than 24 hours - show date (MMM DD, YYYY e.g. Feb 17, 2026)
+    return new Date(date).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   };
 
   const formatFullDateTime = (date: Date): string => {
-    return new Date(date).toLocaleString();
+    const d = new Date(date);
+    const datePart = d.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+    const timePart = d.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    });
+    return `${datePart}, ${timePart}`;
   };
 
   const copyToClipboard = async (text: string, id: string) => {
@@ -1079,10 +1110,7 @@ export default function UsersPage() {
 
                       {/* Last Active */}
                       <div className="col-span-2 flex items-center justify-center text-sm text-[rgb(var(--text-secondary))] font-medium">
-                        <span
-                          title={formatFullDateTime(user.lastLoginAt)}
-                          className="cursor-help"
-                        >
+                        <span title={formatFullDateTime(user.lastLoginAt)}>
                           {formatRelativeTime(user.lastLoginAt)}
                         </span>
                       </div>
@@ -1478,7 +1506,7 @@ export default function UsersPage() {
                           <span>Last Active</span>
                         </div>
                         <p
-                          className="text-[rgb(var(--text-primary))] text-sm font-medium cursor-help"
+                          className="text-[rgb(var(--text-primary))] text-sm font-medium"
                           title={formatFullDateTime(user.lastLoginAt)}
                         >
                           {formatRelativeTime(user.lastLoginAt)}

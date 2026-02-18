@@ -7,6 +7,7 @@ import { safeLog, sanitizeString, markdownToSafeHtml, sanitizeHtml, rateLimiters
 import { validateCSRFToken } from "@/lib/csrf";
 import { canSubmitCorrections, getUserByEmail } from "@/lib/crowdsource-service-mongodb";
 import { notifyFaqSubmissionSubmitted } from "@/lib/discord-webhook";
+import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 
 // GET - Fetch FAQ submissions (for reviewers/admins)
 export async function GET(request: NextRequest) {
@@ -201,6 +202,8 @@ export async function POST(request: NextRequest) {
       question: sanitizedQuestion,
       submittedByName: newSubmission.submittedByName,
     }).catch((err) => safeLog.error("FAQ submission Discord webhook failed:", err));
+
+    triggerPusherEvent(PUSHER_EVENTS.FAQ_SUBMISSIONS_UPDATED);
 
     return NextResponse.json({
       id: submissionId,

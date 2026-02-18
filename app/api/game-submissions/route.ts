@@ -7,6 +7,7 @@ import { getGameBySlug } from "@/lib/games-service";
 import { notifyGameSubmissionSubmitted } from "@/lib/discord-webhook";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 import { revalidatePath } from "next/cache";
+import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 
 // GET - Fetch all game submissions (for reviewers/admins)
 export async function GET(request: NextRequest) {
@@ -328,6 +329,32 @@ export async function POST(request: NextRequest) {
       remasteredPlatform: originalGame.remasteredPlatform,
     } : null;
 
+    // Reject when proposed data is effectively the same as current (normalized comparison)
+    const { valuesAreEffectivelySame } = await import("@/lib/normalize-value");
+    const noChangeFields: string[] = [];
+    const filteredProposedData: Record<string, unknown> = {};
+    for (const [key, proposedVal] of Object.entries(sanitizedProposedData)) {
+      if (proposedVal === undefined || proposedVal === null || proposedVal === "") continue;
+      const currentVal = originalGameData?.[key as keyof typeof originalGameData];
+      if (valuesAreEffectivelySame(proposedVal, currentVal)) {
+        noChangeFields.push(key.replace(/([A-Z])/g, " $1").trim());
+      } else {
+        filteredProposedData[key] = proposedVal;
+      }
+    }
+    if (Object.keys(filteredProposedData).length === 0) {
+      return NextResponse.json(
+        {
+          error:
+            "All submitted fields are the same as the current values (after normalizing spaces and case). No change needed.",
+          noChangeFields,
+        },
+        { status: 400 }
+      );
+    }
+    const proposedDataAfterNoChangeFilter =
+      noChangeFields.length > 0 ? filteredProposedData : sanitizedProposedData;
+
     // Check for existing pending submission by the same user for the same game
     // Only update if submission is within 24 hours (allows users to refine their submission)
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -353,7 +380,7 @@ export async function POST(request: NextRequest) {
       // Merge proposed data (new fields override old ones, but keep all fields)
       finalProposedData = {
         ...existingSubmission.proposedData,
-        ...sanitizedProposedData,
+        ...proposedDataAfterNoChangeFilter,
       };
 
       // Merge submitter notes (append if both exist)
@@ -374,7 +401,7 @@ export async function POST(request: NextRequest) {
       );
     } else {
       // Create new submission
-      finalProposedData = sanitizedProposedData;
+      finalProposedData = proposedDataAfterNoChangeFilter;
       finalSubmitterNotes = sanitizedSubmitterNotes;
 
       const submission = {
@@ -516,6 +543,9 @@ export async function POST(request: NextRequest) {
     revalidatePath("/dashboard/game-submissions");
     revalidatePath(`/games/${sanitizedGameSlug}`);
     revalidatePath("/");
+
+    triggerPusherEvent(PUSHER_EVENTS.GAME_SUBMISSIONS_UPDATED);
+    triggerPusherEvent(PUSHER_EVENTS.GAME_UPDATED, { slug: sanitizedGameSlug });
 
     return NextResponse.json({
       success: true,

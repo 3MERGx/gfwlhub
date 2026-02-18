@@ -7,6 +7,7 @@ import { deleteUserAndAnonymizeContent } from "@/lib/crowdsource-service-mongodb
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 import { revalidatePath } from "next/cache";
 import { validateCSRFToken } from "@/lib/csrf";
+import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 
 // GET - Get user by ID
 export async function GET(
@@ -269,6 +270,8 @@ export async function PATCH(
     revalidatePath(`/profile/${sanitizedId}`);
     revalidatePath("/");
 
+    triggerPusherEvent(PUSHER_EVENTS.USERS_UPDATED, { userId: sanitizedId });
+
     return NextResponse.json({ success: true });
   } catch (error) {
     safeLog.error("Error updating user:", error);
@@ -333,6 +336,8 @@ export async function DELETE(
     revalidatePath("/dashboard/users");
     revalidatePath(`/profile/${sanitizedId}`);
     revalidatePath("/");
+
+    triggerPusherEvent(PUSHER_EVENTS.USERS_UPDATED, { userId: sanitizedId });
 
     return NextResponse.json({ success: true });
   } catch (error) {

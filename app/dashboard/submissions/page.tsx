@@ -26,8 +26,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getFieldDisplayName } from "@/lib/field-display";
+import { valuesAreEffectivelySame } from "@/lib/normalize-value";
 import { useCSRF } from "@/hooks/useCSRF";
 import { useDebounce } from "@/hooks/useDebounce";
+import { usePusherChannel } from "@/hooks/usePusherChannel";
+import { PUSHER_EVENTS } from "@/lib/pusher-client";
 import Image from "next/image";
 
 // Image Preview Component
@@ -210,11 +213,12 @@ export default function SubmissionsPage() {
     setUserIdFilter(params.get("userId"));
   }, []);
 
-  // Fetch real corrections from API
+  // Fetch real corrections from API (cache-bust so new submissions show immediately)
   const fetchCorrections = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/corrections");
+      const url = `/api/corrections?_t=${Date.now()}`;
+      const response = await fetch(url, { cache: "no-store" });
       if (response.ok) {
         const data = await response.json();
         const correctionsData = data.corrections || [];
@@ -235,6 +239,19 @@ export default function SubmissionsPage() {
 
   useEffect(() => {
     fetchCorrections();
+  }, []);
+
+  // Real-time: refetch when server broadcasts that submissions changed
+  usePusherChannel(PUSHER_EVENTS.SUBMISSIONS_UPDATED, () => {
+    fetchCorrections();
+    window.dispatchEvent(new CustomEvent("correctionsUpdated"));
+  });
+
+  // Fallback: refetch when this tab regains focus (catches submissions from another tab or missed Pusher)
+  useEffect(() => {
+    const onFocus = () => fetchCorrections();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, []);
 
   // Filter and sort corrections
@@ -697,11 +714,10 @@ export default function SubmissionsPage() {
               onClose={() => setSelectedCorrection(null)}
               getFieldDisplayName={getFieldDisplayName}
               onReview={async () => {
-                setSelectedCorrection(null);
-                // Refresh the list after closing modal
+                // Refetch first so list and counts update before closing modal
                 await fetchCorrections();
-                // Dispatch event to update notification counts
                 window.dispatchEvent(new CustomEvent("correctionsUpdated"));
+                setSelectedCorrection(null);
               }}
             />
           )}
@@ -713,11 +729,9 @@ export default function SubmissionsPage() {
               onClose={() => setSelectedBatch(null)}
               getFieldDisplayName={getFieldDisplayName}
               onReview={async () => {
-                setSelectedBatch(null);
-                // Refresh the list after closing modal
                 await fetchCorrections();
-                // Dispatch event to update notification counts
                 window.dispatchEvent(new CustomEvent("correctionsUpdated"));
+                setSelectedBatch(null);
               }}
             />
           )}
@@ -747,6 +761,10 @@ function CorrectionCard({
 }: CorrectionCardProps) {
   const isOwnSubmission =
     correction.submittedBy === currentUserId && !isDeveloper;
+  const isSameAsCurrent = valuesAreEffectivelySame(
+    correction.oldValue,
+    correction.newValue
+  );
   const formatValue = (
     value: string | number | boolean | string[] | null,
     isNewValue = false
@@ -820,6 +838,14 @@ function CorrectionCard({
           <FaEdit size={10} />
           {getFieldDisplayName(correction.field)}
         </span>
+        {isSameAsCurrent && (
+          <span
+            className="px-2 py-1 rounded text-xs border bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/30"
+            title="Proposed value matches current after normalizing spaces/case"
+          >
+            No meaningful change
+          </span>
+        )}
         {(correction.field === "downloadLink" ||
           correction.field === "communityAlternativeDownloadLink") && (
           <span className="px-2 py-1 rounded text-xs border bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-500/30 inline-flex items-center gap-1 font-semibold">
@@ -1008,7 +1034,7 @@ interface ReviewModalProps {
   correction: Correction;
   onClose: () => void;
   getFieldDisplayName: (field: string) => string;
-  onReview: (action: "approve" | "reject" | "modify") => void;
+  onReview: (action: "approve" | "reject" | "modify") => void | Promise<void>;
 }
 
 function ReviewModal({
@@ -1018,6 +1044,10 @@ function ReviewModal({
   onReview,
 }: ReviewModalProps) {
   const { csrfToken } = useCSRF();
+  const isSameAsCurrent = valuesAreEffectivelySame(
+    correction.oldValue,
+    correction.newValue
+  );
   const [reviewNotes, setReviewNotes] = useState("");
   const [modifiedValue, setModifiedValue] = useState(
     typeof correction.newValue === "string" &&
@@ -1078,9 +1108,7 @@ function ReviewModal({
         throw new Error("Failed to approve correction");
       }
 
-      onReview("approve");
-      // Dispatch event to update notification counts
-      window.dispatchEvent(new CustomEvent("correctionsUpdated"));
+      await onReview("approve");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to approve");
     } finally {
@@ -1109,9 +1137,7 @@ function ReviewModal({
         throw new Error("Failed to reject correction");
       }
 
-      onReview("reject");
-      // Dispatch event to update notification counts
-      window.dispatchEvent(new CustomEvent("correctionsUpdated"));
+      await onReview("reject");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to reject");
     } finally {
@@ -1165,9 +1191,7 @@ function ReviewModal({
         throw new Error(data.error || "Failed to modify correction");
       }
 
-      onReview("modify");
-      // Dispatch event to update notification counts
-      window.dispatchEvent(new CustomEvent("correctionsUpdated"));
+      await onReview("modify");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to modify");
     } finally {
@@ -1206,6 +1230,14 @@ function ReviewModal({
 
         {/* Content */}
         <div className="p-6 space-y-6 pb-24">
+          {isSameAsCurrent && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-500/30 rounded-lg p-3">
+              <p className="text-amber-800 dark:text-amber-300 text-sm">
+                No meaningful change. Proposed value matches current after
+                normalizing spaces and case.
+              </p>
+            </div>
+          )}
           {/* Field */}
           <div>
             <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">

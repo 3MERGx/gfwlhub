@@ -24,6 +24,7 @@ import RemasteredVersionCard from "@/components/RemasteredVersionCard";
 import PlayabilityBadge from "@/components/PlayabilityBadge";
 import TextWithLinks from "@/components/TextWithLinks";
 import GameImage from "@/components/GameImage";
+import GamePageRealtime from "./GamePageRealtime";
 
 // Get feature flags from .env.local or check if it's enabled in the game data
 const getFeatureFlag = async (slug: string): Promise<boolean> => {
@@ -172,6 +173,7 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
 
   return (
     <div className="container mx-auto px-4 py-8">
+      <GamePageRealtime slug={slug} />
       <div className="max-w-4xl mx-auto">
         <div className="bg-[rgb(var(--bg-card))] p-8 rounded-lg shadow-xl">
           <div className="mb-6 flex justify-between items-center">

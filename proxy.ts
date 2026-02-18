@@ -14,7 +14,7 @@ export function proxy(request: NextRequest) {
       "style-src 'self' 'unsafe-inline'", // 'unsafe-inline' needed for Tailwind CSS
       "img-src 'self' data: https: blob:",
       "font-src 'self' data:",
-      "connect-src 'self' https:",
+      "connect-src 'self' https: wss:",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",

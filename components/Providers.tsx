@@ -3,6 +3,7 @@
 import { SessionProvider } from "next-auth/react";
 import { ReactNode } from "react";
 import { ThemeProvider } from "./ThemeProvider";
+import { SessionRefetchOnUserUpdate } from "./SessionRefetchOnUserUpdate";
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -10,6 +11,7 @@ export function Providers({ children }: { children: ReactNode }) {
       refetchInterval={5 * 60} // Refetch session every 5 minutes to detect expiration
       refetchOnWindowFocus={true} // Refetch when user returns to the tab
     >
+      <SessionRefetchOnUserUpdate />
       <ThemeProvider>{children}</ThemeProvider>
     </SessionProvider>
   );

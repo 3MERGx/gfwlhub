@@ -25,7 +25,10 @@ import ConfirmPublishModal from "@/components/ConfirmPublishModal";
 import { useToast } from "@/components/ui/toast-context";
 import { safeLog } from "@/lib/security";
 import { useCSRF } from "@/hooks/useCSRF";
+import { usePusherChannel } from "@/hooks/usePusherChannel";
+import { PUSHER_EVENTS } from "@/lib/pusher-client";
 import { ListSkeleton } from "@/components/ui/loading-skeleton";
+import { valuesAreEffectivelySame } from "@/lib/normalize-value";
 
 function GameSubmissionsPage() {
   const { data: session, status } = useSession();
@@ -62,6 +65,16 @@ function GameSubmissionsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]); // Only fetch on initial load, filters will trigger their own updates
 
+  usePusherChannel(PUSHER_EVENTS.GAME_SUBMISSIONS_UPDATED, () => {
+    fetchSubmissions();
+  });
+
+  useEffect(() => {
+    const onFocus = () => fetchSubmissions();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
+
   const fetchSubmissions = async (showFilteringState = false, overrideStatus?: string) => {
     try {
       if (showFilteringState) {
@@ -70,7 +83,9 @@ function GameSubmissionsPage() {
 
       // Fetch all submissions for stats (only once, not on every filter change)
       if (allSubmissions.length === 0) {
-        const allResponse = await fetch("/api/game-submissions");
+        const allResponse = await fetch(`/api/game-submissions?_t=${Date.now()}`, {
+          cache: "no-store",
+        });
         if (allResponse.ok) {
           const allData = await allResponse.json();
           setAllSubmissions(allData);
@@ -144,13 +159,13 @@ function GameSubmissionsPage() {
 
       if (response.ok) {
         const approvedSubmission = action === "approved" ? selectedSubmission : null;
-        
+
+        // Refetch first so list updates before closing modal
+        await fetchSubmissions();
+
         setShowReviewModal(false);
         setReviewNotes("");
-        
-        // Refresh submissions to get updated data (including currentGameData)
-        await fetchSubmissions();
-        
+
         // If approved and has required fields, check if we should offer to publish
         if (action === "approved" && approvedSubmission && hasRequiredFields(approvedSubmission)) {
           // Fetch the updated submission to check if game is published
@@ -417,9 +432,9 @@ function GameSubmissionsPage() {
             </Link>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-[rgb(var(--bg-card))] rounded-lg p-4 border border-[rgb(var(--border-color))]">
+          {/* Stats - Total = Pending + Approved + Rejected + Superseded. On mobile: Total 2x1, then 2x2. */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+            <div className="col-span-2 md:col-span-1 bg-[rgb(var(--bg-card))] rounded-lg p-4 border border-[rgb(var(--border-color))]">
               <div className="text-2xl font-bold text-[rgb(var(--text-primary))]">
                 {stats.total}
               </div>
@@ -451,6 +466,17 @@ function GameSubmissionsPage() {
                 Rejected
               </div>
             </div>
+            <div
+              className="bg-[rgb(var(--bg-card))] rounded-lg p-4 border border-[rgb(var(--border-color))]"
+              title="Another submission for the same game was approved first. Not counted as rejected."
+            >
+              <div className="text-2xl font-bold text-slate-500 dark:text-slate-400">
+                {stats.superseded}
+              </div>
+              <div className="text-sm text-[rgb(var(--text-secondary))]">
+                Superseded
+              </div>
+            </div>
           </div>
 
           {/* Filters */}
@@ -474,6 +500,7 @@ function GameSubmissionsPage() {
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="approved">Approved</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="superseded">Superseded</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -605,7 +632,7 @@ function GameSubmissionsPage() {
                     </div>
                   </div>
 
-                  {/* Preview of submitted data - only show fields that are different or new */}
+                  {/* Preview of submitted data: changed/new vs same as current (normalized) */}
                   {(() => {
                     interface SubmissionWithCurrentGame extends GameSubmission {
                       currentGameData?: Record<string, unknown>;
@@ -613,49 +640,64 @@ function GameSubmissionsPage() {
                     const currentGame = (
                       submission as SubmissionWithCurrentGame
                     ).currentGameData;
-                    const changedFields = Object.keys(
-                      submission.proposedData
-                    ).filter((key) => {
+                    const changedFields: string[] = [];
+                    const sameAsCurrentFields: string[] = [];
+                    for (const key of Object.keys(submission.proposedData)) {
                       const proposedValue =
                         submission.proposedData[
                           key as keyof typeof submission.proposedData
                         ];
-                      if (!proposedValue) return false; // Skip empty values
+                      if (!proposedValue) continue;
 
-                      // If no current game data, all fields are "new"
-                      if (!currentGame) return true;
-
-                      const currentValue = currentGame[key];
-
-                      // Compare arrays
-                      if (
-                        Array.isArray(proposedValue) &&
-                        Array.isArray(currentValue)
-                      ) {
-                        return (
-                          JSON.stringify(proposedValue.sort()) !==
-                          JSON.stringify(currentValue.sort())
-                        );
+                      if (!currentGame) {
+                        changedFields.push(key);
+                        continue;
                       }
+                      const currentValue = currentGame[key];
+                      if (valuesAreEffectivelySame(proposedValue, currentValue)) {
+                        sameAsCurrentFields.push(key);
+                      } else {
+                        changedFields.push(key);
+                      }
+                    }
 
-                      // Compare strings/other values
-                      return proposedValue !== currentValue;
-                    });
+                    if (changedFields.length === 0 && sameAsCurrentFields.length === 0) return null;
 
-                    if (changedFields.length === 0) return null;
-
+                    const formatKey = (k: string) => k.replace(/([A-Z])/g, " $1").trim();
                     return (
-                      <div className="bg-[rgb(var(--bg-card-alt))] rounded p-4 text-sm">
-                        <p className="text-[rgb(var(--text-secondary))] mb-2">
-                          Submitted Fields:
-                        </p>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                          {changedFields.map((key) => (
-                            <span key={key} className="text-green-400 text-xs">
-                              ✓ {key.replace(/([A-Z])/g, " $1").trim()}
-                            </span>
-                          ))}
-                        </div>
+                      <div className="bg-[rgb(var(--bg-card-alt))] rounded p-4 text-sm space-y-3">
+                        {changedFields.length > 0 && (
+                          <div>
+                            <p className="text-[rgb(var(--text-secondary))] mb-2">
+                              Submitted Fields (changed / new):
+                            </p>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                              {changedFields.map((key) => (
+                                <span key={key} className="text-green-400 text-xs">
+                                  ✓ {formatKey(key)}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {sameAsCurrentFields.length > 0 && (
+                          <div>
+                            <p className="text-[rgb(var(--text-secondary))] mb-2">
+                              No meaningful change (same as current):
+                            </p>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                              {sameAsCurrentFields.map((key) => (
+                                <span
+                                  key={key}
+                                  className="text-amber-500 dark:text-amber-400 text-xs"
+                                  title="Value matches current after normalizing spaces/case"
+                                >
+                                  ≈ {formatKey(key)}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
@@ -717,7 +759,7 @@ function GameSubmissionsPage() {
             </div>
 
             <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-              {/* Submitted Data - only show fields that changed */}
+              {/* Submitted Data - show all fields with normalized "same as current" indicator */}
               {(() => {
                 interface SubmissionWithOriginalGame extends GameSubmission {
                   originalGameData?: Record<string, unknown>;
@@ -725,40 +767,31 @@ function GameSubmissionsPage() {
                 const originalGame = (
                   selectedSubmission as SubmissionWithOriginalGame
                 ).originalGameData;
-                
-                // Helper function to check if a field has changed from original
-                const hasChanged = (key: string, value: unknown): boolean => {
-                  if (!originalGame) return true; // If no original game data, all fields are "new"
-                  
-                  const originalValue = originalGame[key];
-                  
-                  // Compare arrays
-                  if (Array.isArray(value) && Array.isArray(originalValue)) {
-                    return (
-                      JSON.stringify(value.sort()) !==
-                      JSON.stringify(originalValue.sort())
-                    );
-                  }
-                  
-                  // Compare strings/other values
-                  return value !== originalValue;
-                };
 
-                // Only show fields that actually changed
-                const changedFields = Object.entries(
+                const allFields = Object.entries(
                   selectedSubmission.proposedData
-                ).filter(([key, value]) => {
-                  if (!value || value === null || value === undefined || value === "") {
-                    return false; // Skip empty values
-                  }
-                  return hasChanged(key, value);
-                });
+                ).filter(
+                  ([, value]) =>
+                    value !== null && value !== undefined && value !== ""
+                );
 
-                if (changedFields.length === 0) {
+                const changedCount = allFields.filter(([key, value]) => {
+                  if (!originalGame) return true;
+                  return !valuesAreEffectivelySame(
+                    value,
+                    originalGame[key as keyof typeof originalGame]
+                  );
+                }).length;
+                const sameAsCurrentCount = allFields.length - changedCount;
+
+                if (allFields.length === 0) return null;
+
+                if (sameAsCurrentCount === allFields.length) {
                   return (
                     <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-500/30 rounded-lg p-4">
                       <p className="text-yellow-800 dark:text-yellow-300 text-sm">
-                        No changes detected. All submitted fields match the original game data.
+                        No meaningful change. All submitted fields match the
+                        original game data (after normalizing spaces and case).
                       </p>
                     </div>
                   );
@@ -767,11 +800,13 @@ function GameSubmissionsPage() {
                 return (
                   <div>
                     <h3 className="text-base sm:text-lg font-semibold text-[rgb(var(--text-primary))] mb-3 sm:mb-4">
-                      Submitted Changes ({changedFields.length} field
-                      {changedFields.length !== 1 ? "s" : ""})
+                      Submitted Changes ({changedCount} changed
+                      {sameAsCurrentCount > 0 &&
+                        `, ${sameAsCurrentCount} same as current`}
+                      )
                     </h3>
                     <div className="space-y-2 sm:space-y-3">
-                      {changedFields.map(([key, value]) => {
+                      {allFields.map(([key, value]) => {
                         const isUrl =
                           typeof value === "string" &&
                           (value.startsWith("http://") ||
@@ -780,15 +815,28 @@ function GameSubmissionsPage() {
                           key === "downloadLink" ||
                           key === "communityAlternativeDownloadLink";
                         const originalValue = originalGame?.[key];
-                        const hasOriginalValue = originalValue !== undefined && originalValue !== null && originalValue !== "";
-                        
+                        const hasOriginalValue =
+                          originalValue !== undefined &&
+                          originalValue !== null &&
+                          originalValue !== "";
+                        const isSameAsCurrent =
+                          hasOriginalValue &&
+                          valuesAreEffectivelySame(value, originalValue);
+
+                        let badge: "changed" | "new" | "same" = hasOriginalValue
+                          ? "changed"
+                          : "new";
+                        if (isSameAsCurrent) badge = "same";
+
                         return (
                           <div
                             key={key}
                             className={`bg-[rgb(var(--bg-card-alt))] rounded p-3 sm:p-4 ${
                               isDownloadLink
                                 ? "border-2 border-yellow-500/50"
-                                : "border-l-4 border-blue-500"
+                                : isSameAsCurrent
+                                  ? "border-l-4 border-amber-500"
+                                  : "border-l-4 border-blue-500"
                             }`}
                           >
                             <div className="flex items-center gap-2 mb-1 sm:mb-2 flex-wrap">
@@ -800,14 +848,27 @@ function GameSubmissionsPage() {
                                   ⚠️ Download Link - Review Carefully
                                 </span>
                               )}
-                              <span className="px-2 py-0.5 rounded text-xs border bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/30 font-semibold">
-                                {hasOriginalValue ? "Changed" : "New Field"}
-                              </span>
+                              {badge === "same" ? (
+                                <span
+                                  className="px-2 py-0.5 rounded text-xs border bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/30 font-semibold"
+                                  title="Value matches current after normalizing spaces/case"
+                                >
+                                  Same as current
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded text-xs border bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/30 font-semibold">
+                                  {badge === "changed"
+                                    ? "Changed"
+                                    : "New Field"}
+                                </span>
+                              )}
                             </div>
                             {hasOriginalValue && (
                               <div className="mb-2">
                                 <p className="text-[rgb(var(--text-muted))] text-xs mb-1">
-                                  <span className="font-semibold">Original:</span>{" "}
+                                  <span className="font-semibold">
+                                    Original:
+                                  </span>{" "}
                                   {Array.isArray(originalValue)
                                     ? originalValue.join(", ")
                                     : String(originalValue)}

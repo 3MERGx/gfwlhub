@@ -6,6 +6,7 @@ import { ObjectId } from "mongodb";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 import { revalidatePath } from "next/cache";
 import { validateCSRFToken } from "@/lib/csrf";
+import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 
 // GET - Fetch all FAQs
 export async function GET(request: Request) {
@@ -114,6 +115,8 @@ export async function POST(request: NextRequest) {
     revalidatePath("/faq");
     revalidatePath("/");
 
+    triggerPusherEvent(PUSHER_EVENTS.FAQ_UPDATED);
+
     return NextResponse.json({
       id: result.insertedId.toString(),
       ...newFAQ,
@@ -217,6 +220,8 @@ export async function PUT(request: NextRequest) {
     revalidatePath("/faq");
     revalidatePath("/");
 
+    triggerPusherEvent(PUSHER_EVENTS.FAQ_UPDATED);
+
     return NextResponse.json({ success: true });
   } catch (error) {
     safeLog.error("Error updating FAQ:", error);
@@ -275,6 +280,8 @@ export async function DELETE(request: NextRequest) {
     // Revalidate paths
     revalidatePath("/faq");
     revalidatePath("/");
+
+    triggerPusherEvent(PUSHER_EVENTS.FAQ_UPDATED);
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -28,6 +28,8 @@ import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { useCSRF } from "@/hooks/useCSRF";
 import { useDebounce } from "@/hooks/useDebounce";
+import { usePusherChannel } from "@/hooks/usePusherChannel";
+import { PUSHER_EVENTS } from "@/lib/pusher-client";
 import { useToast } from "@/components/ui/toast-context";
 import { safeLog, sanitizeHtml } from "@/lib/security";
 import type { FAQSubmission } from "@/types/faq-submission";
@@ -71,8 +73,8 @@ export default function FAQSubmissionsPage() {
     async (background = false) => {
       if (!background) setIsLoadingSubmissions(true);
       try {
-        const url = `/api/faq-submissions?status=${statusFilter || "all"}`;
-        const response = await fetch(url);
+        const url = `/api/faq-submissions?status=${statusFilter || "all"}&_t=${Date.now()}`;
+        const response = await fetch(url, { cache: "no-store" });
 
         if (response.ok) {
           const data = await response.json();
@@ -95,6 +97,16 @@ export default function FAQSubmissionsPage() {
       fetchSubmissions();
     }
   }, [canReview, fetchSubmissions]);
+
+  usePusherChannel(PUSHER_EVENTS.FAQ_SUBMISSIONS_UPDATED, () => {
+    fetchSubmissions(true);
+  });
+
+  useEffect(() => {
+    const onFocus = () => fetchSubmissions(true);
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [fetchSubmissions]);
 
   // Reset to page 1 when filters change
   useEffect(() => {

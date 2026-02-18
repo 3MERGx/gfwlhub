@@ -12,6 +12,7 @@ import {
 } from "@/lib/security";
 import { revalidatePath } from "next/cache";
 import { validateCSRFToken } from "@/lib/csrf";
+import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 
 // PATCH - Review a game submission (approve/reject)
 export async function PATCH(
@@ -311,6 +312,9 @@ export async function PATCH(
     revalidatePath("/dashboard/game-submissions");
     revalidatePath(`/games/${submission.gameSlug}`);
     revalidatePath("/");
+
+    triggerPusherEvent(PUSHER_EVENTS.GAME_SUBMISSIONS_UPDATED);
+    triggerPusherEvent(PUSHER_EVENTS.GAME_UPDATED, { slug: submission.gameSlug });
 
     return NextResponse.json({ success: true });
   } catch (error) {

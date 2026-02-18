@@ -13,6 +13,8 @@ import {
 } from "react-icons/fa";
 import { useToast } from "@/components/ui/toast-context";
 import { useCSRF } from "@/hooks/useCSRF";
+import { usePusherChannel } from "@/hooks/usePusherChannel";
+import { PUSHER_EVENTS } from "@/lib/pusher-client";
 import { useDebounce } from "@/hooks/useDebounce";
 import Image from "next/image";
 import { getAvatarUrl } from "@/lib/image-utils";
@@ -235,7 +237,11 @@ export default function ReviewerApplicationsPage() {
       setIsLoading(true);
       // If fetchAll is true, fetch all applications regardless of filter (for stats calculation)
       const statusParam = fetchAll ? "" : (statusFilter === "all" ? "" : `?status=${statusFilter}`);
-      const response = await fetch(`/api/admin/reviewer-applications${statusParam}`);
+      const sep = statusParam ? "&" : "?";
+      const response = await fetch(
+        `/api/admin/reviewer-applications${statusParam}${sep}_t=${Date.now()}`,
+        { cache: "no-store" }
+      );
       if (response.ok) {
         const data = await response.json();
         setApplications(data.applications || []);
@@ -252,6 +258,32 @@ export default function ReviewerApplicationsPage() {
       setIsLoading(false);
     }
   };
+
+  usePusherChannel(PUSHER_EVENTS.REVIEWER_APPLICATIONS_UPDATED, () => {
+    fetchApplications();
+    fetch(`/api/admin/reviewer-applications?_t=${Date.now()}`, { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.applications) {
+          setAllApplicationsForStats(data.applications);
+        }
+      })
+      .catch(() => {});
+  });
+
+  useEffect(() => {
+    const onFocus = () => {
+      fetchApplications();
+      fetch(`/api/admin/reviewer-applications?_t=${Date.now()}`, { cache: "no-store" })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.applications) setAllApplicationsForStats(data.applications);
+        })
+        .catch(() => {});
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
 
   const handleApprove = (application: ReviewerApplication) => {
     setSelectedApplication(application);
@@ -291,10 +323,22 @@ export default function ReviewerApplicationsPage() {
         );
       }
 
-      const actionMessage = confirmAction === "approve" 
+      const actionMessage = confirmAction === "approve"
         ? "Application approved successfully! The user has been promoted to reviewer and will need to sign in again to access their new permissions."
         : "Application rejected successfully!";
-      
+
+      // Refetch first so list and stats update before closing dialog
+      await fetchApplications();
+      const statsResponse = await fetch(`/api/admin/reviewer-applications?_t=${Date.now()}`, {
+        cache: "no-store",
+      });
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        if (statsData.applications) {
+          setAllApplicationsForStats(statsData.applications);
+        }
+      }
+
       showToast(
         actionMessage,
         undefined,
@@ -304,17 +348,6 @@ export default function ReviewerApplicationsPage() {
       setSelectedApplication(null);
       setConfirmAction(null);
       setAdminNotes("");
-      
-      // Refresh applications and stats
-      await fetchApplications();
-      // Also refresh stats by fetching all applications
-      const statsResponse = await fetch(`/api/admin/reviewer-applications`);
-      if (statsResponse.ok) {
-        const statsData = await statsResponse.json();
-        if (statsData.applications) {
-          setAllApplicationsForStats(statsData.applications);
-        }
-      }
     } catch (error) {
       showToast(
         error instanceof Error

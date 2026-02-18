@@ -32,6 +32,8 @@ import {
   FaFilter,
 } from "react-icons/fa";
 import Tooltip from "@/components/ui/tooltip";
+import { usePusherChannel } from "@/hooks/usePusherChannel";
+import { PUSHER_EVENTS } from "@/lib/pusher-client";
 
 interface User {
   id: string;
@@ -103,13 +105,33 @@ export default function ProfilePage({
   const [itemsPerPage] = useState(10);
   const [typeFilter, setTypeFilter] = useState<"all" | "correction" | "gameSubmission">("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  usePusherChannel(PUSHER_EVENTS.USERS_UPDATED, () => {
+    setRefreshTrigger((t) => t + 1);
+  });
+  usePusherChannel(PUSHER_EVENTS.SUBMISSIONS_UPDATED, () => {
+    setRefreshTrigger((t) => t + 1);
+  });
+  usePusherChannel(PUSHER_EVENTS.GAME_SUBMISSIONS_UPDATED, () => {
+    setRefreshTrigger((t) => t + 1);
+  });
+
+  useEffect(() => {
+    const onFocus = () => setRefreshTrigger((t) => t + 1);
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
 
   useEffect(() => {
     let isMounted = true; // Prevent state updates if component unmounts
 
     const fetchUser = async () => {
       try {
-        const response = await fetch(`/api/users/${resolvedParams.id}`);
+        const response = await fetch(
+          `/api/users/${resolvedParams.id}?_t=${Date.now()}`,
+          { cache: "no-store" }
+        );
         if (response.status === 429) {
           // Rate limited - retry after a delay
           safeLog.warn("Rate limited, retrying user fetch after delay...");
@@ -136,9 +158,14 @@ export default function ProfilePage({
     const fetchSubmissions = async () => {
       try {
         // Fetch both corrections and game submissions in parallel
+        const t = Date.now();
         const [correctionsResponse, gameSubmissionsResponse] = await Promise.all([
-          fetch(`/api/corrections?userId=${resolvedParams.id}`),
-          fetch(`/api/game-submissions?userId=${resolvedParams.id}`),
+          fetch(`/api/corrections?userId=${resolvedParams.id}&_t=${t}`, {
+            cache: "no-store",
+          }),
+          fetch(`/api/game-submissions?userId=${resolvedParams.id}&_t=${t}`, {
+            cache: "no-store",
+          }),
         ]);
 
         // Handle rate limiting with retry
@@ -207,7 +234,7 @@ export default function ProfilePage({
     return () => {
       isMounted = false; // Cleanup on unmount
     };
-  }, [session, resolvedParams.id]);
+  }, [session, resolvedParams.id, refreshTrigger]);
 
   // Reset to page 1 when filters change
   useEffect(() => {

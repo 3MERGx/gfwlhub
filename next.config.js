@@ -16,6 +16,16 @@ const nextConfig = {
     return config;
   },
   images: {
+    localPatterns: [
+      {
+        pathname: "/api/image-proxy",
+        // omit search so query string (e.g. ?url=...) is allowed for proxy
+      },
+      {
+        pathname: "/**",
+        search: "",
+      },
+    ],
     remotePatterns: [
       {
         protocol: "https",
@@ -68,6 +78,24 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "lh3.googleusercontent.com",
+        port: "",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "encrypted-tbn0.gstatic.com",
+        port: "",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "**.gstatic.com",
+        port: "",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "**.trueachievements.com",
         port: "",
         pathname: "/**",
       },

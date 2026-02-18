@@ -6,6 +6,8 @@ import { useRouter, usePathname } from "next/navigation";
 import { safeLog } from "@/lib/security";
 import { useToast } from "@/components/ui/toast-context";
 import { useCSRF } from "@/hooks/useCSRF";
+import { usePusherChannel } from "@/hooks/usePusherChannel";
+import { PUSHER_EVENTS } from "@/lib/pusher-client";
 import Link from "next/link";
 import {
   FaArrowLeft,
@@ -89,7 +91,9 @@ function GamesManagementPage() {
 
   const fetchGames = async () => {
     try {
-      const response = await fetch("/api/games/manage");
+      const response = await fetch(`/api/games/manage?_t=${Date.now()}`, {
+        cache: "no-store",
+      });
       if (response.ok) {
         const data = await response.json();
         setGames(data);
@@ -100,6 +104,16 @@ function GamesManagementPage() {
       setLoading(false);
     }
   };
+
+  usePusherChannel(PUSHER_EVENTS.GAMES_UPDATED, () => {
+    fetchGames();
+  });
+
+  useEffect(() => {
+    const onFocus = () => fetchGames();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
 
   const toggleFeatureEnabled = async (slug: string, currentValue: boolean) => {
     setUpdating(slug);

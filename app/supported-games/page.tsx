@@ -17,6 +17,8 @@ import {
 } from "react-icons/fa";
 import DisabledGamePrompt from "@/app/games/[slug]/DisabledGamePrompt";
 import AddGameDetailsModal from "@/components/AddGameDetailsModal";
+import { usePusherChannel } from "@/hooks/usePusherChannel";
+import { PUSHER_EVENTS } from "@/lib/pusher-client";
 
 // Helper function to check if a game has its feature enabled
 const isGameFeatureEnabled = (game: Game): boolean => {
@@ -38,14 +40,17 @@ export default function SupportedGames() {
   const gamesPerPage = 10;
   const [selectedDisabledGame, setSelectedDisabledGame] = useState<Game | null>(null);
   const [showAddDetailsModal, setShowAddDetailsModal] = useState(false);
+  const [refreshGamesTrigger, setRefreshGamesTrigger] = useState(0);
 
   // Fetch games from MongoDB
   useEffect(() => {
     let isMounted = true;
-    
+
     async function fetchGames() {
       try {
-        const response = await fetch("/api/games");
+        const response = await fetch(`/api/games?_t=${Date.now()}`, {
+          cache: "no-store",
+        });
         if (response.ok && isMounted) {
           const data = await response.json();
           setGames(data);
@@ -65,12 +70,25 @@ export default function SupportedGames() {
       }
     }
     fetchGames();
-    
+
     return () => {
       isMounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount
+  }, [refreshGamesTrigger]); // Re-run when real-time update triggers refetch
+
+  usePusherChannel(PUSHER_EVENTS.GAMES_UPDATED, () => {
+    setRefreshGamesTrigger((t) => t + 1);
+  });
+  usePusherChannel(PUSHER_EVENTS.GAME_UPDATED, () => {
+    setRefreshGamesTrigger((t) => t + 1);
+  });
+
+  useEffect(() => {
+    const onFocus = () => setRefreshGamesTrigger((t) => t + 1);
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -180,6 +198,19 @@ export default function SupportedGames() {
           <h1 className="text-3xl font-bold mb-6 text-center text-[rgb(var(--text-primary))]">
             Supported Games
           </h1>
+
+          <div className="mb-6 p-3 rounded-lg bg-[rgb(var(--bg-card-alt))] border border-[rgb(var(--border-color))] text-center text-sm text-[rgb(var(--text-secondary))]">
+            Have suggestions for the platform or game detail pages? Let us know on the{" "}
+            <Link
+              href="https://discord.gg/PR75T8xMWS"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#107c10] hover:text-[#0e6b0e] underline"
+            >
+              community Discord
+            </Link>
+            .
+          </div>
 
           <div className="mb-8">
             <div className="relative">

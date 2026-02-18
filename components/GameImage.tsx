@@ -1,7 +1,32 @@
 "use client";
 
 import Image from "next/image";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+
+/** Domains that block direct image requests (403) or rate-limit (429) and must be loaded via our proxy */
+const PROXY_DOMAINS = [
+  "thumbnails.pcgamingwiki.com",
+  "images.pcgamingwiki.com",
+  "www.pcgamingwiki.com",
+  "pcgamingwiki.com",
+  "upload.wikimedia.org",
+  "wikimedia.org",
+];
+
+function useImageSrc(rawSrc: string | undefined): string | undefined {
+  return useMemo(() => {
+    if (!rawSrc || !rawSrc.startsWith("http")) return rawSrc;
+    try {
+      const host = new URL(rawSrc).hostname.toLowerCase();
+      if (PROXY_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`))) {
+        return `/api/image-proxy?url=${encodeURIComponent(rawSrc)}`;
+      }
+    } catch {
+      // ignore invalid URLs
+    }
+    return rawSrc;
+  }, [rawSrc]);
+}
 
 interface GameImageProps {
   src?: string;
@@ -22,10 +47,11 @@ export default function GameImage({
 }: GameImageProps) {
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const imageSrc = useImageSrc(src);
 
   // Fallback: if image doesn't load within 5 seconds, show placeholder
   useEffect(() => {
-    if (!src) return;
+    if (!imageSrc) return;
     
     const timer = setTimeout(() => {
       if (!imageLoaded) {
@@ -34,10 +60,10 @@ export default function GameImage({
     }, 5000);
 
     return () => clearTimeout(timer);
-  }, [src, imageLoaded]);
+  }, [imageSrc, imageLoaded]);
 
   // Show placeholder if no image or error
-  if (imageError || !src) {
+  if (imageError || !imageSrc) {
     return (
       <div
         className={`relative flex items-center justify-center bg-[rgb(var(--bg-card))] border border-[rgb(var(--border-color))] rounded-lg shadow-lg ${className}`}
@@ -68,9 +94,36 @@ export default function GameImage({
     );
   }
 
+  // Use plain <img> for proxy URLs so the browser hits the proxy directly.
+  // next/image with a relative proxy URL can mangle the query string and cause 400.
+  const isProxyUrl =
+    typeof imageSrc === "string" && imageSrc.startsWith("/api/image-proxy");
+
+  if (isProxyUrl) {
+    return (
+      <img
+        src={imageSrc}
+        alt={alt}
+        width={width}
+        height={height}
+        className={className}
+        loading={priority ? "eager" : "lazy"}
+        onError={() => {
+          setImageError(true);
+          setImageLoaded(false);
+        }}
+        onLoad={() => {
+          setImageLoaded(true);
+          setImageError(false);
+        }}
+        style={{ width, height, objectFit: "cover" }}
+      />
+    );
+  }
+
   return (
     <Image
-      src={src}
+      src={imageSrc}
       alt={alt}
       width={width}
       height={height}

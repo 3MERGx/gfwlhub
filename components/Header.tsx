@@ -433,6 +433,16 @@ export default function Header() {
                             Moderation Log
                           </Link>
                         </li>
+                        <li>
+                          <Link
+                            href="/dashboard/reviewer-applications"
+                            className="block hover:text-gray-200 transition-colors"
+                            onClick={() => setIsMenuOpen(false)}
+                            title="Review reviewer applications"
+                          >
+                            Reviewer Applications
+                          </Link>
+                        </li>
                       </>
                     )}
                     {/* Leaderboard - Reviewers and Admins */}

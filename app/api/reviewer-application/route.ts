@@ -18,6 +18,7 @@ import {
 import { validateCSRFToken } from "@/lib/csrf";
 import { notifyReviewerApplicationSubmitted } from "@/lib/discord-webhook";
 import { getGFWLDatabase } from "@/lib/mongodb";
+import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 import { ObjectId } from "mongodb";
 
 // POST - Submit a reviewer application
@@ -283,6 +284,8 @@ export async function POST(request: NextRequest) {
       .catch((error) => {
         safeLog.error("Failed to send Discord notification:", error);
       });
+
+    triggerPusherEvent(PUSHER_EVENTS.REVIEWER_APPLICATIONS_UPDATED);
 
     return NextResponse.json({ application });
   } catch (error) {

@@ -1259,9 +1259,8 @@ export default function CorrectionModal({
                 <span className="text-blue-400">💡</span>
                 <span>
                   Use a direct image URL (ending in .jpg, .png, etc.) from a
-                  reliable source like Wikipedia, PCGamingWiki, or official game
-                  websites. The image should be high-quality box art or cover
-                  art.
+                  reliable source like Wikipedia or official game websites. The
+                  image should be high-quality box art or cover art.
                 </span>
               </p>
             )}

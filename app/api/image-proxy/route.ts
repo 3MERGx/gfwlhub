@@ -51,6 +51,8 @@ export async function GET(request: NextRequest) {
     "thumbnails.pcgamingwiki.com",
     "images.pcgamingwiki.com",
     "www.pcgamingwiki.com",
+    "upload.wikimedia.org",
+    "wikimedia.org",
     "images.igdb.com",
     "steamcdn-a.akamaihd.net",
     "cdn.akamai.steamstatic.com",
@@ -59,6 +61,12 @@ export async function GET(request: NextRequest) {
     "www.steamgriddb.com",
     "cdn.steamgriddb.com",
     "cdn2.steamgriddb.com",
+    // TrueAchievements box art
+    "trueachievements.com",
+    "www.trueachievements.com",
+    // Google image CDN (e.g. encrypted-tbn0.gstatic.com for thumbnails)
+    "gstatic.com",
+    "encrypted-tbn0.gstatic.com",
     // OAuth provider image domains
     "lh3.googleusercontent.com",
     "googleusercontent.com",
@@ -84,9 +92,11 @@ export async function GET(request: NextRequest) {
     try {
     const imageResponse = await fetch(sanitizedImageUrl, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; GFWLHub/1.0)",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
       },
-        signal: controller.signal,
+      signal: controller.signal,
     });
 
       clearTimeout(timeoutId);

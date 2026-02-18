@@ -14,6 +14,7 @@ import { CorrectionStatus } from "@/types/crowdsource";
 import { notifyCorrectionReviewed } from "@/lib/discord-webhook";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 import { revalidatePath } from "next/cache";
+import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 import { validateCSRFToken } from "@/lib/csrf";
 
 // POST - Review a correction (approve, reject, or modify)
@@ -269,6 +270,9 @@ export async function POST(request: NextRequest) {
     revalidatePath("/dashboard/submissions");
     revalidatePath(`/games/${correction.gameSlug}`);
     revalidatePath("/");
+
+    triggerPusherEvent(PUSHER_EVENTS.SUBMISSIONS_UPDATED);
+    triggerPusherEvent(PUSHER_EVENTS.GAME_UPDATED, { slug: correction.gameSlug });
 
     return NextResponse.json({ success: true });
   } catch (error) {

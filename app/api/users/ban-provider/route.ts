@@ -5,6 +5,7 @@ import { addBannedProvider } from "@/lib/crowdsource-service-mongodb";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 import { revalidatePath } from "next/cache";
 import { validateCSRFToken } from "@/lib/csrf";
+import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 
 export async function POST(request: NextRequest) {
   try {
@@ -66,6 +67,11 @@ export async function POST(request: NextRequest) {
     // Revalidate paths
     revalidatePath("/dashboard/users");
     revalidatePath("/");
+
+    triggerPusherEvent(
+      PUSHER_EVENTS.USERS_UPDATED,
+      sanitizedUserId ? { userId: sanitizedUserId } : {}
+    );
 
     return NextResponse.json({ success: true });
   } catch (error) {

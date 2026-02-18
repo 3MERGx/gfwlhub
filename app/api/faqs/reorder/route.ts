@@ -5,6 +5,7 @@ import { getGFWLDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 import { revalidatePath } from "next/cache";
+import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 import { validateCSRFToken } from "@/lib/csrf";
 
 // PATCH - Batch update FAQ orders (admin only)
@@ -85,6 +86,8 @@ export async function PATCH(request: NextRequest) {
     // Revalidate paths
     revalidatePath("/faq");
     revalidatePath("/");
+
+    triggerPusherEvent(PUSHER_EVENTS.FAQ_UPDATED);
 
     return NextResponse.json({
       success: true,

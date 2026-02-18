@@ -7,6 +7,7 @@ import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/li
 import { validateCSRFToken } from "@/lib/csrf";
 import { revalidatePath } from "next/cache";
 import { notifyFaqSubmissionReviewed } from "@/lib/discord-webhook";
+import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 
 // POST - Approve an FAQ submission (reviewer/admin only)
 export async function POST(
@@ -118,6 +119,9 @@ export async function POST(
     // Revalidate paths
     revalidatePath("/faq");
     revalidatePath("/dashboard/faq-submissions");
+
+    triggerPusherEvent(PUSHER_EVENTS.FAQ_SUBMISSIONS_UPDATED);
+    triggerPusherEvent(PUSHER_EVENTS.FAQ_UPDATED);
 
     // Discord webhook (non-blocking)
     notifyFaqSubmissionReviewed({

@@ -5,6 +5,7 @@ import { getGFWLDatabase } from "@/lib/mongodb";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 import { revalidatePath } from "next/cache";
 import { validateCSRFToken } from "@/lib/csrf";
+import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 
 // PATCH - Toggle featureEnabled for a game (admin only)
 export async function PATCH(
@@ -108,6 +109,9 @@ export async function PATCH(
     revalidatePath("/supported-games");
     // Revalidate API route cache
     revalidatePath("/api/games");
+
+    triggerPusherEvent(PUSHER_EVENTS.GAME_UPDATED, { slug: sanitizedSlug });
+    triggerPusherEvent(PUSHER_EVENTS.GAMES_UPDATED);
 
     return NextResponse.json({ success: true, featureEnabled });
   } catch (error) {

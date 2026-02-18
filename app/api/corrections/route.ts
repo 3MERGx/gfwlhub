@@ -16,6 +16,8 @@ import { notifyCorrectionSubmitted } from "@/lib/discord-webhook";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 import { revalidatePath } from "next/cache";
 import { validateCSRFToken } from "@/lib/csrf";
+import { valuesAreEffectivelySame } from "@/lib/normalize-value";
+import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 
 // POST - Submit a new correction
 export async function POST(request: NextRequest) {
@@ -159,6 +161,26 @@ export async function POST(request: NextRequest) {
       sanitizedNewValue = newValue.map((item) => 
         typeof item === "string" ? sanitizeString(item, 500) : item
       );
+    }
+
+    // Reject if the submitted value is effectively the same as current (e.g. "FASA Studio" vs "FASA Studios")
+    const db = await getGFWLDatabase();
+    const gamesCollection = db.collection("Games");
+    const currentGame = await gamesCollection.findOne(
+      { slug: sanitizedGameSlug },
+      { projection: { [sanitizedField]: 1 } }
+    );
+    if (currentGame && sanitizedField in currentGame) {
+      const currentValue = currentGame[sanitizedField as keyof typeof currentGame];
+      if (valuesAreEffectivelySame(sanitizedNewValue, currentValue)) {
+        return NextResponse.json(
+          {
+            error:
+              "The value you submitted is the same as the current value (after normalizing spaces and case). No change needed.",
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // Check for recent pending correction from same user/game (within 10 minutes)
@@ -434,6 +456,9 @@ export async function POST(request: NextRequest) {
     revalidatePath("/dashboard/submissions");
     revalidatePath(`/games/${sanitizedGameSlug}`);
     revalidatePath("/");
+
+    triggerPusherEvent(PUSHER_EVENTS.SUBMISSIONS_UPDATED);
+    triggerPusherEvent(PUSHER_EVENTS.GAME_UPDATED, { slug: sanitizedGameSlug });
 
     return NextResponse.json({ correction }, { status: 201 });
   } catch (error) {

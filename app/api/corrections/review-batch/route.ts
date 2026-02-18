@@ -15,6 +15,7 @@ import { notifyCorrectionsReviewedBatch } from "@/lib/discord-webhook";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 import { revalidatePath } from "next/cache";
 import { validateCSRFToken } from "@/lib/csrf";
+import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 import { ObjectId } from "mongodb";
 
 // POST - Batch review multiple corrections
@@ -331,6 +332,10 @@ export async function POST(request: NextRequest) {
     // Revalidate paths
     revalidatePath("/dashboard/submissions");
     revalidatePath("/");
+
+    triggerPusherEvent(PUSHER_EVENTS.SUBMISSIONS_UPDATED);
+    const slugs = [...new Set(processedCorrections.map((c) => c.gameSlug))];
+    slugs.forEach((slug) => triggerPusherEvent(PUSHER_EVENTS.GAME_UPDATED, { slug }));
 
     return NextResponse.json({ 
       success: true, 
