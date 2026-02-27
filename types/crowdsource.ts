@@ -81,21 +81,29 @@ export interface Correction {
 // Audit log for tracking changes
 export type AuditLogAction = "create" | "update" | "delete";
 
+/** Field that was changed, or submission type for game/FAQ submission reviews */
+export type AuditLogField =
+  | CorrectionField
+  | "gameSubmission"
+  | "faqSubmission";
+
 export interface AuditLog {
   id: string;
   gameId: string;
   gameSlug: string;
   gameTitle: string;
-  field: CorrectionField;
+  field: AuditLogField;
   oldValue: any;
   newValue: any;
-  changedBy: string; // User ID (reviewer/admin who approved the change)
+  changedBy: string; // User ID (reviewer/admin who made the decision)
   changedByName: string;
   changedByRole: UserRole;
   changedAt: Date;
-  correctionId?: string; // Link to original correction if from crowdsource
+  correctionId?: string; // Link to original correction/submission if applicable
   notes?: string;
-  // Submitter information (original person who suggested the correction)
+  /** When present, "rejected" means the change was not applied (e.g. rejected correction). Omitted means applied. */
+  outcome?: "applied" | "rejected";
+  // Submitter information (original person who suggested the change)
   submittedBy?: string; // User ID
   submittedByName?: string;
 }

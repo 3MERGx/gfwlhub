@@ -347,19 +347,21 @@ export async function getAuditLogsByGame(
   return logs.map(toAuditLog);
 }
 
-export async function getAllAuditLogs(limit?: number): Promise<AuditLog[]> {
+export async function getAllAuditLogs(
+  limit?: number,
+  skip: number = 0
+): Promise<AuditLog[]> {
   const client = await clientPromise;
   const db = client.db("GFWL");
-  // Optimize: Add default limit to prevent loading too many logs at once
   // Note: Create index { changedAt: -1 } in MongoDB for better performance
   const query = db
     .collection("auditLogs")
     .find({})
     .sort({ changedAt: -1 });
 
-  // Default limit of 1000 if not specified to prevent memory issues
   const effectiveLimit = limit || 1000;
-  query.limit(effectiveLimit);
+  const safeSkip = Math.max(0, skip);
+  query.skip(safeSkip).limit(effectiveLimit);
 
   const logs = await query.toArray();
   return logs.map(toAuditLog);

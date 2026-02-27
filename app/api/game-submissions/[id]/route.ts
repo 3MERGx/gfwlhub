@@ -5,6 +5,10 @@ import { getGFWLDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { notifyGameSubmissionReviewed } from "@/lib/discord-webhook";
 import {
+  createAuditLog,
+  getUserByEmail,
+} from "@/lib/crowdsource-service-mongodb";
+import {
   safeLog,
   sanitizeString,
   rateLimiters,
@@ -13,6 +17,7 @@ import {
 import { revalidatePath } from "next/cache";
 import { validateCSRFToken } from "@/lib/csrf";
 import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
+import type { UserRole } from "@/types/crowdsource";
 
 // PATCH - Review a game submission (approve/reject)
 export async function PATCH(
@@ -125,6 +130,33 @@ export async function PATCH(
         },
       }
     );
+
+    // Audit log: game submission reviewed (approved or rejected)
+    const reviewerUser = await getUserByEmail(session.user.email!);
+    const reviewerRole: UserRole =
+      reviewerUser?.role ?? (session.user.role as UserRole) ?? "reviewer";
+    const existingGame = await gamesCollection.findOne({
+      slug: submission.gameSlug,
+    });
+    const gameId =
+      existingGame?._id?.toString() ?? submission.gameId ?? submission.gameSlug ?? sanitizedId;
+    await createAuditLog({
+      gameId,
+      gameSlug: submission.gameSlug,
+      gameTitle: submission.gameTitle ?? "Game submission",
+      field: "gameSubmission",
+      oldValue: "pending",
+      newValue: sanitizedStatus,
+      changedBy: session.user.id,
+      changedByName: session.user.name || "Unknown",
+      changedByRole: reviewerRole,
+      correctionId: sanitizedId,
+      notes: sanitizedReviewNotes,
+      submittedBy: submission.submittedBy,
+      submittedByName: submission.submittedByName ?? "Unknown",
+    }).catch((error) => {
+      safeLog.error("Failed to create audit log for game submission:", error);
+    });
 
     // If approved, mark other pending submissions for the same game as "superseded"
     // This is a neutral status - it doesn't affect user stats (no rejected count increase)

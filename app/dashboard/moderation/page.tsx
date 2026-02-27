@@ -25,9 +25,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { LoadingSkeleton, TableSkeleton } from "@/components/ui/loading-skeleton";
 import { safeLog } from "@/lib/security";
 import { useDebounce } from "@/hooks/useDebounce";
+import { usePusherChannel } from "@/hooks/usePusherChannel";
+import { PUSHER_EVENTS } from "@/lib/pusher-client";
 
 interface ModerationLog {
   id: string;
@@ -63,6 +64,7 @@ export default function ModerationPage() {
   const [userFilter, setUserFilter] = useState<string>("all");
   const [moderatorFilter, setModeratorFilter] = useState<string>("all");
   const [dateRangeFilter, setDateRangeFilter] = useState<string>("all");
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
   const modalRef = useRef<HTMLDivElement>(null);
 
   // Debounce search query
@@ -151,7 +153,12 @@ export default function ModerationPage() {
     };
 
     fetchLogs();
-  }, []);
+  }, [refetchTrigger]);
+
+  // Real-time: refetch when user/role/status changes are made (ban, restore, role change, etc.)
+  usePusherChannel(PUSHER_EVENTS.USERS_UPDATED, () =>
+    setRefetchTrigger((t) => t + 1)
+  );
 
   // Filter and sort logs
   useEffect(() => {
@@ -576,11 +583,17 @@ export default function ModerationPage() {
 
           {/* Results Count and Items per page */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-            <div className="text-[rgb(var(--text-secondary))] text-sm">
-              Showing {startIndex + 1}-{Math.min(endIndex, filteredLogs.length)}{" "}
-              of {filteredLogs.length} moderation actions
-              {filteredLogs.length !== logs.length &&
-                ` (filtered from ${logs.length} total)`}
+            <div className="text-[rgb(var(--text-secondary))] text-sm min-h-[20px]">
+              {loading ? (
+                <span className="text-[rgb(var(--text-muted))]">Loading moderation actions…</span>
+              ) : (
+                <>
+                  Showing {startIndex + 1}-{Math.min(endIndex, filteredLogs.length)}{" "}
+                  of {filteredLogs.length} moderation actions
+                  {filteredLogs.length !== logs.length &&
+                    ` (filtered from ${logs.length} total)`}
+                </>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[rgb(var(--text-muted))] text-sm">Per page:</span>
@@ -603,8 +616,50 @@ export default function ModerationPage() {
           {/* Moderation Log Table - Desktop */}
           <div className="hidden lg:block bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] overflow-hidden">
             {loading ? (
-              <div className="p-4">
-                <TableSkeleton rows={8} cols={6} />
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-[rgb(var(--bg-card-alt))]">
+                    <tr>
+                      {["User", "Action", "Changes", "Reason", "Moderator", "Date"].map(
+                        (label) => (
+                          <th
+                            key={label}
+                            className="px-4 py-3 text-left text-xs uppercase text-[rgb(var(--text-muted))]"
+                          >
+                            <span
+                              className="inline-block animate-pulse bg-[rgb(var(--bg-card))] rounded h-3.5 w-16"
+                              aria-hidden
+                            />
+                          </th>
+                        )
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[rgb(var(--border-color))]">
+                    {Array.from({ length: 10 }).map((_, rowIndex) => (
+                      <tr key={rowIndex}>
+                        <td className="px-4 py-3 w-[15%]">
+                          <span className="inline-block animate-pulse bg-[rgb(var(--bg-card-alt))] rounded h-4 w-24 max-w-full" />
+                        </td>
+                        <td className="px-4 py-3 w-[15%]">
+                          <span className="inline-block animate-pulse bg-[rgb(var(--bg-card-alt))] rounded h-4 w-20 max-w-full" />
+                        </td>
+                        <td className="px-4 py-3 w-[15%]">
+                          <span className="inline-block animate-pulse bg-[rgb(var(--bg-card-alt))] rounded h-4 w-28 max-w-full" />
+                        </td>
+                        <td className="px-4 py-3 w-[20%]">
+                          <span className="inline-block animate-pulse bg-[rgb(var(--bg-card-alt))] rounded h-4 w-full max-w-[180px]" />
+                        </td>
+                        <td className="px-4 py-3 w-[15%]">
+                          <span className="inline-block animate-pulse bg-[rgb(var(--bg-card-alt))] rounded h-4 w-20 max-w-full" />
+                        </td>
+                        <td className="px-4 py-3 w-[20%]">
+                          <span className="inline-block animate-pulse bg-[rgb(var(--bg-card-alt))] rounded h-4 w-16 max-w-full" />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             ) : paginatedLogs.length === 0 ? (
               <div className="p-8 text-center">
@@ -862,18 +917,21 @@ export default function ModerationPage() {
           <div className="lg:hidden space-y-4">
             {loading ? (
               <div className="space-y-4">
-                {Array.from({ length: 4 }).map((_, i) => (
+                {Array.from({ length: 5 }).map((_, i) => (
                   <div
                     key={i}
-                    className="bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] p-4"
+                    className="bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] p-4 animate-pulse"
                   >
-                    <div className="flex justify-between mb-3">
-                      <LoadingSkeleton height="h-5" width="w-24" />
-                      <LoadingSkeleton height="h-4" width="w-28" />
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="bg-[rgb(var(--bg-card-alt))] rounded h-5 w-28" />
+                      <span className="bg-[rgb(var(--bg-card-alt))] rounded h-4 w-20" />
                     </div>
-                    <LoadingSkeleton height="h-4" width="w-full" className="mb-2" />
-                    <LoadingSkeleton height="h-8" width="w-3/4" className="mb-2" />
-                    <LoadingSkeleton height="h-4" width="w-full" />
+                    <span className="block bg-[rgb(var(--bg-card-alt))] rounded h-4 w-full mb-2" />
+                    <span className="block bg-[rgb(var(--bg-card-alt))] rounded h-4 w-4/5 mb-3" />
+                    <div className="flex justify-between items-center">
+                      <span className="bg-[rgb(var(--bg-card-alt))] rounded h-4 w-24" />
+                      <span className="bg-[rgb(var(--bg-card-alt))] rounded h-4 w-16" />
+                    </div>
                   </div>
                 ))}
               </div>

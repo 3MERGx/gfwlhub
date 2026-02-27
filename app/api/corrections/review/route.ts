@@ -240,7 +240,7 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        // Create audit log entry
+        // Create audit log entry (applied)
         await createAuditLog({
           gameId: correction.gameId,
           gameSlug: correction.gameSlug,
@@ -253,7 +253,6 @@ export async function POST(request: NextRequest) {
           changedByRole: user.role,
           correctionId: correction.id,
           notes: sanitizedReviewNotes,
-          // Include submitter information
           submittedBy: correction.submittedBy,
           submittedByName: correction.submittedByName,
         });
@@ -264,6 +263,28 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         );
       }
+    } else if (sanitizedStatus === "rejected") {
+      // Log rejected correction to audit log
+      await createAuditLog({
+        gameId: correction.gameId,
+        gameSlug: correction.gameSlug,
+        gameTitle: correction.gameTitle,
+        field: correction.field,
+        oldValue: correction.newValue,
+        newValue: null,
+        changedBy: user.id,
+        changedByName: user.name,
+        changedByRole: user.role,
+        correctionId: correction.id,
+        notes: sanitizedReviewNotes
+          ? `Rejected. ${sanitizedReviewNotes}`
+          : "Rejected.",
+        outcome: "rejected",
+        submittedBy: correction.submittedBy,
+        submittedByName: correction.submittedByName,
+      }).catch((error) => {
+        safeLog.error("Failed to create audit log for rejected correction:", error);
+      });
     }
 
     // Revalidate paths

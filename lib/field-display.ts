@@ -4,6 +4,8 @@
  */
 export function getFieldDisplayName(field: string): string {
   const fieldDisplayMap: Record<string, string> = {
+    gameSubmission: "Game submission",
+    faqSubmission: "FAQ submission",
     imageUrl: "Image URL",
     additionalDRM: "Additional DRM",
     discordLink: "Discord Link",

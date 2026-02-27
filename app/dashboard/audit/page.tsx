@@ -27,23 +27,63 @@ import {
 import { getFieldDisplayName } from "@/lib/field-display";
 import { safeLog } from "@/lib/security";
 import { useDebounce } from "@/hooks/useDebounce";
+import { usePusherChannel } from "@/hooks/usePusherChannel";
+import { PUSHER_EVENTS } from "@/lib/pusher-client";
+import type { AuditLog } from "@/types/crowdsource";
 
-interface AuditLog {
-  id: string;
-  gameId: string;
-  gameSlug: string;
-  gameTitle: string;
-  field: string;
-  oldValue: string | number | boolean | string[] | null;
-  newValue: string | number | boolean | string[] | null;
-  changedBy: string;
-  changedByName: string;
-  changedByRole: "user" | "reviewer" | "admin";
-  changedAt: Date;
-  correctionId?: string;
-  notes?: string;
-  submittedBy?: string;
-  submittedByName?: string;
+const PAGE_SIZE = 100;
+
+// Shared formatters for audit log values and dates (used by table, cards, and modal)
+function formatAuditValue(value: string | number | boolean | string[] | null): string {
+  if (value === null || value === undefined) return "N/A";
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value);
+}
+
+function formatAuditDate(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - new Date(date).getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  if (diffMins < 1) return "just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return new Date(date).toLocaleDateString(undefined, {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+  });
+}
+
+/** Renders the "Change" cell: old → new, or "… → Rejected" when outcome is rejected */
+function AuditChangeCell({ log }: { log: AuditLog }) {
+  if (log.outcome === "rejected") {
+    return (
+      <div className="flex items-center gap-1.5 text-xs">
+        <span className="text-[rgb(var(--text-muted))] truncate max-w-[100px]">
+          {formatAuditValue(log.oldValue)}
+        </span>
+        <span className="text-[rgb(var(--text-muted))]">→</span>
+        <span className="text-red-500 dark:text-red-400 truncate max-w-[100px]">
+          Rejected
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-1.5 text-xs">
+      <span className="text-[rgb(var(--text-muted))] truncate max-w-[100px]">
+        {formatAuditValue(log.oldValue)}
+      </span>
+      <span className="text-[rgb(var(--text-muted))]">→</span>
+      <span className="text-[#107c10] truncate max-w-[100px]">
+        {formatAuditValue(log.newValue)}
+      </span>
+    </div>
+  );
 }
 
 export default function AuditPage() {
@@ -59,6 +99,10 @@ export default function AuditPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // Debounce search query
   const debouncedSearchQuery = useDebounce(searchQuery, 400);
@@ -108,20 +152,37 @@ export default function AuditPage() {
     }
   }, [fieldFilter, fieldFilterOptions]);
 
-  // Fetch real audit logs from API
+  // Fetch audit logs from API (initial load or retry)
   useEffect(() => {
     const fetchLogs = async () => {
       setLoading(true);
+      setFetchError(null);
       try {
-        const response = await fetch("/api/audit-logs");
+        const response = await fetch(
+          `/api/audit-logs?limit=${PAGE_SIZE}&skip=0`
+        );
+        const data = await response.json().catch(() => ({}));
         if (response.ok) {
-          const data = await response.json();
-          setLogs(data.logs || []);
-          setFilteredLogs(data.logs || []);
+          const logList = data.logs || [];
+          setLogs(logList);
+          setFilteredLogs(logList);
+          setHasMore(data.hasMore === true);
+          setFetchError(null);
+          safeLog.info("Audit logs loaded", { count: logList.length, hasMore: data.hasMore });
         } else {
-          safeLog.error("Failed to fetch audit logs");
+          const message =
+            typeof data?.error === "string" ? data.error : "Failed to load audit logs.";
+          setFetchError(message);
+          setLogs([]);
+          setFilteredLogs([]);
+          setHasMore(false);
+          safeLog.error("Failed to fetch audit logs", { status: response.status, error: message });
         }
       } catch (error) {
+        setFetchError("Unable to load audit logs. Please try again.");
+        setLogs([]);
+        setFilteredLogs([]);
+        setHasMore(false);
         safeLog.error("Error fetching audit logs:", error);
       } finally {
         setLoading(false);
@@ -129,7 +190,42 @@ export default function AuditPage() {
     };
 
     fetchLogs();
-  }, []);
+  }, [retryCount]);
+
+  // Real-time: refetch audit logs when corrections, game submissions, or FAQ submissions are reviewed
+  usePusherChannel(PUSHER_EVENTS.SUBMISSIONS_UPDATED, () =>
+    setRetryCount((c) => c + 1)
+  );
+  usePusherChannel(PUSHER_EVENTS.GAME_SUBMISSIONS_UPDATED, () =>
+    setRetryCount((c) => c + 1)
+  );
+  usePusherChannel(PUSHER_EVENTS.FAQ_SUBMISSIONS_UPDATED, () =>
+    setRetryCount((c) => c + 1)
+  );
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore || logs.length === 0) return;
+    setLoadingMore(true);
+    try {
+      const response = await fetch(
+        `/api/audit-logs?limit=${PAGE_SIZE}&skip=${logs.length}`
+      );
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && Array.isArray(data.logs)) {
+        const nextLogs = data.logs as AuditLog[];
+        setLogs((prev) => [...prev, ...nextLogs]);
+        setHasMore(data.hasMore === true);
+        safeLog.info("Audit logs load more", { added: nextLogs.length });
+      } else {
+        setHasMore(false);
+      }
+    } catch (error) {
+      safeLog.error("Error loading more audit logs:", error);
+      setHasMore(false);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   // Filter and sort logs
   useEffect(() => {
@@ -212,31 +308,6 @@ export default function AuditPage() {
     }
   };
 
-  const formatValue = (value: string | number | boolean | string[] | null) => {
-    if (value === null || value === undefined) return "N/A";
-    if (Array.isArray(value)) return value.join(", ");
-    if (typeof value === "boolean") return value ? "Yes" : "No";
-    return String(value);
-  };
-
-  const formatDate = (date: Date) => {
-    const now = new Date();
-    const diffMs = now.getTime() - new Date(date).getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return "just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return new Date(date).toLocaleDateString(undefined, {
-      month: "2-digit",
-      day: "2-digit",
-      year: "numeric",
-    });
-  };
-
   return (
     <DashboardLayout requireRole="admin">
       <div className="container mx-auto px-4 py-6 md:py-8">
@@ -253,7 +324,7 @@ export default function AuditPage() {
               Audit Log
             </h1>
             <p className="text-[rgb(var(--text-secondary))] text-sm md:text-base">
-              Complete history of all changes made to game information
+              History of all review decisions: corrections (approved, modified, or rejected), game submissions (approved or rejected), and FAQ submissions (approved or rejected).
             </p>
           </div>
 
@@ -309,17 +380,17 @@ export default function AuditPage() {
               {/* Filters Row - Large Screens */}
               <div className="hidden lg:flex items-center gap-3 mb-3">
                 <span className="text-[rgb(var(--text-muted))] text-sm whitespace-nowrap">
-                  Approved by
+                  Reviewed by
                 </span>
                 <Select value={roleFilter} onValueChange={setRoleFilter}>
                   <SelectTrigger
                     className="min-w-[130px]"
-                    aria-label="Filter by who approved"
+                    aria-label="Filter by reviewer"
                   >
-                    <SelectValue placeholder="All approvers" />
+                    <SelectValue placeholder="All reviewers" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All approvers</SelectItem>
+                    <SelectItem value="all">All reviewers</SelectItem>
                     {roleFilterOptions.map((role) => (
                       <SelectItem key={role} value={role}>
                         {getRoleDisplayName(role)}s
@@ -367,17 +438,17 @@ export default function AuditPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <label className="text-[rgb(var(--text-muted))] text-sm block">
-                      Approved by
+                      Reviewed by
                     </label>
                     <Select value={roleFilter} onValueChange={setRoleFilter}>
                       <SelectTrigger
                         className="w-full"
-                        aria-label="Filter by who approved"
+                        aria-label="Filter by reviewer"
                       >
-                        <SelectValue placeholder="All approvers" />
+                        <SelectValue placeholder="All reviewers" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All approvers</SelectItem>
+                        <SelectItem value="all">All reviewers</SelectItem>
                         {roleFilterOptions.map((role) => (
                           <SelectItem key={role} value={role}>
                             {getRoleDisplayName(role)}s
@@ -436,13 +507,28 @@ export default function AuditPage() {
             </div>
           </div>
 
+          {/* Error banner */}
+          {fetchError && (
+            <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-[rgb(var(--text-primary))] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <p className="text-sm">{fetchError}</p>
+              <button
+                onClick={() => setRetryCount((c) => c + 1)}
+                className="px-4 py-2 bg-[#107c10] hover:bg-[#0d6b0d] text-white rounded-lg text-sm transition-colors whitespace-nowrap"
+              >
+                Try again
+              </button>
+            </div>
+          )}
+
           {/* Results Count */}
-          <div className="text-[rgb(var(--text-secondary))] text-sm mb-4">
-            Showing {startIndex + 1}-{Math.min(endIndex, filteredLogs.length)}{" "}
-            of {filteredLogs.length} changes
-            {filteredLogs.length !== logs.length &&
-              ` (filtered from ${logs.length} total)`}
-          </div>
+          {!fetchError && (
+            <div className="text-[rgb(var(--text-secondary))] text-sm mb-4">
+              Showing {startIndex + 1}-{Math.min(endIndex, filteredLogs.length)}{" "}
+              of {filteredLogs.length} changes
+              {filteredLogs.length !== logs.length &&
+                ` (filtered from ${logs.length} total)`}
+            </div>
+          )}
 
           {/* Audit Log Table - Desktop */}
           <div className="hidden lg:block bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] overflow-hidden">
@@ -554,7 +640,7 @@ export default function AuditPage() {
                         }}
                       >
                         <div className="flex items-center gap-2">
-                          Approved By
+                          Reviewed By
                           {sortBy === "approvedBy" ? (
                             sortOrder === "asc" ? (
                               <FaSortUp size={12} />
@@ -617,15 +703,7 @@ export default function AuditPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-1.5 text-xs">
-                            <span className="text-[rgb(var(--text-muted))] truncate max-w-[100px]">
-                              {formatValue(log.oldValue)}
-                            </span>
-                            <span className="text-[rgb(var(--text-muted))]">→</span>
-                            <span className="text-[#107c10] truncate max-w-[100px]">
-                              {formatValue(log.newValue)}
-                            </span>
-                          </div>
+                          <AuditChangeCell log={log} />
                         </td>
                         <td className="px-4 py-3">
                           {log.submittedBy && log.submittedByName ? (
@@ -651,7 +729,7 @@ export default function AuditPage() {
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-[rgb(var(--text-secondary))] text-xs whitespace-nowrap">
-                            {formatDate(log.changedAt)}
+                            {formatAuditDate(log.changedAt)}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center">
@@ -755,6 +833,26 @@ export default function AuditPage() {
             </div>
           )}
 
+          {/* Load more */}
+          {!fetchError && hasMore && !loading && (
+            <div className="flex justify-center mt-6">
+              <button
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="px-6 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {loadingMore ? (
+                  <>
+                    <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#107c10] block" />
+                    Loading…
+                  </>
+                ) : (
+                  "Load more"
+                )}
+              </button>
+            </div>
+          )}
+
           {/* Detail Modal */}
           {selectedLog && (
             <AuditDetailModal
@@ -784,31 +882,6 @@ function AuditLogCard({
   getFieldDisplayName,
   onViewDetails,
 }: AuditLogCardProps) {
-  const formatValue = (value: string | number | boolean | string[] | null) => {
-    if (value === null || value === undefined) return "N/A";
-    if (Array.isArray(value)) return value.join(", ");
-    if (typeof value === "boolean") return value ? "Yes" : "No";
-    return String(value);
-  };
-
-  const formatDate = (date: Date) => {
-    const now = new Date();
-    const diffMs = now.getTime() - new Date(date).getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return "just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return new Date(date).toLocaleDateString(undefined, {
-      month: "2-digit",
-      day: "2-digit",
-      year: "numeric",
-    });
-  };
-
   return (
     <div className="bg-[rgb(var(--bg-card))] rounded border border-[rgb(var(--border-color))] hover:border-[rgb(var(--border-hover))] transition-colors">
       <div className="p-2.5 sm:p-3">
@@ -828,13 +901,7 @@ function AuditLogCard({
 
           {/* Value change - desktop */}
           <div className="hidden md:flex items-center gap-1.5 text-xs min-w-0 flex-shrink">
-            <span className="text-[rgb(var(--text-muted))] truncate max-w-[120px]">
-              {formatValue(log.oldValue)}
-            </span>
-            <span className="text-[rgb(var(--text-muted))]">→</span>
-            <span className="text-[#107c10] truncate max-w-[120px]">
-              {formatValue(log.newValue)}
-            </span>
+            <AuditChangeCell log={log} />
           </div>
 
           {/* User + Time */}
@@ -863,12 +930,12 @@ function AuditLogCard({
             {getRoleIcon(log.changedByRole)}
             <span
               className="hidden lg:inline truncate max-w-[80px]"
-              title={`Approved by ${log.changedByName}`}
+              title={`Reviewed by ${log.changedByName}`}
             >
               {log.changedByName}
             </span>
             <span className="hidden sm:inline">·</span>
-            <span>{formatDate(log.changedAt)}</span>
+            <span>{formatAuditDate(log.changedAt)}</span>
           </div>
 
           {/* Details button */}
@@ -882,17 +949,11 @@ function AuditLogCard({
 
         {/* Mobile: Field and value change */}
         <div className="sm:hidden mt-1.5 space-y-1">
-          <div className="flex items-center gap-1.5 text-xs">
+          <div className="flex items-center gap-1.5 text-xs flex-wrap">
             <span className="text-blue-600 dark:text-blue-400">
               {getFieldDisplayName(log.field)}:
             </span>
-            <span className="text-[rgb(var(--text-muted))] truncate">
-              {formatValue(log.oldValue)}
-            </span>
-            <span className="text-[rgb(var(--text-muted))]">→</span>
-            <span className="text-[#107c10] truncate">
-              {formatValue(log.newValue)}
-            </span>
+            <AuditChangeCell log={log} />
           </div>
           {log.submittedByName && (
             <div className="flex items-center gap-1.5 text-xs text-[rgb(var(--text-muted))]">
@@ -1012,11 +1073,23 @@ function AuditDetailModal({
             </div>
           </div>
 
-          {/* New Value */}
+          {/* New Value (or Rejected) */}
           <div>
-            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">New Value</h3>
-            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3 border-l-4 border-[#107c10] max-h-[40vh] overflow-y-auto">
-              {renderValue(log.newValue, true)}
+            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">
+              {log.outcome === "rejected" ? "Outcome" : "New Value"}
+            </h3>
+            <div
+              className={`bg-[rgb(var(--bg-card-alt))] rounded-lg p-3 border-l-4 max-h-[40vh] overflow-y-auto ${
+                log.outcome === "rejected"
+                  ? "border-red-500 dark:border-red-400"
+                  : "border-[#107c10]"
+              }`}
+            >
+              {log.outcome === "rejected" ? (
+                <p className="text-red-500 dark:text-red-400 font-medium">Rejected</p>
+              ) : (
+                renderValue(log.newValue, true)
+              )}
             </div>
           </div>
 
@@ -1041,7 +1114,7 @@ function AuditDetailModal({
 
           {/* Approved/Reviewed By */}
           <div>
-            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">Approved By</h3>
+            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">Reviewed By</h3>
             <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3 flex items-center gap-2">
               {getRoleIcon(log.changedByRole)}
               {log.changedBy ? (

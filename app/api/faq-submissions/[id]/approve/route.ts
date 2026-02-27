@@ -3,11 +3,13 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
+import { createAuditLog, getUserByEmail } from "@/lib/crowdsource-service-mongodb";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 import { validateCSRFToken } from "@/lib/csrf";
 import { revalidatePath } from "next/cache";
 import { notifyFaqSubmissionReviewed } from "@/lib/discord-webhook";
 import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
+import type { UserRole } from "@/types/crowdsource";
 
 // POST - Approve an FAQ submission (reviewer/admin only)
 export async function POST(
@@ -101,6 +103,30 @@ export async function POST(
     };
 
     await faqsCollection.insertOne(newFAQ);
+
+    // Audit log: FAQ submission approved
+    const reviewerUser = await getUserByEmail(session.user.email!);
+    const reviewerRole: UserRole =
+      reviewerUser?.role ?? (session.user.role as UserRole) ?? "reviewer";
+    const gameTitle =
+      submission.question.length > 80
+        ? `FAQ: ${submission.question.slice(0, 77)}...`
+        : `FAQ: ${submission.question}`;
+    await createAuditLog({
+      gameId: "faq",
+      gameSlug: "faq",
+      gameTitle,
+      field: "faqSubmission",
+      oldValue: "pending",
+      newValue: "approved",
+      changedBy: session.user.id,
+      changedByName: session.user.name || "Unknown",
+      changedByRole: reviewerRole,
+      correctionId: sanitizedId,
+      notes: adminNotes,
+      submittedBy: submission.submittedBy,
+      submittedByName: submission.submittedByName ?? "Unknown",
+    }).catch((err) => safeLog.error("Failed to create audit log for FAQ approval:", err));
 
     // Update submission status
     await submissionsCollection.updateOne(
