@@ -15,9 +15,11 @@ import {
   getClientIdentifier,
 } from "@/lib/security";
 import { revalidatePath } from "next/cache";
+import { revalidateGameDerivedPaths } from "@/lib/revalidate-game-derived-paths";
 import { validateCSRFToken } from "@/lib/csrf";
 import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 import type { UserRole } from "@/types/crowdsource";
+import { validateDownloadLinkMatchesVirusTotalGui } from "@/lib/virustotal-download-consistency";
 
 // PATCH - Review a game submission (approve/reject)
 export async function PATCH(
@@ -222,6 +224,23 @@ export async function PATCH(
         slug: submission.gameSlug,
       });
       const mergedData = { ...existingGame, ...updateData };
+
+      const vtConsistency = validateDownloadLinkMatchesVirusTotalGui(
+        mergedData.downloadLink as string | undefined,
+        mergedData.virusTotalUrl as string | undefined
+      );
+      if (!vtConsistency.ok) {
+        return NextResponse.json(
+          { error: vtConsistency.message },
+          { status: 400 }
+        );
+      }
+      if ("warning" in vtConsistency && vtConsistency.warning) {
+        safeLog.warn(
+          `[VT consistency] game submission ${submission.gameSlug}: ${vtConsistency.warning}`
+        );
+      }
+
       const hasRequiredFields =
         mergedData.title &&
         mergedData.releaseDate &&
@@ -342,8 +361,9 @@ export async function PATCH(
 
     // Revalidate paths
     revalidatePath("/dashboard/game-submissions");
-    revalidatePath(`/games/${submission.gameSlug}`);
-    revalidatePath("/");
+    if (sanitizedStatus === "approved") {
+      revalidateGameDerivedPaths(submission.gameSlug);
+    }
 
     triggerPusherEvent(PUSHER_EVENTS.GAME_SUBMISSIONS_UPDATED);
     triggerPusherEvent(PUSHER_EVENTS.GAME_UPDATED, { slug: submission.gameSlug });

@@ -26,6 +26,9 @@ import TextWithLinks from "@/components/TextWithLinks";
 import GameImage from "@/components/GameImage";
 import GamePageRealtime from "./GamePageRealtime";
 
+/** ISR fallback when no on-demand revalidation runs (see `revalidateGameDerivedPaths`). */
+export const revalidate = 3600;
+
 // Get feature flags from .env.local or check if it's enabled in the game data
 const getFeatureFlag = async (slug: string): Promise<boolean> => {
   // Check if the game has featureEnabled set to true in the data

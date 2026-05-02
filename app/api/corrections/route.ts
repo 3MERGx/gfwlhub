@@ -18,6 +18,7 @@ import { revalidatePath } from "next/cache";
 import { validateCSRFToken } from "@/lib/csrf";
 import { valuesAreEffectivelySame } from "@/lib/normalize-value";
 import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
+import { resolveVirusTotalGuiUrlForDownloadLink } from "@/lib/virustotal-resolve-download-scan";
 
 // POST - Submit a new correction
 export async function POST(request: NextRequest) {
@@ -132,6 +133,7 @@ export async function POST(request: NextRequest) {
         "purchaseLink",
         "gogDreamlistLink",
         "communityAlternativeUrl",
+        "virusTotalUrl",
       ];
       
       if (urlFields.includes(sanitizedField)) {
@@ -182,6 +184,47 @@ export async function POST(request: NextRequest) {
         );
       }
     }
+
+    let autoVirusTotalUrl: string | undefined;
+    if (sanitizedField === "downloadLink" && typeof sanitizedNewValue === "string") {
+      const trimmed = sanitizedNewValue.trim();
+      if (/^https?:\/\//i.test(trimmed)) {
+        try {
+          new URL(trimmed);
+        } catch {
+          return NextResponse.json(
+            { error: "Download link must be a valid http(s) URL." },
+            { status: 400 }
+          );
+        }
+        const apiKey = process.env.VIRUSTOTAL_API_KEY;
+        if (apiKey) {
+          const vtIdentifier = getClientIdentifier(request, user.id);
+          if (!rateLimiters.virusTotal.isAllowed(vtIdentifier)) {
+            return NextResponse.json(
+              {
+                error:
+                  "Too many VirusTotal scans in a short period. Please wait a minute before submitting another download link correction.",
+              },
+              { status: 429 }
+            );
+          }
+          const resolved = await resolveVirusTotalGuiUrlForDownloadLink(
+            trimmed,
+            apiKey
+          );
+          if (!resolved.ok) {
+            return NextResponse.json({ error: resolved.error }, { status: 422 });
+          }
+          autoVirusTotalUrl = resolved.guiUrl;
+        }
+      }
+    }
+
+    const correctionExtras =
+      autoVirusTotalUrl !== undefined
+        ? { autoVirusTotalUrl }
+        : {};
 
     // Check for recent pending correction from same user/game (within 10 minutes)
     const recentCorrection = await findRecentPendingCorrection(
@@ -261,6 +304,7 @@ export async function POST(request: NextRequest) {
           oldValue: oldValue === undefined ? null : oldValue,
           newValue: sanitizedNewValue,
           reason: sanitizedReason,
+          ...correctionExtras,
         });
         
         // Update existing webhook with new correction value (replaces old same-field correction)
@@ -357,6 +401,7 @@ export async function POST(request: NextRequest) {
         oldValue: oldValue === undefined ? null : oldValue,
         newValue: sanitizedNewValue,
         reason: sanitizedReason,
+        ...correctionExtras,
       });
 
       // Get all pending corrections from this user for this game (including the new one)
@@ -425,6 +470,7 @@ export async function POST(request: NextRequest) {
         oldValue: oldValue === undefined ? null : oldValue,
         newValue: sanitizedNewValue,
         reason: sanitizedReason,
+        ...correctionExtras,
       });
 
       // Send Discord notification (non-blocking)
@@ -452,13 +498,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Revalidate paths
+    // Revalidate paths (game pages unchanged until a correction is approved)
     revalidatePath("/dashboard/submissions");
-    revalidatePath(`/games/${sanitizedGameSlug}`);
-    revalidatePath("/");
 
     triggerPusherEvent(PUSHER_EVENTS.SUBMISSIONS_UPDATED);
-    triggerPusherEvent(PUSHER_EVENTS.GAME_UPDATED, { slug: sanitizedGameSlug });
 
     return NextResponse.json({ correction }, { status: 201 });
   } catch (error) {

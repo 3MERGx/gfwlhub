@@ -14,8 +14,10 @@ import { CorrectionStatus } from "@/types/crowdsource";
 import { notifyCorrectionReviewed } from "@/lib/discord-webhook";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 import { revalidatePath } from "next/cache";
+import { revalidateGameDerivedPaths } from "@/lib/revalidate-game-derived-paths";
 import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 import { validateCSRFToken } from "@/lib/csrf";
+import { validateDownloadLinkMatchesVirusTotalGui } from "@/lib/virustotal-download-consistency";
 
 // POST - Review a correction (approve, reject, or modify)
 export async function POST(request: NextRequest) {
@@ -217,13 +219,109 @@ export async function POST(request: NextRequest) {
         };
 
         if (isClearing) {
-          // Use $unset to remove the field
           updateOperation.$unset = {
             [correction.field]: "",
+            ...(correction.field === "downloadLink"
+              ? { virusTotalUrl: "" }
+              : {}),
           };
         } else {
-          // Use $set to update the field
           updateOperation.$set[correction.field] = valueToApply;
+        }
+
+        let effectiveAutoVt = correction.autoVirusTotalUrl;
+        if (
+          correction.field === "downloadLink" &&
+          !isClearing &&
+          typeof valueToApply === "string"
+        ) {
+          const appliedTrim = valueToApply.trim();
+          if (/^https?:\/\//i.test(appliedTrim)) {
+            const apiKey = process.env.VIRUSTOTAL_API_KEY;
+            const submittedTrim = String(correction.newValue ?? "").trim();
+            const mustRefreshVt =
+              sanitizedStatus === "modified" && appliedTrim !== submittedTrim;
+            if (apiKey && (mustRefreshVt || !effectiveAutoVt)) {
+              const vtIdentifier = getClientIdentifier(
+                request,
+                session.user.id
+              );
+              if (!rateLimiters.virusTotal.isAllowed(vtIdentifier)) {
+                return NextResponse.json(
+                  {
+                    error:
+                      "Too many VirusTotal scans in a short period. Try again in a minute.",
+                  },
+                  { status: 429 }
+                );
+              }
+              const { resolveVirusTotalGuiUrlForDownloadLink } = await import(
+                "@/lib/virustotal-resolve-download-scan"
+              );
+              const resolved = await resolveVirusTotalGuiUrlForDownloadLink(
+                appliedTrim,
+                apiKey
+              );
+              if (!resolved.ok) {
+                return NextResponse.json(
+                  { error: resolved.error },
+                  { status: 422 }
+                );
+              }
+              effectiveAutoVt = resolved.guiUrl;
+            }
+          }
+        }
+
+        if (
+          correction.field === "downloadLink" &&
+          !isClearing &&
+          effectiveAutoVt
+        ) {
+          updateOperation.$set.virusTotalUrl = effectiveAutoVt;
+        }
+
+        const existingGame = await gamesCollection.findOne({
+          slug: correction.gameSlug,
+        });
+        if (!existingGame) {
+          return NextResponse.json({ error: "Game not found" }, { status: 404 });
+        }
+
+        let mergedDownload = existingGame.downloadLink as string | undefined;
+        let mergedVt = existingGame.virusTotalUrl as string | undefined;
+        if (correction.field === "downloadLink") {
+          mergedDownload = isClearing
+            ? undefined
+            : typeof valueToApply === "string"
+              ? valueToApply
+              : String(valueToApply ?? "");
+          if (!isClearing && effectiveAutoVt) {
+            mergedVt = effectiveAutoVt;
+          }
+        }
+        if (correction.field === "virusTotalUrl") {
+          mergedVt = isClearing
+            ? undefined
+            : typeof valueToApply === "string"
+              ? valueToApply
+              : String(valueToApply ?? "");
+        }
+
+        const vtConsistency = validateDownloadLinkMatchesVirusTotalGui(
+          mergedDownload,
+          mergedVt
+        );
+        if (!vtConsistency.ok) {
+          return NextResponse.json(
+            { error: vtConsistency.message },
+            { status: 400 }
+          );
+        }
+        if ("warning" in vtConsistency && vtConsistency.warning) {
+          safeLog.warn(
+            `[VT consistency] ${correction.gameSlug}: ${vtConsistency.warning}`
+          );
         }
 
         // Update the game document with field change and update history
@@ -289,8 +387,9 @@ export async function POST(request: NextRequest) {
 
     // Revalidate paths
     revalidatePath("/dashboard/submissions");
-    revalidatePath(`/games/${correction.gameSlug}`);
-    revalidatePath("/");
+    if (sanitizedStatus === "approved" || sanitizedStatus === "modified") {
+      revalidateGameDerivedPaths(correction.gameSlug);
+    }
 
     triggerPusherEvent(PUSHER_EVENTS.SUBMISSIONS_UPDATED);
     triggerPusherEvent(PUSHER_EVENTS.GAME_UPDATED, { slug: correction.gameSlug });

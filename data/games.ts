@@ -64,7 +64,7 @@ export const games: Game[] = [
     discordLink: "https://discord.gg/shadowrun",
     redditLink: "https://www.reddit.com/r/shadowrunfps/",
     featureEnabled: true,
-    downloadLink: "http://157.245.214.234/releases/ShadowrunLauncher.zip",
+    downloadLink: "https://downloads.shadowrunfps.com/launcher/Shadowrun%20FPS%20Launcher%20Setup%200.9.112.exe",
     fileName: "Shadowrun Launcher",
     // purchaseLink: "https://www.gog.com/en/game/shadowrun_returns",
     virusTotalUrl:

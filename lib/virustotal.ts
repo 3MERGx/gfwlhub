@@ -1,7 +1,22 @@
+import { createHash } from "crypto";
+
 /**
  * VirusTotal API Integration
  * Free tier: 500 requests/day, 4 requests/minute
  */
+
+/**
+ * Path segment for GET /v3/urls/{url_id} — URL-safe base64 (no padding) of the **raw SHA-256 digest**
+ * of the UTF-8 URL string (not base64 of the URL itself). See VirusTotal API v3 docs.
+ */
+export function virusTotalApiUrlIdentifier(canonicalUrl: string): string {
+  const digest = createHash("sha256").update(canonicalUrl, "utf8").digest();
+  return digest
+    .toString("base64")
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+}
 
 export interface VirusTotalScanResponse {
   data: {
@@ -142,12 +157,10 @@ export async function getUrlReport(
   apiKey: string
 ): Promise<{ success: boolean; report?: VirusTotalReportResponse; error?: string }> {
   try {
-    // VirusTotal requires the URL to be base64 encoded (without padding) for the URL report endpoint
-    // Encode the URL to base64 and remove padding
-    const encodedUrl = Buffer.from(url).toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
-    
+    const urlId = virusTotalApiUrlIdentifier(url.trim());
+
     const response = await fetch(
-      `https://www.virustotal.com/api/v3/urls/${encodedUrl}`,
+      `https://www.virustotal.com/api/v3/urls/${urlId}`,
       {
         method: "GET",
         headers: {

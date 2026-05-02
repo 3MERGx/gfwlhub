@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 import { revalidatePath } from "next/cache";
+import { revalidateGameDerivedPaths } from "@/lib/revalidate-game-derived-paths";
 import { validateCSRFToken } from "@/lib/csrf";
 import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 
@@ -88,11 +89,7 @@ export async function POST(
 
     // Revalidate paths
     revalidatePath("/dashboard/games");
-    revalidatePath(`/games/${sanitizedSlug}`);
-    revalidatePath("/");
-    revalidatePath("/supported-games");
-    // Revalidate API route cache
-    revalidatePath("/api/games");
+    revalidateGameDerivedPaths(sanitizedSlug);
 
     triggerPusherEvent(PUSHER_EVENTS.GAME_UPDATED, { slug: sanitizedSlug });
     triggerPusherEvent(PUSHER_EVENTS.GAMES_UPDATED);

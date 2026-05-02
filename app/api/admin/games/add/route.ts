@@ -4,8 +4,10 @@ import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 import { revalidatePath } from "next/cache";
+import { revalidateGameDerivedPaths } from "@/lib/revalidate-game-derived-paths";
 import { validateCSRFToken } from "@/lib/csrf";
 import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
+import { validateDownloadLinkMatchesVirusTotalGui } from "@/lib/virustotal-download-consistency";
 
 // POST - Add a new game to the database (admin only)
 export async function POST(request: NextRequest) {
@@ -171,16 +173,25 @@ export async function POST(request: NextRequest) {
     if (remasteredName) game.remasteredName = sanitizeString(String(remasteredName), 200);
     if (remasteredPlatform) game.remasteredPlatform = sanitizeString(String(remasteredPlatform), 100);
 
+    const vtConsistency = validateDownloadLinkMatchesVirusTotalGui(
+      game.downloadLink as string | undefined,
+      game.virusTotalUrl as string | undefined
+    );
+    if (!vtConsistency.ok) {
+      return NextResponse.json({ error: vtConsistency.message }, { status: 400 });
+    }
+    if ("warning" in vtConsistency && vtConsistency.warning) {
+      safeLog.warn(
+        `[VT consistency] admin new game ${sanitizedSlug}: ${vtConsistency.warning}`
+      );
+    }
+
     // Insert the game
     const result = await gamesCollection.insertOne(game);
 
     // Revalidate paths
     revalidatePath("/dashboard/games");
-    revalidatePath(`/games/${sanitizedSlug}`);
-    revalidatePath("/");
-    revalidatePath("/supported-games");
-    // Revalidate API route cache
-    revalidatePath("/api/games");
+    revalidateGameDerivedPaths(sanitizedSlug);
 
     triggerPusherEvent(PUSHER_EVENTS.GAME_UPDATED, { slug: sanitizedSlug });
     triggerPusherEvent(PUSHER_EVENTS.GAMES_UPDATED);

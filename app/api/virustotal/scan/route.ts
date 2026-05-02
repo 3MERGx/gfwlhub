@@ -16,6 +16,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!rateLimiters.virusTotal.isAllowed(identifier)) {
+      return NextResponse.json(
+        {
+          error:
+            "Too many VirusTotal requests. Wait a minute before scanning again (free tier limit).",
+        },
+        { status: 429 }
+      );
+    }
+
     // Only reviewers and admins can scan URLs
     if (!session || (session.user.role !== "reviewer" && session.user.role !== "admin")) {
       return NextResponse.json(

@@ -49,6 +49,7 @@ export type CorrectionField =
   | "purchaseLink"
   | "gogDreamlistLink"
   | "downloadLink"
+  | "virusTotalUrl"
   | "additionalDRM"
   | "playabilityStatus"
   | "isUnplayable"
@@ -76,6 +77,8 @@ export interface Correction {
   reviewedAt?: Date;
   reviewNotes?: string; // Reviewer's notes
   finalValue?: any; // If modified by reviewer
+  /** Set server-side when submitting a downloadLink correction (VirusTotal URL scan GUI link). */
+  autoVirusTotalUrl?: string;
 }
 
 // Audit log for tracking changes

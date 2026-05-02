@@ -539,13 +539,10 @@ export async function POST(request: NextRequest) {
         });
     }
 
-    // Revalidate paths
+    // Revalidate paths (game document is unchanged until a submission is approved)
     revalidatePath("/dashboard/game-submissions");
-    revalidatePath(`/games/${sanitizedGameSlug}`);
-    revalidatePath("/");
 
     triggerPusherEvent(PUSHER_EVENTS.GAME_SUBMISSIONS_UPDATED);
-    triggerPusherEvent(PUSHER_EVENTS.GAME_UPDATED, { slug: sanitizedGameSlug });
 
     return NextResponse.json({
       success: true,

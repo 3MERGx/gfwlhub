@@ -14,7 +14,9 @@ import { CorrectionStatus } from "@/types/crowdsource";
 import { notifyCorrectionsReviewedBatch } from "@/lib/discord-webhook";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 import { revalidatePath } from "next/cache";
+import { revalidateGameDerivedPaths } from "@/lib/revalidate-game-derived-paths";
 import { validateCSRFToken } from "@/lib/csrf";
+import { validateDownloadLinkMatchesVirusTotalGui } from "@/lib/virustotal-download-consistency";
 import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 import { ObjectId } from "mongodb";
 
@@ -96,6 +98,8 @@ export async function POST(request: NextRequest) {
       finalValue?: unknown;
     }
     
+    const gameSlugsWithDbUpdates = new Set<string>();
+
     const correctionIds = reviews
       .map((r: ReviewRequest) => sanitizeString(String(r.correctionId || ""), 50))
       .filter(Boolean);
@@ -268,9 +272,119 @@ export async function POST(request: NextRequest) {
           };
 
           if (isClearing) {
-            updateOperation.$unset = { [correction.field]: "" };
+            updateOperation.$unset = {
+              [correction.field]: "",
+              ...(correction.field === "downloadLink"
+                ? { virusTotalUrl: "" }
+                : {}),
+            };
           } else {
             updateOperation.$set[correction.field] = valueToApply;
+          }
+
+          let effectiveAutoVt = correction.autoVirusTotalUrl;
+          if (
+            correction.field === "downloadLink" &&
+            !isClearing &&
+            typeof valueToApply === "string"
+          ) {
+            const appliedTrim = valueToApply.trim();
+            if (/^https?:\/\//i.test(appliedTrim)) {
+              const apiKey = process.env.VIRUSTOTAL_API_KEY;
+              const submittedTrim = String(correction.newValue ?? "").trim();
+              const mustRefreshVt =
+                sanitizedStatus === "modified" && appliedTrim !== submittedTrim;
+              if (apiKey && (mustRefreshVt || !effectiveAutoVt)) {
+                const vtIdentifier = getClientIdentifier(
+                  request,
+                  session.user.id
+                );
+                if (!rateLimiters.virusTotal.isAllowed(vtIdentifier)) {
+                  return NextResponse.json(
+                    {
+                      error:
+                        "Too many VirusTotal scans in a short period. Try again in a minute.",
+                      correctionId: sanitizedCorrectionId,
+                    },
+                    { status: 429 }
+                  );
+                }
+                const { resolveVirusTotalGuiUrlForDownloadLink } = await import(
+                  "@/lib/virustotal-resolve-download-scan"
+                );
+                const resolved = await resolveVirusTotalGuiUrlForDownloadLink(
+                  appliedTrim,
+                  apiKey
+                );
+                if (!resolved.ok) {
+                  return NextResponse.json(
+                    {
+                      error: resolved.error,
+                      correctionId: sanitizedCorrectionId,
+                    },
+                    { status: 422 }
+                  );
+                }
+                effectiveAutoVt = resolved.guiUrl;
+              }
+            }
+          }
+
+          if (
+            correction.field === "downloadLink" &&
+            !isClearing &&
+            effectiveAutoVt
+          ) {
+            updateOperation.$set.virusTotalUrl = effectiveAutoVt;
+          }
+
+          const existingGame = await gamesCollection.findOne({
+            _id: new ObjectId(correction.gameId),
+          });
+          if (!existingGame) {
+            safeLog.warn(
+              `Batch review: game not found for correction ${sanitizedCorrectionId}`
+            );
+            continue;
+          }
+
+          let mergedDownload = existingGame.downloadLink as string | undefined;
+          let mergedVt = existingGame.virusTotalUrl as string | undefined;
+          if (correction.field === "downloadLink") {
+            mergedDownload = isClearing
+              ? undefined
+              : typeof valueToApply === "string"
+                ? valueToApply
+                : String(valueToApply ?? "");
+            if (!isClearing && effectiveAutoVt) {
+              mergedVt = effectiveAutoVt;
+            }
+          }
+          if (correction.field === "virusTotalUrl") {
+            mergedVt = isClearing
+              ? undefined
+              : typeof valueToApply === "string"
+                ? valueToApply
+                : String(valueToApply ?? "");
+          }
+
+          const vtConsistency = validateDownloadLinkMatchesVirusTotalGui(
+            mergedDownload,
+            mergedVt
+          );
+          if (!vtConsistency.ok) {
+            return NextResponse.json(
+              {
+                error: vtConsistency.message,
+                correctionId: sanitizedCorrectionId,
+              },
+              { status: 400 }
+            );
+          }
+          if ("warning" in vtConsistency && vtConsistency.warning) {
+            safeLog.warn(
+              `[VT consistency] batch ${correction.gameSlug}: ${vtConsistency.warning}`
+            );
           }
 
           await gamesCollection.updateOne(
@@ -278,6 +392,8 @@ export async function POST(request: NextRequest) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             updateOperation as any
           );
+
+          gameSlugsWithDbUpdates.add(correction.gameSlug);
 
           // Create audit log
           await createAuditLog({
@@ -352,6 +468,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Revalidate paths
+    gameSlugsWithDbUpdates.forEach((slug) => revalidateGameDerivedPaths(slug));
     revalidatePath("/dashboard/submissions");
     revalidatePath("/");
 

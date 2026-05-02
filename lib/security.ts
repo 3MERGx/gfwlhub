@@ -292,6 +292,11 @@ export const rateLimiters = {
   upload: new RateLimiter(60000, 5 * devMultiplier),
   // Admin endpoints: 20 requests per minute (100 in dev)
   admin: new RateLimiter(60000, 20 * devMultiplier),
+  /**
+   * VirusTotal API calls (free tier is ~4 requests/minute).
+   * Do not use devMultiplier — protects shared VT quota in development too.
+   */
+  virusTotal: new RateLimiter(60000, 3),
 };
 
 /**

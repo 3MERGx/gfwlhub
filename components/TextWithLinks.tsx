@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import InlineUrlSafetyIndicator from "./InlineUrlSafetyIndicator";
-import { escapeHtml } from "@/lib/security";
 
 interface TextWithLinksProps {
   text: string;
@@ -27,11 +26,12 @@ export default function TextWithLinks({ text, className = "" }: TextWithLinksPro
     urlRegex.lastIndex = 0;
 
     while ((match = urlRegex.exec(text)) !== null) {
-      // Add text before the URL (escape HTML for safety)
+      // Text segments: raw substrings — React escapes JSX text children for XSS (`<`, `>`, `&`, etc.).
+      // Do not use escapeHtml() here; it turns `&` into `&amp;`, which then appears literally on screen.
       if (match.index > lastIndex) {
         parts.push({
           type: "text",
-          content: escapeHtml(text.substring(lastIndex, match.index)),
+          content: text.substring(lastIndex, match.index),
         });
       }
 
@@ -49,19 +49,17 @@ export default function TextWithLinks({ text, className = "" }: TextWithLinksPro
       lastIndex = match.index + match[0].length;
     }
 
-    // Add remaining text (escape HTML for safety)
     if (lastIndex < text.length) {
       parts.push({
         type: "text",
-        content: escapeHtml(text.substring(lastIndex)),
+        content: text.substring(lastIndex),
       });
     }
 
-    // If no URLs found, return the whole text as a single part (escape HTML for safety)
     if (parts.length === 0) {
       parts.push({
         type: "text",
-        content: escapeHtml(text),
+        content: text,
       });
     }
 
