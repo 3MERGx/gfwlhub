@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
-import { createAuditLog, getUserByEmail } from "@/lib/crowdsource-service-mongodb";
+import { createAuditLog } from "@/lib/crowdsource-service-mongodb";
+import { toObjectId } from "@/lib/mongo-sanitize";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 import { validateCSRFToken } from "@/lib/csrf";
+import { requireReviewer } from "@/lib/api-auth";
 import { revalidatePath } from "next/cache";
 import { notifyFaqSubmissionReviewed } from "@/lib/discord-webhook";
 import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
@@ -17,25 +16,15 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireReviewer();
+    if (!auth.ok) return auth.response;
+    const { session, user } = auth;
 
-    // Rate limiting
-    const identifier = getClientIdentifier(request, session.user.id);
+    const identifier = getClientIdentifier(request, user.id);
     if (!rateLimiters.admin.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
-      );
-    }
-
-    // Check permissions - reviewer or admin
-    if (session.user.role !== "reviewer" && session.user.role !== "admin") {
-      return NextResponse.json(
-        { error: "Forbidden - Reviewer or Admin access required" },
-        { status: 403 }
       );
     }
 
@@ -55,7 +44,8 @@ export async function POST(
       ? sanitizeString(String(body.adminNotes), 1000)
       : undefined;
 
-    if (!ObjectId.isValid(sanitizedId)) {
+    const objectId = toObjectId(sanitizedId);
+    if (!objectId) {
       return NextResponse.json({ error: "Invalid submission ID" }, { status: 400 });
     }
 
@@ -64,13 +54,27 @@ export async function POST(
 
     // Get the submission
     const submission = await submissionsCollection.findOne({
-      _id: new ObjectId(sanitizedId),
+      _id: objectId,
     });
 
     if (!submission) {
       return NextResponse.json(
         { error: "Submission not found" },
         { status: 404 }
+      );
+    }
+
+    const adminEmails =
+      process.env.DEVELOPER_EMAILS?.split(",").map((email) => email.trim()) ||
+      [];
+    const isDeveloper = Boolean(user.email && adminEmails.includes(user.email));
+    if (submission.submittedBy === user.id && !isDeveloper) {
+      return NextResponse.json(
+        {
+          error:
+            "You cannot review your own submissions. This prevents abuse of the approval system.",
+        },
+        { status: 403 }
       );
     }
 
@@ -84,7 +88,7 @@ export async function POST(
 
     // Update submission status to rejected
     await submissionsCollection.updateOne(
-      { _id: new ObjectId(sanitizedId) },
+      { _id: objectId },
       {
         $set: {
           status: "rejected",
@@ -97,9 +101,7 @@ export async function POST(
     );
 
     // Audit log: FAQ submission rejected
-    const reviewerUser = await getUserByEmail(session.user.email!);
-    const reviewerRole: UserRole =
-      reviewerUser?.role ?? (session.user.role as UserRole) ?? "reviewer";
+    const reviewerRole: UserRole = user.role;
     const gameTitle =
       submission.question.length > 80
         ? `FAQ: ${submission.question.slice(0, 77)}...`

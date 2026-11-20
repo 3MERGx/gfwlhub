@@ -1,8 +1,13 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import Link from "next/link";
-import { Game } from "@/data/games";
+import { useSearchParams } from "next/navigation";
+import {
+  ActivationType,
+  Game,
+  SupportStatus,
+} from "@/data/games";
 import { useToast } from "@/components/ui/toast-context";
 import { useSession } from "next-auth/react";
 import { safeLog } from "@/lib/security";
@@ -17,32 +22,76 @@ import {
 } from "react-icons/fa";
 import DisabledGamePrompt from "@/app/games/[slug]/DisabledGamePrompt";
 import AddGameDetailsModal from "@/components/AddGameDetailsModal";
+import GameImage from "@/components/GameImage";
+import {
+  ActivationBadge,
+  StatusBadge,
+  ACTIVATION_FILTERS,
+  STATUS_FILTERS,
+} from "@/components/GameBadges";
 import { usePusherChannel } from "@/hooks/usePusherChannel";
 import { PUSHER_EVENTS } from "@/lib/pusher-client";
 
-// Helper function to check if a game has its feature enabled
-const isGameFeatureEnabled = (game: Game): boolean => {
-  return !!game.featureEnabled;
-};
+const isGameFeatureEnabled = (game: Game): boolean => !!game.featureEnabled;
 
-type SortField = "title" | "activationType" | "status";
 type SortDirection = "asc" | "desc";
 
-export default function SupportedGames() {
+function FilterChip({
+  active,
+  label,
+  description,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={description}
+      aria-pressed={active}
+      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-[#107c10]/40 ${
+        active
+          ? "border-[#107c10] bg-[#107c10] text-white"
+          : "border-[rgb(var(--border-color))] bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] hover:border-[#107c10] hover:text-[rgb(var(--text-primary))]"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function SupportedGamesContent() {
   const { showToast } = useToast();
   const { data: session } = useSession();
+  const searchParams = useSearchParams();
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sortField, setSortField] = useState<SortField>("title");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [searchQuery, setSearchQuery] = useState("");
+  const [activationFilters, setActivationFilters] = useState<ActivationType[]>(
+    []
+  );
+  const [statusFilters, setStatusFilters] = useState<SupportStatus[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const gamesPerPage = 10;
-  const [selectedDisabledGame, setSelectedDisabledGame] = useState<Game | null>(null);
+  const gamesPerPage = 12;
+  const [selectedDisabledGame, setSelectedDisabledGame] = useState<Game | null>(
+    null
+  );
   const [showAddDetailsModal, setShowAddDetailsModal] = useState(false);
   const [refreshGamesTrigger, setRefreshGamesTrigger] = useState(0);
+  const [initializedFromQuery, setInitializedFromQuery] = useState(false);
 
-  // Fetch games from MongoDB
+  useEffect(() => {
+    if (initializedFromQuery) return;
+    const q = searchParams.get("q");
+    if (q) setSearchQuery(q);
+    setInitializedFromQuery(true);
+  }, [searchParams, initializedFromQuery]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -64,9 +113,7 @@ export default function SupportedGames() {
           showToast("Error loading games. Please try again later.");
         }
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        if (isMounted) setLoading(false);
       }
     }
     fetchGames();
@@ -75,7 +122,7 @@ export default function SupportedGames() {
       isMounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshGamesTrigger]); // Re-run when real-time update triggers refetch
+  }, [refreshGamesTrigger]);
 
   usePusherChannel(PUSHER_EVENTS.GAMES_UPDATED, () => {
     setRefreshGamesTrigger((t) => t + 1);
@@ -90,101 +137,98 @@ export default function SupportedGames() {
     return () => window.removeEventListener("focus", onFocus);
   }, []);
 
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortDirection("asc");
-    }
-    setCurrentPage(1); // Reset to first page when sorting changes
+  const toggleActivationFilter = (value: ActivationType) => {
+    setActivationFilters((prev) =>
+      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]
+    );
+    setCurrentPage(1);
+  };
+
+  const toggleStatusFilter = (value: SupportStatus) => {
+    setStatusFilters((prev) =>
+      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]
+    );
+    setCurrentPage(1);
   };
 
   const clearSearch = () => {
     setSearchQuery("");
-    setCurrentPage(1); // Reset to first page when search is cleared
+    setCurrentPage(1);
   };
 
-  // Filter games based on search query (show all games, enabled and disabled)
-  // Use useMemo to ensure filtering happens correctly and avoid stale closures
+  const clearFilters = () => {
+    setActivationFilters([]);
+    setStatusFilters([]);
+    setSearchQuery("");
+    setCurrentPage(1);
+  };
+
   const filteredGames = useMemo(() => {
     const trimmedQuery = searchQuery.trim();
-    
-    // If search query is empty, show all games
-    if (!trimmedQuery) {
-      return games;
-    }
-    
     const query = trimmedQuery.toLowerCase();
-    
+
     return games.filter((game) => {
+      if (
+        activationFilters.length > 0 &&
+        !activationFilters.includes(game.activationType)
+      ) {
+        return false;
+      }
+      if (statusFilters.length > 0 && !statusFilters.includes(game.status)) {
+        return false;
+      }
+
+      if (!trimmedQuery) return true;
+
       const title = game.title.toLowerCase();
       const description = game.description?.toLowerCase() || "";
-      
-      // Always check title first (most important)
       const titleMatch = title.includes(query);
-      
-      // For description matching, be more strict to avoid false positives
-      // Only match if:
-      // 1. Query is 3+ characters (allows substring matches like "test" in "testing")
-      // 2. OR query matches as a whole word (prevents "tin" matching "testing")
+
       let descriptionMatch = false;
       if (query.length >= 3) {
-        // For longer queries, allow substring matches in description
         descriptionMatch = description.includes(query);
-      } else if (query.length >= 2) {
-        // For 2-character queries, use word boundary to avoid partial matches
-        // Escape special regex characters
-        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const wordBoundaryRegex = new RegExp(`\\b${escapedQuery}\\b`, 'i');
-        descriptionMatch = wordBoundaryRegex.test(description);
-      } else {
-        // For single character queries, only match if it's a standalone word
-        // This is very restrictive to avoid too many false positives
-        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const wordBoundaryRegex = new RegExp(`\\b${escapedQuery}\\b`, 'i');
+      } else if (query.length >= 1) {
+        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const wordBoundaryRegex = new RegExp(`\\b${escapedQuery}\\b`, "i");
         descriptionMatch = wordBoundaryRegex.test(description);
       }
-      
+
       return titleMatch || descriptionMatch;
     });
-  }, [games, searchQuery]);
+  }, [games, searchQuery, activationFilters, statusFilters]);
 
-  // Sort filtered games
-  const sortedGames = [...filteredGames].sort((a, b) => {
-    let aValue = a[sortField];
-    let bValue = b[sortField];
+  const sortedGames = useMemo(() => {
+    return [...filteredGames].sort((a, b) => {
+      const aValue = a.title.toLowerCase();
+      const bValue = b.title.toLowerCase();
+      if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
+      if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [filteredGames, sortDirection]);
 
-    // Handle case-insensitive string comparison
-    if (typeof aValue === "string" && typeof bValue === "string") {
-      aValue = aValue.toLowerCase();
-      bValue = bValue.toLowerCase();
-    }
-
-    if (aValue < bValue) {
-      return sortDirection === "asc" ? -1 : 1;
-    }
-    if (aValue > bValue) {
-      return sortDirection === "asc" ? 1 : -1;
-    }
-    return 0;
-  });
-
-  // Pagination
   const indexOfLastGame = currentPage * gamesPerPage;
   const indexOfFirstGame = indexOfLastGame - gamesPerPage;
   const currentGames = sortedGames.slice(indexOfFirstGame, indexOfLastGame);
-  const totalPages = Math.ceil(sortedGames.length / gamesPerPage);
+  const totalPages = Math.max(1, Math.ceil(sortedGames.length / gamesPerPage));
 
-  // Removed handleGameClick - let users navigate to disabled games
-  // They'll see a banner prompting them to help add game details
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(1);
+  }, [currentPage, totalPages]);
+
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 ||
+    activationFilters.length > 0 ||
+    statusFilters.length > 0;
 
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
           <div className="bg-[rgb(var(--bg-card))] p-8 rounded-lg shadow-xl">
-            <div className="text-center text-[rgb(var(--text-primary))]">Loading games...</div>
+            <div className="text-center text-[rgb(var(--text-primary))]">
+              Loading games...
+            </div>
           </div>
         </div>
       </div>
@@ -194,13 +238,34 @@ export default function SupportedGames() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-6xl mx-auto">
-        <div className="bg-[rgb(var(--bg-card))] p-8 rounded-lg shadow-xl">
-          <h1 className="text-3xl font-bold mb-6 text-center text-[rgb(var(--text-primary))]">
-            Supported Games
-          </h1>
+        <div className="bg-[rgb(var(--bg-card))] p-6 md:p-8 rounded-lg shadow-xl">
+          <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <h1 className="text-3xl font-bold text-[rgb(var(--text-primary))]">
+              Supported Games
+            </h1>
+            <button
+              type="button"
+              onClick={() =>
+                setSortDirection((d) => (d === "asc" ? "desc" : "asc"))
+              }
+              className="inline-flex items-center gap-2 self-start rounded-md border border-[rgb(var(--border-color))] px-3 py-2 text-sm text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] focus:outline-none focus:ring-2 focus:ring-[#107c10]/40"
+              aria-label={`Sort by title ${
+                sortDirection === "asc" ? "descending" : "ascending"
+              }`}
+            >
+              Title
+              {sortDirection === "asc" ? (
+                <FaSortUp aria-hidden />
+              ) : (
+                <FaSortDown aria-hidden />
+              )}
+              <FaSort className="text-[rgb(var(--text-muted))]" aria-hidden />
+            </button>
+          </div>
 
           <div className="mb-6 p-3 rounded-lg bg-[rgb(var(--bg-card-alt))] border border-[rgb(var(--border-color))] text-center text-sm text-[rgb(var(--text-secondary))]">
-            Have suggestions for the platform or game detail pages? Let us know on the{" "}
+            Have suggestions for the platform or game detail pages? Let us know
+            on the{" "}
             <Link
               href="https://discord.gg/PR75T8xMWS"
               target="_blank"
@@ -212,24 +277,28 @@ export default function SupportedGames() {
             .
           </div>
 
-          <div className="mb-8">
+          <div className="mb-4">
             <div className="relative">
               <input
-                type="text"
+                type="search"
                 placeholder="Search games..."
-                className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] border border-[rgb(var(--border-color))] rounded-md py-2 pl-10 pr-10 focus:outline-none focus:border-[#107c10]"
+                className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] border border-[rgb(var(--border-color))] rounded-md py-2.5 pl-10 pr-10 focus:outline-none focus:border-[#107c10] focus:ring-2 focus:ring-[#107c10]/20"
                 value={searchQuery}
                 onChange={(e) => {
-                  const newQuery = e.target.value;
-                  setSearchQuery(newQuery);
-                  setCurrentPage(1); // Reset to first page when search changes
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
                 }}
+                aria-label="Search games"
               />
-              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[rgb(var(--text-muted))]" />
+              <FaSearch
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-[rgb(var(--text-muted))]"
+                aria-hidden
+              />
               {searchQuery && (
                 <button
+                  type="button"
                   onClick={clearSearch}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[rgb(var(--text-muted))] hover:text-[rgb(var(--text-primary))]"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[rgb(var(--text-muted))] hover:text-[rgb(var(--text-primary))]"
                   aria-label="Clear search"
                 >
                   <FaTimes />
@@ -238,287 +307,171 @@ export default function SupportedGames() {
             </div>
           </div>
 
-          {/* Desktop view - Table */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-[rgb(var(--bg-card-alt))]">
-                  <th className="px-4 py-3 text-left text-[rgb(var(--text-primary))] w-1/2 md:w-3/5">
-                    <button
-                      className="flex items-center focus:outline-none"
-                      onClick={() => handleSort("title")}
-                    >
-                      Title
-                      {sortField === "title" ? (
-                        sortDirection === "asc" ? (
-                          <FaSortUp className="ml-1" />
-                        ) : (
-                          <FaSortDown className="ml-1" />
-                        )
-                      ) : (
-                        <FaSort className="ml-1 text-[rgb(var(--text-muted))]" />
-                      )}
-                    </button>
-                  </th>
-                  <th className="px-4 py-3 text-center text-[rgb(var(--text-primary))] w-1/4 md:w-1/5">
-                    <button
-                      className="flex items-center justify-center mx-auto focus:outline-none"
-                      onClick={() => handleSort("activationType")}
-                    >
-                      Activation Type
-                      {sortField === "activationType" ? (
-                        sortDirection === "asc" ? (
-                          <FaSortUp className="ml-1" />
-                        ) : (
-                          <FaSortDown className="ml-1" />
-                        )
-                      ) : (
-                        <FaSort className="ml-1 text-[rgb(var(--text-muted))]" />
-                      )}
-                    </button>
-                  </th>
-                  <th className="px-4 py-3 text-center text-[rgb(var(--text-primary))] w-1/4 md:w-1/5">
-                    <button
-                      className="flex items-center justify-center mx-auto focus:outline-none"
-                      onClick={() => handleSort("status")}
-                    >
-                      Status
-                      {sortField === "status" ? (
-                        sortDirection === "asc" ? (
-                          <FaSortUp className="ml-1" />
-                        ) : (
-                          <FaSortDown className="ml-1" />
-                        )
-                      ) : (
-                        <FaSort className="ml-1 text-[rgb(var(--text-muted))]" />
-                      )}
-                    </button>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {currentGames.map((game) => (
-                  <tr
-                    key={game.slug}
-                    className="border-b border-[rgb(var(--border-color))] hover:bg-[rgb(var(--bg-card-alt))]"
-                  >
-                    <td className="px-4 py-3 w-1/2 md:w-3/5">
-                      {isGameFeatureEnabled(game) ? (
-                        <Link
-                          href={`/games/${game.slug}`}
-                          className="text-[#107c10] hover:text-[#0e6b0e] transition-colors"
-                        >
-                          {game.title}
-                        </Link>
-                      ) : (
-                        <button
-                          onClick={() => setSelectedDisabledGame(game)}
-                          className="text-[#107c10] hover:text-[#0e6b0e] transition-colors text-left"
-                        >
-                          {game.title}
-                          <span className="ml-2 text-xs text-yellow-500">
+          <div className="mb-6 space-y-3">
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--text-muted))]">
+                Activation type
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {ACTIVATION_FILTERS.map((filter) => (
+                  <FilterChip
+                    key={filter.value}
+                    label={filter.label}
+                    description={filter.description}
+                    active={activationFilters.includes(filter.value)}
+                    onClick={() => toggleActivationFilter(filter.value)}
+                  />
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--text-muted))]">
+                Status
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {STATUS_FILTERS.map((filter) => (
+                  <FilterChip
+                    key={filter.value}
+                    label={filter.label}
+                    description={filter.description}
+                    active={statusFilters.includes(filter.value)}
+                    onClick={() => toggleStatusFilter(filter.value)}
+                  />
+                ))}
+              </div>
+            </div>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="text-sm text-[#107c10] hover:underline"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+
+          {currentGames.length === 0 ? (
+            <div className="py-16 text-center text-[rgb(var(--text-secondary))]">
+              <p className="mb-2">No games match your search or filters.</p>
+              <p className="mb-4 text-sm">
+                Games marked Help Needed still need community details. Try a
+                different title, or clear filters to browse everything.
+              </p>
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="text-[#107c10] font-medium hover:underline"
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {currentGames.map((game) => {
+                const enabled = isGameFeatureEnabled(game);
+                const cardInner = (
+                  <>
+                    <div className="relative aspect-[3/4] w-full overflow-hidden bg-[rgb(var(--bg-card-alt))]">
+                      <GameImage
+                        src={game.imageUrl}
+                        alt={`${game.title} cover art`}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                    <div className="flex flex-1 flex-col gap-2 p-4">
+                      <h2 className="text-base font-semibold text-[rgb(var(--text-primary))] line-clamp-2 group-hover:text-[#107c10]">
+                        {game.title}
+                        {!enabled && (
+                          <span className="ml-2 text-xs font-medium text-amber-600 dark:text-amber-400">
                             (Help Needed)
                           </span>
-                        </button>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center w-1/4 md:w-1/5">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          game.activationType === "Legacy (5x5)"
-                            ? "bg-green-500 text-white"
-                            : game.activationType === "Legacy (Per-Title)"
-                            ? "bg-yellow-500 text-black"
-                            : "bg-red-500 text-white"
-                        }`}
-                      >
-                        {game.activationType}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center w-1/4 md:w-1/5">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          game.status === "supported"
-                            ? "bg-green-500 text-white"
-                            : game.status === "testing"
-                            ? "bg-yellow-500 text-black"
-                            : "bg-red-500 text-white"
-                        }`}
-                      >
-                        {game.status.charAt(0).toUpperCase() +
-                          game.status.slice(1)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        )}
+                      </h2>
+                      <div className="mt-auto flex flex-wrap gap-2">
+                        <ActivationBadge type={game.activationType} />
+                        <StatusBadge status={game.status} />
+                      </div>
+                    </div>
+                  </>
+                );
 
-          {/* Mobile view - Cards */}
-          <div className="md:hidden space-y-4">
-            {currentGames.map((game) => (
-              <div
-                key={game.slug}
-                className="bg-[rgb(var(--bg-card-alt))] p-4 rounded-lg space-y-2"
-              >
-                <h3 className="text-lg font-medium">
-                  {isGameFeatureEnabled(game) ? (
+                if (enabled) {
+                  return (
                     <Link
+                      key={game.slug}
                       href={`/games/${game.slug}`}
-                      className="text-[#107c10] hover:text-[#0e6b0e] transition-colors"
+                      className="group flex flex-col overflow-hidden rounded-lg border border-[rgb(var(--border-color))] bg-[rgb(var(--bg-card-alt))] transition-shadow hover:border-[#107c10] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#107c10]/40"
                     >
-                      {game.title}
+                      {cardInner}
                     </Link>
-                  ) : (
-                    <button
-                      onClick={() => setSelectedDisabledGame(game)}
-                      className="text-[#107c10] hover:text-[#0e6b0e] transition-colors text-left"
-                    >
-                      {game.title}
-                      <span className="ml-2 text-xs text-yellow-500">
-                        (Help Needed)
-                      </span>
-                    </button>
-                  )}
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      game.activationType === "Legacy (5x5)"
-                        ? "bg-green-500 text-white"
-                        : game.activationType === "Legacy (Per-Title)"
-                        ? "bg-yellow-500 text-black"
-                        : "bg-red-500 text-white"
-                    }`}
-                  >
-                    {game.activationType}
-                  </span>
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      game.status === "supported"
-                        ? "bg-green-500 text-white"
-                        : game.status === "testing"
-                        ? "bg-yellow-500 text-black"
-                        : "bg-red-500 text-white"
-                    }`}
-                  >
-                    {game.status.charAt(0).toUpperCase() + game.status.slice(1)}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+                  );
+                }
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="mt-6 flex flex-col md:flex-row md:items-center md:justify-between">
-              <div className="text-[rgb(var(--text-secondary))]">
+                return (
+                  <button
+                    key={game.slug}
+                    type="button"
+                    onClick={() => setSelectedDisabledGame(game)}
+                    className="group flex flex-col overflow-hidden rounded-lg border border-[rgb(var(--border-color))] bg-[rgb(var(--bg-card-alt))] text-left transition-shadow hover:border-[#107c10] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#107c10]/40"
+                  >
+                    {cardInner}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {sortedGames.length > 0 && (
+            <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="text-sm text-[rgb(var(--text-secondary))]">
                 Showing {indexOfFirstGame + 1}-
                 {Math.min(indexOfLastGame, sortedGames.length)} of{" "}
                 {sortedGames.length} games
               </div>
-              <div className="flex justify-center mt-4 md:mt-0 space-x-2">
+              <div className="flex items-center justify-center gap-3">
                 <button
-                  onClick={() => setCurrentPage(currentPage - 1)}
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
-                  className={`p-2 rounded-full ${
+                  className={`inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm ${
                     currentPage === 1
                       ? "bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-muted))] cursor-not-allowed"
                       : "bg-[#107c10] text-white hover:bg-[#0e6b0e]"
                   }`}
                   aria-label="Previous page"
                 >
-                  <FaChevronLeft size={16} />
+                  <FaChevronLeft size={12} />
+                  Previous
                 </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                  (page) => (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`w-8 h-8 rounded-full ${
-                        currentPage === page
-                          ? "bg-[#107c10] text-white"
-                          : "bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--bg-card))]"
-                      }`}
-                      aria-label={`Page ${page}`}
-                      aria-current={currentPage === page ? "page" : undefined}
-                    >
-                      {page}
-                    </button>
-                  )
-                )}
+                <span className="text-sm text-[rgb(var(--text-secondary))]">
+                  Page {currentPage} of {totalPages}
+                </span>
                 <button
-                  onClick={() => setCurrentPage(currentPage + 1)}
+                  type="button"
+                  onClick={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
                   disabled={currentPage === totalPages}
-                  className={`p-2 rounded-full ${
+                  className={`inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm ${
                     currentPage === totalPages
                       ? "bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-muted))] cursor-not-allowed"
                       : "bg-[#107c10] text-white hover:bg-[#0e6b0e]"
                   }`}
                   aria-label="Next page"
                 >
-                  <FaChevronRight size={16} />
+                  Next
+                  <FaChevronRight size={12} />
                 </button>
               </div>
             </div>
           )}
-
-          {/* Legend section - Improved for small screens */}
-          <div className="mt-8 bg-[rgb(var(--bg-card))] p-6 rounded-lg">
-            <h2 className="text-xl font-bold mb-4 text-[rgb(var(--text-primary))]">Legend</h2>
-            <ul className="space-y-4">
-              <li className="flex items-start">
-                <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center mr-2 mt-1 flex-shrink-0">
-                  <span
-                    className="text-white text-xs"
-                    style={{ fontSize: "10px" }}
-                  >
-                    ✓
-                  </span>
-                </div>
-                <div>
-                  <strong className="text-[rgb(var(--text-primary))]">Legacy (5x5):</strong> These
-                  games use the 5x5 activation system and are fully supported by
-                  our fix.
-                </div>
-              </li>
-              <li className="flex items-start">
-                <div className="w-5 h-5 bg-yellow-500 rounded-full flex items-center justify-center mr-2 mt-1 flex-shrink-0">
-                  <span
-                    className="text-black text-xs"
-                    style={{ fontSize: "10px" }}
-                  >
-                    ●
-                  </span>
-                </div>
-                <div>
-                  <strong className="text-[rgb(var(--text-primary))]">Legacy (Per-Title):</strong>{" "}
-                  These games use a per-title activation system and are
-                  currently in testing.
-                </div>
-              </li>
-              <li className="flex items-start">
-                <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center mr-2 mt-1 flex-shrink-0">
-                  <span
-                    className="text-white text-xs"
-                    style={{ fontSize: "10px" }}
-                  >
-                    ✕
-                  </span>
-                </div>
-                <div>
-                  <strong className="text-[rgb(var(--text-primary))]">SSA:</strong> These games use
-                  the newer Server Side Activation method and are currently
-                  unsupported.
-                </div>
-              </li>
-            </ul>
-          </div>
         </div>
       </div>
 
-      {/* Disabled Game Prompt Modal */}
       {selectedDisabledGame && (
         <DisabledGamePrompt
           gameTitle={selectedDisabledGame.title}
@@ -530,7 +483,6 @@ export default function SupportedGames() {
         />
       )}
 
-      {/* Add Game Details Modal */}
       {showAddDetailsModal && selectedDisabledGame && session && (
         <AddGameDetailsModal
           game={selectedDisabledGame}
@@ -551,5 +503,25 @@ export default function SupportedGames() {
         />
       )}
     </div>
+  );
+}
+
+export default function SupportedGames() {
+  return (
+    <Suspense
+      fallback={
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-6xl mx-auto">
+            <div className="bg-[rgb(var(--bg-card))] p-8 rounded-lg shadow-xl">
+              <div className="text-center text-[rgb(var(--text-primary))]">
+                Loading games...
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <SupportedGamesContent />
+    </Suspense>
   );
 }

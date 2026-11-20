@@ -33,6 +33,9 @@ import { PUSHER_EVENTS } from "@/lib/pusher-client";
 import { useToast } from "@/components/ui/toast-context";
 import { safeLog, sanitizeHtml } from "@/lib/security";
 import type { FAQSubmission } from "@/types/faq-submission";
+import DashboardPageHeader from "@/components/dashboard/DashboardPageHeader";
+import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import { formatReviewDateTime } from "@/lib/format-review-date";
 
 /** Extract unique href values from HTML string (e.g. answer content). */
 function extractLinksFromHtml(html: string): string[] {
@@ -47,7 +50,7 @@ function extractLinksFromHtml(html: string): string[] {
 }
 
 export default function FAQSubmissionsPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const { csrfToken } = useCSRF();
   const { showToast } = useToast();
   const [submissions, setSubmissions] = useState<FAQSubmission[]>([]);
@@ -298,15 +301,22 @@ export default function FAQSubmissionsPage() {
     setAdminNotes(submission.adminNotes || "");
   }, []);
 
-  const formatDate = (date: Date | string) => {
-    return new Date(date).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  const formatDate = (date: Date | string) => formatReviewDateTime(date);
+
+  if (status === "loading" || !session) {
+    return (
+      <DashboardLayout>
+        <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6 md:py-8">
+          <div className="space-y-4" role="status" aria-live="polite" aria-busy="true">
+            <span className="sr-only">Loading submissions</span>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <CardSkeleton key={i} />
+            ))}
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   if (!canReview) {
     return (
@@ -324,22 +334,11 @@ export default function FAQSubmissionsPage() {
     <DashboardLayout>
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6 md:py-8">
         <div className="space-y-6">
-          {/* Header */}
-          <header className="pb-4 sm:pb-6 border-b border-[rgb(var(--border-color))]">
-            <div className="flex items-start gap-3 sm:gap-4">
-              <div className="flex-shrink-0 p-2.5 rounded-lg bg-[#107c10]/15 border border-[#107c10]/30" aria-hidden>
-                <FaQuestionCircle className="text-[#107c10]" size={24} />
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-[rgb(var(--text-primary))] tracking-tight">
-                  FAQ Submissions
-                </h1>
-                <p className="mt-1.5 text-sm sm:text-base text-[rgb(var(--text-secondary))]">
-                  Review and manage user-submitted FAQs
-                </p>
-              </div>
-            </div>
-          </header>
+          <DashboardPageHeader
+            title="FAQ submissions"
+            subtitle="Review and manage user-submitted FAQs"
+            icon={<FaQuestionCircle className="text-[#107c10]" size={24} />}
+          />
 
         {/* Filters */}
         <div className="bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] p-4">
@@ -430,25 +429,31 @@ export default function FAQSubmissionsPage() {
             ))}
           </div>
         ) : sortedSubmissions.length === 0 ? (
-          <div className="bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] p-8 text-center">
-            <FaQuestionCircle className="mx-auto text-[rgb(var(--text-muted))] mb-3" size={48} aria-hidden />
-            <p className="text-[rgb(var(--text-secondary))]">
-              {debouncedSearchQuery
+          <DashboardEmptyState
+            icon={<FaQuestionCircle className="mx-auto" size={48} />}
+            title={
+              debouncedSearchQuery
                 ? "No submissions found matching your search."
                 : statusFilter === "all"
-                ? "No FAQ submissions found."
-                : `No ${statusFilter} submissions.`}
-            </p>
-            {debouncedSearchQuery ? (
-              <p className="mt-2 text-sm text-[rgb(var(--text-muted))]">
-                Try different keywords or clear the search.
-              </p>
-            ) : statusFilter !== "all" ? (
-              <p className="mt-2 text-sm text-[rgb(var(--text-muted))]">
-                Try &quot;All Statuses&quot; to see other submissions.
-              </p>
-            ) : null}
-          </div>
+                  ? "No FAQ submissions found."
+                  : `No ${statusFilter} submissions.`
+            }
+            description={
+              debouncedSearchQuery
+                ? "Try different keywords or clear the search."
+                : statusFilter !== "all"
+                  ? 'Try "All Statuses" to see other submissions.'
+                  : undefined
+            }
+            onClearFilters={
+              debouncedSearchQuery || statusFilter !== "pending"
+                ? () => {
+                    setSearchQuery("");
+                    setStatusFilter("pending");
+                  }
+                : undefined
+            }
+          />
         ) : (
           <>
           <div className="space-y-4">

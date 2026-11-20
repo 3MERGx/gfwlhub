@@ -3,6 +3,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import DashboardLayout from "@/components/DashboardLayout";
+import DashboardPageHeader from "@/components/dashboard/DashboardPageHeader";
+import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   FaTimesCircle,
   FaCheckCircle,
@@ -58,7 +67,7 @@ export default function ReviewerApplicationsPage() {
   const [filteredApplications, setFilteredApplications] = useState<
     ReviewerApplication[]
   >([]);
-  const [statusFilter] = useState<
+  const [statusFilter, setStatusFilter] = useState<
     "pending" | "approved" | "rejected" | "all"
   >("pending");
   const [searchQuery, setSearchQuery] = useState("");
@@ -359,7 +368,17 @@ export default function ReviewerApplicationsPage() {
     }
   };
 
-  if (session?.user.role !== "admin") {
+  if (!session) {
+    return (
+      <DashboardLayout requireRole="admin">
+        <div className="p-6">
+          <ListSkeleton items={5} />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (session.user.role !== "admin") {
     return (
       <DashboardLayout requireRole="admin">
         <div className="p-6">
@@ -379,9 +398,10 @@ export default function ReviewerApplicationsPage() {
   return (
     <DashboardLayout requireRole="admin">
       <div className="p-6">
-        <h1 className="text-3xl font-bold text-[rgb(var(--text-primary))] mb-6">
-          Reviewer Applications
-        </h1>
+        <DashboardPageHeader
+          title="Reviewer Applications"
+          subtitle="Review community applications for reviewer access"
+        />
 
         {/* Stats Dashboard */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -416,6 +436,24 @@ export default function ReviewerApplicationsPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 border border-[rgb(var(--border-color))] focus:outline-none focus:ring-2 focus:ring-[#107c10]"
               />
+            </div>
+            <div className="w-full sm:w-48">
+              <Select
+                value={statusFilter}
+                onValueChange={(value) =>
+                  setStatusFilter(value as "pending" | "approved" | "rejected" | "all")
+                }
+              >
+                <SelectTrigger className="w-full" aria-label="Filter by status">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="all">All statuses</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex gap-2">
               <button
@@ -462,9 +500,28 @@ export default function ReviewerApplicationsPage() {
         {isLoading ? (
           <ListSkeleton items={5} />
         ) : filteredApplications.length === 0 ? (
-          <div className="text-center py-12 text-[rgb(var(--text-secondary))]">
-            No applications found.
-          </div>
+          <DashboardEmptyState
+            title={
+              debouncedSearchQuery
+                ? "No applications found matching your search."
+                : statusFilter === "all"
+                  ? "No reviewer applications found."
+                  : `No ${statusFilter} applications.`
+            }
+            description={
+              debouncedSearchQuery || statusFilter !== "pending"
+                ? "Try a different status or clear the search."
+                : undefined
+            }
+            onClearFilters={
+              debouncedSearchQuery || statusFilter !== "pending"
+                ? () => {
+                    setSearchQuery("");
+                    setStatusFilter("pending");
+                  }
+                : undefined
+            }
+          />
         ) : (
           <>
             <div className="space-y-4">
@@ -531,7 +588,7 @@ export default function ReviewerApplicationsPage() {
                               View Profile <FaExternalLinkAlt size={10} />
                             </Link>
                             <Link
-                              href={`/dashboard/submissions?userId=${application.userId}`}
+                              href={`/dashboard/submissions?userId=${encodeURIComponent(application.userId)}${application.userName ? `&userName=${encodeURIComponent(application.userName)}` : ""}`}
                               className="text-sm text-[#107c10] hover:underline inline-flex items-center gap-1"
                             >
                               View Corrections <FaExternalLinkAlt size={10} />

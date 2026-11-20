@@ -1,34 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
 import { safeLog, sanitizeString, markdownToSafeHtml, sanitizeHtml, rateLimiters, getClientIdentifier } from "@/lib/security";
 import { validateCSRFToken } from "@/lib/csrf";
-import { canSubmitCorrections, getUserByEmail } from "@/lib/crowdsource-service-mongodb";
+import { canSubmitCorrections } from "@/lib/crowdsource-service-mongodb";
+import { requireReviewer, requireSession } from "@/lib/api-auth";
 import { notifyFaqSubmissionSubmitted } from "@/lib/discord-webhook";
 import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 
 // GET - Fetch FAQ submissions (for reviewers/admins)
 export async function GET(request: NextRequest) {
   try {
-    // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireReviewer();
+    if (!auth.ok) return auth.response;
+
+    const identifier = getClientIdentifier(request, auth.user.id);
     if (!rateLimiters.api.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
       );
-    }
-
-    // Check if user is authenticated and is reviewer or admin
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    if (session.user.role !== "reviewer" && session.user.role !== "admin") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const db = await getGFWLDatabase();
@@ -44,7 +34,7 @@ export async function GET(request: NextRequest) {
     const query: Record<string, unknown> = {};
 
     // Filter by status if provided
-    if (status && status !== "all") {
+    if (status && ["pending", "approved", "rejected"].includes(status)) {
       query.status = status;
     }
 
@@ -91,25 +81,16 @@ export async function GET(request: NextRequest) {
 // POST - Submit a new FAQ suggestion (authenticated users)
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting - use stricter limit for submissions
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireSession();
+    if (!auth.ok) return auth.response;
+    const { session, user } = auth;
+
+    const identifier = getClientIdentifier(request, user.id);
     if (!rateLimiters.auth.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
       );
-    }
-
-    // Check if user is authenticated
-    if (!session || !session.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Get user from database to check status
-    const user = await getUserByEmail(session.user.email!);
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     // Check if user can submit (same check as corrections and game submissions)
@@ -183,8 +164,8 @@ export async function POST(request: NextRequest) {
     const newSubmission = {
       question: sanitizedQuestion.trim(),
       answer: sanitizedAnswer,
-      submittedBy: session.user.id,
-      submittedByName: session.user.name || "Unknown",
+      submittedBy: user.id,
+      submittedByName: user.name || session.user.name || "Unknown",
       submittedAt: new Date(),
       status: "pending",
       reviewedBy: null,

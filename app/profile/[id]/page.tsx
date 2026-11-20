@@ -6,7 +6,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { safeLog } from "@/lib/security";
 import { getAvatarUrl } from "@/lib/image-utils";
-import { getFieldDisplayName } from "@/lib/field-display";
+import {
+  getFieldDisplayName,
+  getCorrectionStatusLabel,
+} from "@/lib/field-display";
 import {
   Select,
   SelectContent,
@@ -38,14 +41,14 @@ import { PUSHER_EVENTS } from "@/lib/pusher-client";
 interface User {
   id: string;
   name: string;
-  email: string;
+  email?: string;
   avatar?: string;
   role: "user" | "reviewer" | "admin";
   status: "active" | "suspended" | "restricted" | "blocked" | "deleted";
-  provider: "github" | "discord" | "google";
-  submissionsCount: number;
-  approvedCount: number;
-  rejectedCount: number;
+  provider?: "github" | "discord" | "google";
+  submissionsCount?: number;
+  approvedCount?: number;
+  rejectedCount?: number;
   createdAt: Date;
   deletedAt?: Date;
   lastLoginAt?: Date;
@@ -61,9 +64,10 @@ interface Correction {
   gameSlug: string;
   gameTitle: string;
   field: string;
-  status: "pending" | "approved" | "rejected" | "modified";
+  status: "pending" | "approved" | "rejected" | "modified" | "superseded";
   submittedAt: Date;
   reviewedAt?: Date;
+  reviewNotes?: string;
 }
 
 interface GameSubmission {
@@ -84,7 +88,7 @@ const STATUS_LABELS: Record<string, string> = {
   pending: "Pending",
   approved: "Approved",
   rejected: "Rejected",
-  modified: "Modified",
+  modified: "Approved with edits",
   superseded: "Superseded",
 };
 
@@ -100,6 +104,7 @@ export default function ProfilePage({
   const [allSubmissions, setAllSubmissions] = useState<Submission[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [profileForbidden, setProfileForbidden] = useState(false);
   const [submissionsLoading, setSubmissionsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
@@ -140,9 +145,17 @@ export default function ProfilePage({
           }, 2000);
           return;
         }
+        if (response.status === 403) {
+          if (isMounted) {
+            setProfileForbidden(true);
+            setProfileUser(null);
+          }
+          return;
+        }
         if (response.ok) {
           const data = await response.json();
           if (isMounted) {
+            setProfileForbidden(false);
             setProfileUser(data);
           }
         }
@@ -340,6 +353,26 @@ export default function ProfilePage({
     );
   }
 
+  if (profileForbidden) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-[rgb(var(--bg-card))] rounded-lg p-8 text-center">
+            <p className="text-[rgb(var(--text-secondary))]">
+              This profile is private.
+            </p>
+            <Link
+              href="/"
+              className="mt-4 inline-block px-4 py-2 bg-[#107c10] text-white rounded-lg hover:bg-[#0d6b0d] transition-colors"
+            >
+              Go Home
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!profileUser) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -397,10 +430,11 @@ export default function ProfilePage({
 
   // Calculate approval rate excluding pending submissions
   // Only count approved + rejected in denominator
-  const reviewedCount = profileUser.approvedCount + profileUser.rejectedCount;
+  const reviewedCount =
+    (profileUser.approvedCount ?? 0) + (profileUser.rejectedCount ?? 0);
   const approvalRate =
     reviewedCount > 0
-      ? ((profileUser.approvedCount / reviewedCount) * 100).toFixed(1)
+      ? (((profileUser.approvedCount ?? 0) / reviewedCount) * 100).toFixed(1)
       : "0.0";
 
   const getStatusBadgeColor = (status: string) => {
@@ -567,22 +601,21 @@ export default function ProfilePage({
               </p>
             </div>
 
-            {/* Last Login */}
-            <div className="space-y-2">
-              <label className="text-sm text-[rgb(var(--text-muted))] flex items-center gap-2">
-                <FaHistory size={14} />
-                Last Login
-              </label>
-              <p className="text-[rgb(var(--text-primary))] font-medium">
-                {profileUser.lastLoginAt
-                  ? formatDate(profileUser.lastLoginAt)
-                  : "Not recorded"}
-              </p>
-            </div>
+            {profileUser.lastLoginAt && (
+              <div className="space-y-2">
+                <label className="text-sm text-[rgb(var(--text-muted))] flex items-center gap-2">
+                  <FaHistory size={14} />
+                  Last Login
+                </label>
+                <p className="text-[rgb(var(--text-primary))] font-medium">
+                  {formatDate(profileUser.lastLoginAt)}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Statistics Card */}
+        {typeof profileUser.submissionsCount === "number" && (
         <div className="bg-[rgb(var(--bg-card))] rounded-lg p-6 md:p-8 border border-[rgb(var(--border-color))] mb-6 shadow-lg">
           <h3 className="text-xl font-bold text-[rgb(var(--text-primary))] flex items-center gap-2 mb-6">
             <FaChartLine className="text-[#107c10]" />
@@ -673,9 +706,10 @@ export default function ProfilePage({
             </div>
           )}
         </div>
+        )}
 
         {/* Recent Submissions */}
-        {profileUser.submissionsCount > 0 &&
+        {(profileUser.submissionsCount ?? 0) > 0 &&
           (() => {
             // Determine if we should show recent activity
             // Always show to: user themselves, admins
@@ -748,7 +782,7 @@ export default function ProfilePage({
                         />
                         {!isOwnProfile &&
                         session?.user?.role !== "admin" &&
-                        profileUser.submissionsCount > 0 ? (
+                        (profileUser.submissionsCount ?? 0) > 0 ? (
                           <p className="text-[rgb(var(--text-secondary))]">
                             Recent activity is only visible to this user and
                             admins.
@@ -830,7 +864,22 @@ export default function ProfilePage({
                       ) : (
                       <>
                       <div className="space-y-3">
-                          {paginatedSubmissions.map((submission) => (
+                          {paginatedSubmissions.map((submission) => {
+                            const correction =
+                              submission.type === "correction"
+                                ? (submission as Correction & {
+                                    type: "correction";
+                                  })
+                                : null;
+                            const showReviewNotes =
+                              correction &&
+                              (correction.status === "rejected" ||
+                                correction.status === "modified") &&
+                              correction.reviewNotes;
+                            const showSupersededHint =
+                              correction?.status === "superseded";
+
+                            return (
                           <Link
                             key={`${submission.type}-${submission.id}`}
                             href={`/games/${submission.gameSlug}`}
@@ -851,15 +900,29 @@ export default function ProfilePage({
                                   <span className="text-[rgb(var(--text-muted))] text-xs px-2 py-0.5 bg-[rgb(var(--bg-card))] rounded">
                                     {submission.type === "correction" ? "Correction" : "Game Submission"}
                                   </span>
-                                  {submission.type === "correction" && (
+                                  {correction && (
                                     <span className="text-[rgb(var(--text-secondary))] text-xs">
-                                      {getFieldDisplayName((submission as Correction & { type: "correction" }).field)}
+                                      {getFieldDisplayName(correction.field)}
                                     </span>
                                   )}
                                 </div>
                                 <p className="text-[rgb(var(--text-muted))] text-xs mt-1">
                                   {formatDateTime(submission.submittedAt)}
                                 </p>
+                                {showReviewNotes && (
+                                  <p className="text-[rgb(var(--text-secondary))] text-xs mt-2 p-2 bg-[rgb(var(--bg-card))] rounded border border-[rgb(var(--border-color))]">
+                                    <span className="font-medium text-[rgb(var(--text-primary))]">
+                                      Reviewer notes:{" "}
+                                    </span>
+                                    {correction.reviewNotes}
+                                  </p>
+                                )}
+                                {showSupersededHint && (
+                                  <p className="text-[rgb(var(--text-muted))] text-xs mt-2">
+                                    Replaced by a newer correction you submitted
+                                    for the same field.
+                                  </p>
+                                )}
                               </div>
                               <div className="flex items-center gap-3">
                                 <span
@@ -867,8 +930,7 @@ export default function ProfilePage({
                                     submission.status
                                   )}`}
                                 >
-                                  {submission.status.charAt(0).toUpperCase() +
-                                    submission.status.slice(1)}
+                                  {getCorrectionStatusLabel(submission.status)}
                                 </span>
                                 <FaExternalLinkAlt
                                   className="text-[rgb(var(--text-muted))] group-hover:text-[#107c10] transition-colors"
@@ -877,7 +939,8 @@ export default function ProfilePage({
                               </div>
                             </div>
                           </Link>
-                        ))}
+                            );
+                          })}
                       </div>
                         {/* Pagination */}
                         {totalPages > 1 && (

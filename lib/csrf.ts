@@ -35,6 +35,23 @@ export async function getCSRFToken(): Promise<string> {
 }
 
 /**
+ * Read a CSRF token from the X-CSRF-Token header or JSON `_csrf` body field.
+ */
+export function readCsrfToken(
+  request: Request,
+  body?: { _csrf?: unknown }
+): string | null {
+  const header = request.headers.get("X-CSRF-Token");
+  if (header) {
+    return header;
+  }
+  if (typeof body?._csrf === "string" && body._csrf.length > 0) {
+    return body._csrf;
+  }
+  return null;
+}
+
+/**
  * Validate CSRF token from request
  * @param requestToken - Token from request header or body
  * @returns true if valid, false otherwise

@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Review Submissions",
+  title: "Review corrections",
 };
 
 export default function SubmissionsLayout({

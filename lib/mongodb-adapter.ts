@@ -1,6 +1,6 @@
 import type { Adapter, AdapterUser, AdapterAccount } from "next-auth/adapters";
-import { ObjectId } from "mongodb";
 import { getGFWLDatabase } from "./mongodb";
+import { toObjectId } from "@/lib/mongo-sanitize";
 
 export function MongoDBAdapter(): Adapter {
   return {
@@ -8,9 +8,12 @@ export function MongoDBAdapter(): Adapter {
       const db = await getGFWLDatabase();
       const usersCollection = db.collection("users");
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const newUser: any = {
-        ...user,
+      const newUser = {
+        email: user.email,
+        emailVerified: user.emailVerified ?? null,
+        name: user.name,
+        image: user.image,
+        sessionVersion: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -26,7 +29,9 @@ export function MongoDBAdapter(): Adapter {
       const db = await getGFWLDatabase();
       const usersCollection = db.collection("users");
 
-      const user = await usersCollection.findOne({ _id: new ObjectId(id) });
+      const objectId = toObjectId(id);
+      if (!objectId) return null;
+      const user = await usersCollection.findOne({ _id: objectId });
       if (!user) return null;
 
       return {
@@ -92,20 +97,21 @@ export function MongoDBAdapter(): Adapter {
       const db = await getGFWLDatabase();
       const usersCollection = db.collection("users");
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const updateData: any = {
-        ...user,
+      const objectId = toObjectId(user.id);
+      if (!objectId) throw new Error("Invalid user ID");
+
+      const $set: Record<string, unknown> = {
         updatedAt: new Date(),
       };
-      delete updateData.id;
+      if (user.email != null) $set.email = user.email;
+      if (user.name != null) $set.name = user.name;
+      if (user.image != null) $set.image = user.image;
+      if (user.emailVerified != null) $set.emailVerified = user.emailVerified;
 
-      await usersCollection.updateOne(
-        { _id: new ObjectId(user.id) },
-        { $set: updateData }
-      );
+      await usersCollection.updateOne({ _id: objectId }, { $set });
 
       const updated = await usersCollection.findOne({
-        _id: new ObjectId(user.id),
+        _id: objectId,
       });
       if (!updated) throw new Error("User not found after update");
 
@@ -123,8 +129,11 @@ export function MongoDBAdapter(): Adapter {
       const db = await getGFWLDatabase();
       const usersCollection = db.collection("users");
 
+      const objectId = toObjectId(account.userId);
+      if (!objectId) return account;
+
       await usersCollection.updateOne(
-        { _id: new ObjectId(account.userId) },
+        { _id: objectId },
         {
           $set: {
             providerInfo: {

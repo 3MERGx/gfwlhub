@@ -5,6 +5,43 @@
  */
 
 /**
+ * Redact credentials and connection strings before writing production logs.
+ */
+function sanitizeLogValue(value: unknown): unknown {
+  if (typeof value === "string") {
+    return value
+      .replace(/mongodb(\+srv)?:\/\/[^\s"']+/gi, "mongodb://[REDACTED]")
+      .replace(
+        /(token|password|secret|api[_-]?key|auth)[=:]\s*[^\s"',}]+/gi,
+        "$1=[REDACTED]"
+      )
+      .replace(/token|password|secret|key|auth/gi, "[REDACTED]");
+  }
+
+  if (value instanceof Error) {
+    return {
+      name: value.name,
+      message: sanitizeLogValue(value.message),
+      stack: value.stack ? sanitizeLogValue(value.stack) : undefined,
+    };
+  }
+
+  if (value && typeof value === "object") {
+    try {
+      return JSON.parse(
+        JSON.stringify(value, (_key, nested) =>
+          typeof nested === "string" ? sanitizeLogValue(nested) : nested
+        )
+      );
+    } catch {
+      return "[Unserializable]";
+    }
+  }
+
+  return value;
+}
+
+/**
  * Safe logger that only logs in development or when explicitly enabled
  * Prevents sensitive data exposure in production logs
  */
@@ -26,15 +63,7 @@ export const safeLog = {
     ) {
       console.error(...args);
     } else {
-      // In production, log minimal error info
-      const sanitized = args.map((arg) => {
-        if (typeof arg === "string") {
-          // Remove potential sensitive data patterns
-          return arg.replace(/token|password|secret|key|auth/gi, "[REDACTED]");
-        }
-        return arg;
-      });
-      console.error(...sanitized);
+      console.error(...args.map(sanitizeLogValue));
     }
   },
 
@@ -297,6 +326,12 @@ export const rateLimiters = {
    * Do not use devMultiplier — protects shared VT quota in development too.
    */
   virusTotal: new RateLimiter(60000, 3),
+  /**
+   * Cover-art proxy: catalog grids fire many concurrent image requests.
+   * 120/min (600 in dev) keeps the grid from 429ing without opening the
+   * general API limiter.
+   */
+  imageProxy: new RateLimiter(60000, 120 * devMultiplier),
 };
 
 /**

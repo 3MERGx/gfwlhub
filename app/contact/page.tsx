@@ -94,7 +94,7 @@ export default function Contact() {
       <div className="max-w-4xl mx-auto">
         <div className="bg-[rgb(var(--bg-card))] p-8 rounded-lg shadow-xl mb-8">
           <h1 className="text-3xl font-bold mb-6 text-center text-[rgb(var(--text-primary))]">
-            Contact & Community
+            Game Communities
           </h1>
 
           <section className="mb-12">

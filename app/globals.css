@@ -81,6 +81,7 @@
   --background-start-rgb: 250, 250, 250;
   --background-end-rgb: 240, 240, 240;
   --gfwl-green: 16, 124, 16;
+  --gfwl-green-hover: 14, 107, 14;
   /* Light mode specific */
   --bg-primary: 250, 250, 250;
   --bg-secondary: 255, 255, 255;
@@ -131,6 +132,8 @@
   --foreground-rgb: 255, 255, 255;
   --background-start-rgb: 20, 20, 20;
   --background-end-rgb: 30, 30, 30;
+  --gfwl-green: 16, 124, 16;
+  --gfwl-green-hover: 14, 107, 14;
   /* Dark mode specific */
   --bg-primary: 18, 18, 18;
   --bg-secondary: 45, 45, 45;
@@ -188,6 +191,18 @@
 
 .border-theme {
   border-color: rgb(var(--border-color));
+}
+
+.text-brand {
+  color: rgb(var(--gfwl-green));
+}
+
+.bg-brand {
+  background-color: rgb(var(--gfwl-green));
+}
+
+.bg-brand:hover {
+  background-color: rgb(var(--gfwl-green-hover));
 }
 
 /* Custom scrollbar for the Xbox/GFWL feel - green in both themes */

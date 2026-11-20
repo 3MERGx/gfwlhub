@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGFWLDatabase } from "@/lib/mongodb";
-import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { requireSession } from "@/lib/api-auth";
+import { canManageUsers } from "@/lib/crowdsource-service-mongodb";
+import { internalError, jsonError } from "@/lib/api-error";
 
 // GET - Get game status (check if it has required fields and is ready to publish)
 export async function GET(
@@ -8,39 +11,30 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    // Rate limiting
-    const identifier = getClientIdentifier(request);
+    const auth = await requireSession();
+    if (!auth.ok) return auth.response;
+
+    const identifier = getClientIdentifier(request, auth.user.id);
     if (!rateLimiters.api.isAllowed(identifier)) {
-      return NextResponse.json(
-        { error: "Too many requests. Please try again later." },
-        { status: 429 }
-      );
+      return jsonError("Too many requests. Please try again later.", 429);
     }
 
     const { slug } = await params;
     const sanitizedSlug = sanitizeString(String(slug || ""), 200);
 
     if (!sanitizedSlug) {
-      return NextResponse.json(
-        { error: "Invalid game slug" },
-        { status: 400 }
-      );
+      return jsonError("Invalid game slug", 400);
     }
 
     const db = await getGFWLDatabase();
     const gamesCollection = db.collection("Games");
 
-    // Get the game
     const game = await gamesCollection.findOne({ slug: sanitizedSlug });
 
     if (!game) {
-      return NextResponse.json(
-        { error: "Game not found" },
-        { status: 404 }
-      );
+      return jsonError("Game not found", 404);
     }
 
-    // Check individual required fields
     const requiredFields = {
       title: !!game.title,
       releaseDate: !!game.releaseDate,
@@ -48,34 +42,33 @@ export async function GET(
       publisher: !!game.publisher,
     };
 
-    // Check if game has all minimum required fields
-    const hasRequiredFields = 
-      requiredFields.title && 
-      requiredFields.releaseDate && 
-      requiredFields.developer && 
+    const hasRequiredFields =
+      requiredFields.title &&
+      requiredFields.releaseDate &&
+      requiredFields.developer &&
       requiredFields.publisher;
 
-    const status = {
+    const status: {
+      hasRequiredFields: boolean;
+      requiredFields: typeof requiredFields;
+      readyToPublish?: boolean;
+      featureEnabled?: boolean;
+    } = {
       hasRequiredFields,
       requiredFields,
-      readyToPublish: game.readyToPublish || false,
-      featureEnabled: game.featureEnabled || false,
     };
 
-    return NextResponse.json(
-      status,
-      {
-        headers: {
-          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
-        },
-      }
-    );
+    if (canManageUsers(auth.user)) {
+      status.readyToPublish = game.readyToPublish || false;
+      status.featureEnabled = game.featureEnabled || false;
+    }
+
+    return NextResponse.json(status, {
+      headers: {
+        "Cache-Control": "private, no-cache, must-revalidate",
+      },
+    });
   } catch (error) {
-    safeLog.error("Error fetching game status:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return internalError("Error fetching game status:", error);
   }
 }
-

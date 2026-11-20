@@ -8,10 +8,7 @@ import {
   FaDatabase,
 } from "react-icons/fa";
 import { GamePageParams } from "@/types/routes";
-import VirusTotalWidget from "@/components/VirusTotalWidget";
-import StoreButton from "@/components/StoreButton";
 import { Metadata } from "next";
-import DownloadButtonWithModal from "@/components/DownloadButtonWithModal";
 import { getAllGames, getGameBySlug } from "@/lib/games-service";
 import { games as staticGames } from "@/data/games";
 import MakeCorrectionButton from "./MakeCorrectionButton";
@@ -19,11 +16,16 @@ import DisabledGameBanner from "./DisabledGameBanner";
 import { redirect } from "next/navigation";
 import { safeLog } from "@/lib/security";
 import UnplayableGameBanner from "@/components/UnplayableGameBanner";
-import CommunityAlternativeCard from "@/components/CommunityAlternativeCard";
+import GameDownloadsPanel from "@/components/GameDownloadsPanel";
 import RemasteredVersionCard from "@/components/RemasteredVersionCard";
-import PlayabilityBadge from "@/components/PlayabilityBadge";
+import {
+  ActivationBadge,
+  PlayabilityBadge,
+  StatusBadge,
+} from "@/components/GameBadges";
 import TextWithLinks from "@/components/TextWithLinks";
 import GameImage from "@/components/GameImage";
+import AboutThisGame from "@/components/AboutThisGame";
 import GamePageRealtime from "./GamePageRealtime";
 
 /** ISR fallback when no on-demand revalidation runs (see `revalidateGameDerivedPaths`). */
@@ -149,6 +151,31 @@ export async function generateMetadata({
   return metadata;
 }
 
+const BYPASS_PHRASE = "5x5 activation bypass";
+
+function ActivationNotes({ text }: { text: string }) {
+  const index = text.toLowerCase().indexOf(BYPASS_PHRASE);
+  if (index === -1) {
+    return <TextWithLinks text={text} />;
+  }
+
+  const before = text.slice(0, index);
+  const matched = text.slice(index, index + BYPASS_PHRASE.length);
+  const after = text.slice(index + BYPASS_PHRASE.length);
+
+  return (
+    <>
+      {before ? <TextWithLinks text={before} /> : null}
+      <Link
+        href="/download"
+        className="text-[#107c10] font-medium hover:underline"
+      >
+        {matched}
+      </Link>{after ? <TextWithLinks text={after} /> : null}
+    </>
+  );
+}
+
 export default async function GamePage({
   params: paramsPromise,
 }: {
@@ -174,12 +201,42 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
     redirect("/supported-games");
   }
 
+  const hasDownloadSection =
+    isFeatureEnabled &&
+    !!(
+      game.downloadLink ||
+      game.purchaseLink ||
+      game.communityAlternativeDownloadLink ||
+      game.communityAlternativeUrl ||
+      game.communityAlternativeName
+    );
+  const hasInstructions = !!(game.instructions && game.instructions.length > 0);
+  const hasKnownIssues = !!(game.knownIssues && game.knownIssues.length > 0);
+  const hasCommunityTips = !!(
+    game.communityTips && game.communityTips.length > 0
+  );
+  const hasAlternative = !!(
+    game.communityAlternativeName ||
+    game.communityAlternativeUrl ||
+    game.communityAlternativeDownloadLink ||
+    game.remasteredName
+  );
+  const hasReferenceLinks = !!(game.wikiLink || game.steamDBLink);
+  const hasAboutThisGame = !!(
+    game.releaseDate ||
+    game.developer ||
+    game.publisher ||
+    (game.genres && game.genres.length > 0) ||
+    (game.platforms && game.platforms.length > 0) ||
+    game.additionalDRM
+  );
+
   return (
     <div className="container mx-auto px-4 py-8">
       <GamePageRealtime slug={slug} />
       <div className="max-w-4xl mx-auto">
-        <div className="bg-[rgb(var(--bg-card))] p-8 rounded-lg shadow-xl">
-          <div className="mb-6 flex justify-between items-center">
+        <div className="bg-[rgb(var(--bg-card))] p-6 md:p-8 rounded-lg shadow-xl">
+          <div className="mb-4">
             <Link
               href="/supported-games"
               className="inline-flex items-center text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] transition-colors"
@@ -187,61 +244,9 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
               <FaArrowLeft className="mr-2" />
               Back to Supported Games
             </Link>
-
-            {/* Community Links */}
-            <div className="flex gap-3 items-center">
-              {game.discordLink && (
-                <Link
-                  href={game.discordLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[rgb(var(--text-primary))] hover:text-[#5865F2] transition-colors"
-                  aria-label={`${game.title} Discord`}
-                  title="Discord"
-                >
-                  <FaDiscord size={24} />
-                </Link>
-              )}
-              {game.redditLink && (
-                <Link
-                  href={game.redditLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[rgb(var(--text-primary))] hover:text-[#FF4500] transition-colors"
-                  aria-label={`${game.title} Reddit`}
-                  title="Reddit"
-                >
-                  <FaReddit size={24} />
-                </Link>
-              )}
-              {game.wikiLink && (
-                <Link
-                  href={game.wikiLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[rgb(var(--text-primary))] hover:text-yellow-400 transition-colors"
-                  aria-label={`${game.title} Wiki`}
-                  title="View Wiki"
-                >
-                  <FaBookOpen size={22} />
-                </Link>
-              )}
-              {game.steamDBLink && (
-                <Link
-                  href={game.steamDBLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[rgb(var(--text-primary))] hover:text-blue-400 transition-colors"
-                  aria-label={`${game.title} SteamDB`}
-                  title="View on SteamDB"
-                >
-                  <FaDatabase size={22} />
-                </Link>
-              )}
-            </div>
           </div>
 
-          <div className="flex flex-col md:flex-row gap-6 mb-6">
+          <div className="flex flex-col md:flex-row md:items-start gap-6 mb-6">
             <div className="md:w-1/3 flex-shrink-0">
               <GameImage
                 src={game.imageUrl}
@@ -252,53 +257,93 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                 priority
               />
             </div>
-            <div className="md:ml-8 flex-1">
+            <div className="flex-1">
               <h1 className="text-3xl md:text-4xl font-bold text-[rgb(var(--text-primary))] mb-2">
                 {game.title}
               </h1>
 
-              {/* Activation Type and Status Badges */}
               <div className="flex items-center gap-2 mb-3 flex-wrap">
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    game.activationType === "SSA"
-                      ? "bg-purple-600 text-purple-100"
-                      : game.activationType === "Legacy (Per-Title)"
-                      ? "bg-orange-600 text-orange-100"
-                      : "bg-sky-600 text-sky-100" // Legacy (5x5)
-                  }`}
-                >
-                  {game.activationType}
-                </span>
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-semibold
-                    ${
-                      game.status === "supported"
-                        ? "bg-green-600 text-green-100"
-                        : game.status === "testing"
-                        ? "bg-yellow-500 text-yellow-100"
-                        : "bg-red-600 text-red-100" // Mapped 'unsupported' to red
-                    }`}
-                >
-                  {/* Display "Unsupported" if status is "unsupported", otherwise capitalize */}
-                  {game.status === "unsupported"
-                    ? "Unsupported"
-                    : game.status.charAt(0).toUpperCase() +
-                      game.status.slice(1)}
-                </span>
-                {/* Playability Badge */}
+                <ActivationBadge type={game.activationType} />
+                <StatusBadge status={game.status} />
                 {game.playabilityStatus &&
                   game.playabilityStatus !== "playable" && (
                     <PlayabilityBadge status={game.playabilityStatus} />
                   )}
               </div>
 
+              {game.activationNotes && (
+                <p className="text-sm text-[rgb(var(--text-secondary))] mb-4 leading-relaxed">
+                  <ActivationNotes text={game.activationNotes} />
+                </p>
+              )}
+
+              <nav
+                className="mb-4 flex flex-wrap gap-x-4 gap-y-1 text-sm"
+                aria-label="On this page"
+              >
+                {hasInstructions && (
+                  <a
+                    href="#instructions"
+                    className="text-[#107c10] hover:underline"
+                  >
+                    Instructions
+                  </a>
+                )}
+                {hasKnownIssues && (
+                  <a
+                    href="#known-issues"
+                    className="text-[#107c10] hover:underline"
+                  >
+                    Known issues
+                  </a>
+                )}
+                {hasCommunityTips && (
+                  <a
+                    href="#community-tips"
+                    className="text-[#107c10] hover:underline"
+                  >
+                    Tips
+                  </a>
+                )}
+                <a href="#get-help" className="text-[#107c10] hover:underline">
+                  Help
+                </a>
+              </nav>
+
+              {hasReferenceLinks && (
+                <div className="mb-4 flex flex-wrap gap-2">
+                  {game.wikiLink && (
+                    <Link
+                      href={game.wikiLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-md border border-[rgb(var(--border-color))] px-2.5 py-1.5 text-xs font-medium text-[rgb(var(--text-primary))] hover:text-yellow-600 dark:hover:text-yellow-400 transition-colors"
+                    >
+                      <FaBookOpen size={14} aria-hidden />
+                      Wiki
+                    </Link>
+                  )}
+                  {game.steamDBLink && (
+                    <Link
+                      href={game.steamDBLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-md border border-[rgb(var(--border-color))] px-2.5 py-1.5 text-xs font-medium text-[rgb(var(--text-primary))] hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                    >
+                      <FaDatabase size={14} aria-hidden />
+                      SteamDB
+                    </Link>
+                  )}
+                </div>
+              )}
+
               <p className="text-[rgb(var(--text-secondary))] mb-4 text-sm leading-relaxed">
                 {game.description}
               </p>
 
-              {/* Playability Indicators */}
-              {game.isUnplayable && <UnplayableGameBanner />}
+              {game.isUnplayable && (
+                <UnplayableGameBanner hasAlternative={hasAlternative} />
+              )}
               {game.remasteredName && (
                 <RemasteredVersionCard
                   remasteredName={game.remasteredName}
@@ -306,148 +351,87 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                 />
               )}
 
-              {/* Released Date & Developer */}
-              {(game.releaseDate || game.developer) && (
-                <div className="text-sm text-[rgb(var(--text-muted))] mb-1">
-                  {game.releaseDate && (
-                    <div className="mb-1">
-                      Released:{" "}
-                      <span className="text-[rgb(var(--text-primary))]">
-                        {game.releaseDate}
-                      </span>
+              {hasDownloadSection && (
+                <GameDownloadsPanel
+                  game={game}
+                  disclaimerTitle={disclaimerModalTitle}
+                  disclaimerContent={disclaimerModalContent}
+                />
+              )}
+
+              {hasAboutThisGame && (
+                <div>
+                  {isFeatureEnabled && (
+                    <div className="flex justify-end mb-1">
+                      <MakeCorrectionButton
+                        game={game}
+                        variant="link"
+                        label="Suggest a change"
+                      />
                     </div>
                   )}
-                  {game.developer && (
-                    <div>
-                      Developer:{" "}
-                      <span className="text-[rgb(var(--text-primary))]">
-                        {game.developer}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Publisher */}
-              {game.publisher && (
-                <div className="text-sm text-[rgb(var(--text-secondary))] mb-4">
-                  Publisher:{" "}
-                  <span className="text-[rgb(var(--text-primary))]">
-                    {game.publisher}
-                  </span>
-                </div>
-              )}
-
-              {/* Genres */}
-              {game.genres && game.genres.length > 0 && (
-                <div className="mb-3">
-                  <span className="text-[rgb(var(--text-muted))] text-sm">
-                    Genres:{" "}
-                  </span>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {game.genres?.map((genre: string, index: number) => (
-                      <span
-                        key={index}
-                        className="bg-[rgb(var(--bg-card-alt))] px-2 py-1 rounded text-xs text-[rgb(var(--text-primary))]"
-                      >
-                        {genre}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Platforms */}
-              {game.platforms && game.platforms.length > 0 && (
-                <div className="mb-3">
-                  <span className="text-[rgb(var(--text-muted))] text-sm">
-                    Platforms:{" "}
-                  </span>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {game.platforms?.map((platform: string, index: number) => (
-                      <span
-                        key={index}
-                        className="bg-[rgb(var(--bg-card-alt))] px-2 py-1 rounded text-xs text-[rgb(var(--text-primary))]"
-                      >
-                        {platform}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Additional DRM */}
-              {game.additionalDRM && (
-                <div className="mb-3">
-                  <span className="text-[rgb(var(--text-muted))] text-sm">
-                    Additional DRM:{" "}
-                  </span>
-                  <span className="text-[rgb(var(--text-primary))] text-sm">
-                    {game.additionalDRM}
-                  </span>
+                  <AboutThisGame
+                    releaseDate={game.releaseDate}
+                    developer={game.developer}
+                    publisher={game.publisher}
+                    genres={game.genres}
+                    platforms={game.platforms}
+                    additionalDRM={game.additionalDRM}
+                  />
                 </div>
               )}
             </div>
           </div>
 
-          {/* Show banner for disabled games */}
           {!isFeatureEnabled && <DisabledGameBanner game={game} />}
 
-          {isFeatureEnabled && (game.downloadLink || game.purchaseLink) && (
-            <div className="mt-8">
-              <h2 className="text-2xl font-bold mb-4 text-[rgb(var(--text-primary))]">
-                {game.downloadLink ? "Game Download" : "Purchase Game"}
-              </h2>
-
-              <div className="flex flex-wrap gap-3 mb-6">
-                {game.downloadLink && (
-                  <DownloadButtonWithModal
-                    downloadLink={game.downloadLink}
-                    fileName={game.fileName || game.title}
-                    buttonText={`Download ${game.fileName || game.title}`}
-                    modalTitle={disclaimerModalTitle}
-                    modalContent={disclaimerModalContent}
+          {hasInstructions && (
+            <section id="instructions" className="scroll-mt-24">
+              <div className="flex items-center justify-between gap-3 mb-3 mt-4 flex-wrap">
+                <h2 className="text-xl font-bold text-[rgb(var(--text-primary))]">
+                  Installation Instructions
+                </h2>
+                {isFeatureEnabled && (
+                  <MakeCorrectionButton
+                    game={game}
+                    variant="link"
+                    initialField="instructions"
                   />
                 )}
-
-                {game.purchaseLink && (
-                  <StoreButton purchaseLink={game.purchaseLink} />
-                )}
               </div>
-
-              {game.downloadLink && game.virusTotalUrl && (
-                <div className="mt-4">
-                  <h3 className="text-xl font-semibold mb-2">Security Scan</h3>
-                  <VirusTotalWidget virusTotalUrl={game.virusTotalUrl} />
-                </div>
-              )}
-            </div>
-          )}
-
-          {game.instructions && game.instructions.length > 0 && (
-            <>
-              <h2 className="text-xl font-bold mb-3 mt-4 text-[rgb(var(--text-primary))]">
-                Installation Instructions
-              </h2>
               <div className="bg-[rgb(var(--bg-card-alt))] p-4 rounded-lg">
-                <ul className="list-disc list-inside space-y-3 text-[rgb(var(--text-secondary))]">
+                <ol className="space-y-4 text-[rgb(var(--text-secondary))]">
                   {game.instructions?.map(
                     (instruction: string, index: number) => (
-                      <li key={index}>
-                        <TextWithLinks text={instruction} />
+                      <li key={index} className="flex items-start gap-3">
+                        <span className="flex-shrink-0 w-6 h-6 bg-[#107c10] text-white rounded-full flex items-center justify-center text-sm font-bold">
+                          {index + 1}
+                        </span>
+                        <div className="pt-0.5">
+                          <TextWithLinks text={instruction} />
+                        </div>
                       </li>
                     )
                   )}
-                </ul>
+                </ol>
               </div>
-            </>
+            </section>
           )}
 
-          {game.knownIssues && game.knownIssues.length > 0 && (
-            <>
-              <h2 className="text-xl font-bold mb-3 mt-4 text-[rgb(var(--text-primary))]">
-                Known Issues
-              </h2>
+          {hasKnownIssues && (
+            <section id="known-issues" className="scroll-mt-24">
+              <div className="flex items-center justify-between gap-3 mb-3 mt-4 flex-wrap">
+                <h2 className="text-xl font-bold text-[rgb(var(--text-primary))]">
+                  Known Issues
+                </h2>
+                {isFeatureEnabled && (
+                  <MakeCorrectionButton
+                    game={game}
+                    variant="link"
+                    initialField="knownIssues"
+                  />
+                )}
+              </div>
               <div className="bg-[rgb(var(--bg-card-alt))] p-4 rounded-lg">
                 <ul className="list-disc list-inside space-y-3 text-[rgb(var(--text-secondary))]">
                   {game.knownIssues?.map((issue: string, index: number) => (
@@ -457,14 +441,23 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                   ))}
                 </ul>
               </div>
-            </>
+            </section>
           )}
 
-          {game.communityTips && game.communityTips.length > 0 && (
-            <>
-              <h2 className="text-xl font-bold mb-3 mt-4 text-[rgb(var(--text-primary))]">
-                Community Tips
-              </h2>
+          {hasCommunityTips && (
+            <section id="community-tips" className="scroll-mt-24">
+              <div className="flex items-center justify-between gap-3 mb-3 mt-4 flex-wrap">
+                <h2 className="text-xl font-bold text-[rgb(var(--text-primary))]">
+                  Community Tips
+                </h2>
+                {isFeatureEnabled && (
+                  <MakeCorrectionButton
+                    game={game}
+                    variant="link"
+                    initialField="communityTips"
+                  />
+                )}
+              </div>
               <div className="bg-[rgb(var(--bg-card-alt))] p-4 rounded-lg">
                 <ul className="list-disc list-inside space-y-3 text-[rgb(var(--text-secondary))]">
                   {game.communityTips?.map((tip: string, index: number) => (
@@ -474,31 +467,9 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                   ))}
                 </ul>
               </div>
-            </>
+            </section>
           )}
 
-          {/* Community Alternative Section */}
-          {(game.communityAlternativeName ||
-            game.communityAlternativeUrl ||
-            game.communityAlternativeDownloadLink) && (
-            <div className="mt-8 pt-6 border-t border-[rgb(var(--border-color))]">
-              <h2 className="text-xl font-bold mb-3 text-[rgb(var(--text-primary))]">
-                Community Alternative
-              </h2>
-              <CommunityAlternativeCard
-                communityAlternativeName={
-                  game.communityAlternativeName || "Community Alternative"
-                }
-                communityAlternativeUrl={game.communityAlternativeUrl}
-                communityAlternativeDownloadLink={
-                  game.communityAlternativeDownloadLink
-                }
-                fileName={game.fileName}
-              />
-            </div>
-          )}
-
-          {/* GOG Dreamlist Section */}
           {game.gogDreamlistLink && (
             <div className="mt-8 pt-6 border-t border-[rgb(var(--border-color))]">
               <h2 className="text-xl font-bold mb-3 text-[rgb(var(--text-primary))]">
@@ -521,22 +492,23 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
             </div>
           )}
 
-          {/* Make Correction Section - Only show for enabled games */}
           {isFeatureEnabled && (
             <div className="mt-8 pt-6 border-t border-[rgb(var(--border-color))]">
               <h2 className="text-xl font-bold mb-3 text-[rgb(var(--text-primary))]">
-                Found an Issue?
+                Found an issue?
               </h2>
               <p className="text-[rgb(var(--text-primary))] mb-4 text-sm leading-relaxed">
-                Help us improve the accuracy of this page by submitting a
-                correction. All submissions are reviewed before being applied.
+                Suggest a correction for one field at a time. Nothing goes live
+                until a reviewer approves it.
               </p>
               <MakeCorrectionButton game={game} />
             </div>
           )}
 
-          {/* Get Help - Questions, errors, troubleshooting */}
-          <div className="mt-8 pt-6 border-t border-[rgb(var(--border-color))]">
+          <div
+            id="get-help"
+            className="mt-8 pt-6 border-t border-[rgb(var(--border-color))] scroll-mt-24"
+          >
             <h2 className="text-xl font-bold mb-3 text-[rgb(var(--text-primary))]">
               Get Help
             </h2>
@@ -545,31 +517,27 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
               {game.title}? Ask in these communities:
             </p>
             <div className="flex flex-wrap gap-3">
-              {(game.discordLink || game.redditLink) && (
-                <>
-                  {game.discordLink && (
-                    <Link
-                      href={game.discordLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
-                    >
-                      <FaDiscord size={18} />
-                      {game.title} Discord
-                    </Link>
-                  )}
-                  {game.redditLink && (
-                    <Link
-                      href={game.redditLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 bg-[#FF4500] hover:bg-[#E03D00] text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
-                    >
-                      <FaReddit size={18} />
-                      {game.title} Reddit
-                    </Link>
-                  )}
-                </>
+              {game.discordLink && (
+                <Link
+                  href={game.discordLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                >
+                  <FaDiscord size={18} />
+                  {game.title} Discord
+                </Link>
+              )}
+              {game.redditLink && (
+                <Link
+                  href={game.redditLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-[#FF4500] hover:bg-[#E03D00] text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                >
+                  <FaReddit size={18} />
+                  {game.title} Reddit
+                </Link>
               )}
               <Link
                 href="https://discord.gg/PR75T8xMWS"

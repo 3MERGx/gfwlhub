@@ -2,36 +2,73 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { FaBars, FaTimes } from "react-icons/fa";
 import { useSession } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import UserMenu from "./UserMenu";
+import ThemeToggle from "./ThemeToggle";
+import GameSearch from "./GameSearch";
 import { safeLog } from "@/lib/security";
+
+const DISCORD_INVITE = "https://discord.gg/PR75T8xMWS";
+
+const NAV_LINKS = [
+  {
+    href: "/supported-games",
+    label: "Supported Games",
+    title: "View list of supported GFWL games",
+  },
+  {
+    href: "/faq",
+    label: "FAQ",
+    title: "Frequently asked questions",
+  },
+  {
+    href: "/contact",
+    label: "Game Communities",
+    title: "Find game Discord and Reddit communities",
+  },
+  {
+    href: "/download",
+    label: "5x5 Activation Bypass",
+    title: "Download GFWL Legacy 5x5 activation bypass tool",
+  },
+] as const;
+
+function NavLinkClass(active: boolean) {
+  return active
+    ? "text-white font-semibold underline underline-offset-4 decoration-2"
+    : "hover:text-gray-200 transition-colors";
+}
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { data: session } = useSession();
-  const [pendingCount, setPendingCount] = useState<number>(0);
+  const pathname = usePathname();
+  const [pendingCount, setPendingCount] = useState(0);
   const [pendingGameSubmissionsCount, setPendingGameSubmissionsCount] =
-    useState<number>(0);
+    useState(0);
   const [pendingFaqSubmissionsCount, setPendingFaqSubmissionsCount] =
-    useState<number>(0);
+    useState(0);
 
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
+  const isStaff =
+    session?.user?.role === "reviewer" || session?.user?.role === "admin";
+  const totalPending =
+    pendingCount + pendingGameSubmissionsCount + pendingFaqSubmissionsCount;
+
+  const toggleMenu = () => setIsMenuOpen((open) => !open);
+
+  const isActive = (href: string) => {
+    if (href === "/") return pathname === "/";
+    return pathname === href || pathname.startsWith(`${href}/`);
   };
 
   // Fetch pending corrections count for reviewers and admins
   useEffect(() => {
-    // Only proceed if session exists and user is reviewer/admin
-    if (!session) {
-      return;
-    }
-
+    if (!session?.user?.id) return;
     const userRole = session.user.role;
-    if (userRole !== "reviewer" && userRole !== "admin") {
-      return;
-    }
+    if (userRole !== "reviewer" && userRole !== "admin") return;
 
     let isMounted = true;
     let intervalId: NodeJS.Timeout | null = null;
@@ -39,7 +76,6 @@ export default function Header() {
 
     const fetchPendingCount = async () => {
       if (!isMounted) return;
-      
       try {
         const response = await fetch("/api/corrections?status=pending");
         if (response.ok && isMounted) {
@@ -53,48 +89,30 @@ export default function Header() {
       }
     };
 
-    // Initial fetch
     fetchPendingCount();
-    
-    // Refresh count every 60 seconds (reduced frequency)
     intervalId = setInterval(fetchPendingCount, 60000);
 
-    // Listen for custom event to refresh immediately after review (with debounce)
     const handleCorrectionsUpdated = () => {
-      if (debounceTimeout) {
-        clearTimeout(debounceTimeout);
-      }
+      if (debounceTimeout) clearTimeout(debounceTimeout);
       debounceTimeout = setTimeout(() => {
-        if (isMounted) {
-          fetchPendingCount();
-        }
-      }, 500); // Debounce to 500ms
+        if (isMounted) fetchPendingCount();
+      }, 500);
     };
     window.addEventListener("correctionsUpdated", handleCorrectionsUpdated);
 
     return () => {
       isMounted = false;
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-      if (debounceTimeout) {
-        clearTimeout(debounceTimeout);
-      }
+      if (intervalId) clearInterval(intervalId);
+      if (debounceTimeout) clearTimeout(debounceTimeout);
       window.removeEventListener("correctionsUpdated", handleCorrectionsUpdated);
     };
   }, [session]);
 
   // Fetch pending game submissions count for reviewers and admins
   useEffect(() => {
-    // Only proceed if session exists and user is reviewer/admin
-    if (!session) {
-      return;
-    }
-
+    if (!session?.user?.id) return;
     const userRole = session.user.role;
-    if (userRole !== "reviewer" && userRole !== "admin") {
-      return;
-    }
+    if (userRole !== "reviewer" && userRole !== "admin") return;
 
     let isMounted = true;
     let intervalId: NodeJS.Timeout | null = null;
@@ -102,15 +120,11 @@ export default function Header() {
 
     const fetchPendingGameSubmissionsCount = async () => {
       if (!isMounted) return;
-      
       try {
         const response = await fetch("/api/game-submissions?status=pending");
         if (response.ok && isMounted) {
           const data = await response.json();
-          // API returns array directly
-          setPendingGameSubmissionsCount(
-            Array.isArray(data) ? data.length : 0
-          );
+          setPendingGameSubmissionsCount(Array.isArray(data) ? data.length : 0);
         }
       } catch (error) {
         if (isMounted) {
@@ -122,41 +136,34 @@ export default function Header() {
       }
     };
 
-    // Initial fetch
     fetchPendingGameSubmissionsCount();
-    
-    // Refresh count every 90 seconds (increased interval to reduce rate limiting)
-    // Note: DashboardLayout also polls this endpoint, so we use a longer interval here
     intervalId = setInterval(fetchPendingGameSubmissionsCount, 90000);
 
-    // Listen for custom event to refresh immediately after review (with debounce)
     const handleGameSubmissionsUpdated = () => {
-      if (debounceTimeout) {
-        clearTimeout(debounceTimeout);
-      }
+      if (debounceTimeout) clearTimeout(debounceTimeout);
       debounceTimeout = setTimeout(() => {
-        if (isMounted) {
-          fetchPendingGameSubmissionsCount();
-        }
-      }, 500); // Debounce to 500ms
+        if (isMounted) fetchPendingGameSubmissionsCount();
+      }, 500);
     };
-    window.addEventListener("gameSubmissionsUpdated", handleGameSubmissionsUpdated);
+    window.addEventListener(
+      "gameSubmissionsUpdated",
+      handleGameSubmissionsUpdated
+    );
 
     return () => {
       isMounted = false;
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-      if (debounceTimeout) {
-        clearTimeout(debounceTimeout);
-      }
-      window.removeEventListener("gameSubmissionsUpdated", handleGameSubmissionsUpdated);
+      if (intervalId) clearInterval(intervalId);
+      if (debounceTimeout) clearTimeout(debounceTimeout);
+      window.removeEventListener(
+        "gameSubmissionsUpdated",
+        handleGameSubmissionsUpdated
+      );
     };
   }, [session]);
 
   // Fetch pending FAQ submissions count for reviewers and admins
   useEffect(() => {
-    if (!session) return;
+    if (!session?.user?.id) return;
     const userRole = session.user.role;
     if (userRole !== "reviewer" && userRole !== "admin") return;
 
@@ -173,43 +180,69 @@ export default function Header() {
           setPendingFaqSubmissionsCount(Array.isArray(data) ? data.length : 0);
         }
       } catch (error) {
-        if (isMounted) safeLog.error("Error fetching pending FAQ submissions count:", error);
+        if (isMounted) {
+          safeLog.error(
+            "Error fetching pending FAQ submissions count:",
+            error
+          );
+        }
       }
     };
 
     fetchPendingFaqSubmissionsCount();
     intervalId = setInterval(fetchPendingFaqSubmissionsCount, 60000);
+
     const handleFaqSubmissionsUpdated = () => {
       if (debounceTimeout) clearTimeout(debounceTimeout);
       debounceTimeout = setTimeout(() => {
         if (isMounted) fetchPendingFaqSubmissionsCount();
       }, 500);
     };
-    window.addEventListener("faqSubmissionsUpdated", handleFaqSubmissionsUpdated);
+    window.addEventListener(
+      "faqSubmissionsUpdated",
+      handleFaqSubmissionsUpdated
+    );
 
     return () => {
       isMounted = false;
       if (intervalId) clearInterval(intervalId);
       if (debounceTimeout) clearTimeout(debounceTimeout);
-      window.removeEventListener("faqSubmissionsUpdated", handleFaqSubmissionsUpdated);
+      window.removeEventListener(
+        "faqSubmissionsUpdated",
+        handleFaqSubmissionsUpdated
+      );
     };
   }, [session]);
+
+  useEffect(() => {
+    setIsMenuOpen(false);
+  }, [pathname]);
+
+  const pendingBadge =
+    totalPending > 0 ? (
+      <span className="bg-orange-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+        {totalPending > 99 ? "99+" : totalPending}
+      </span>
+    ) : null;
 
   return (
     <header className="sticky top-0 z-50 bg-[#107c10] text-white shadow-md">
       <div className="container mx-auto px-4">
-        <div className="flex justify-between items-center h-16">
-          {/* Mobile menu button - Left side on mobile/tablet/iPad Pro */}
+        <div className="flex justify-between items-center h-16 gap-3">
           <button
-            className="xl:hidden text-white focus:outline-none order-1"
+            type="button"
+            className="xl:hidden text-white rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#107c10] order-1"
             onClick={toggleMenu}
             aria-label={isMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={isMenuOpen}
           >
             {isMenuOpen ? <FaTimes size={24} /> : <FaBars size={24} />}
           </button>
 
-          {/* Logo - Centered on mobile/tablet/iPad Pro, left on desktop */}
-          <Link href="/" className="flex items-center order-2 xl:order-1">
+          <Link
+            href="/"
+            className="flex items-center order-2 xl:order-1 shrink-0"
+          >
             <Image
               src="/GFWL _logo.png"
               alt="GFWL Hub"
@@ -221,246 +254,117 @@ export default function Header() {
             <span className="ml-2 text-xl font-bold">GFWL Hub</span>
           </Link>
 
-          {/* Desktop navigation */}
-          <nav className="hidden xl:flex items-center justify-center flex-1 order-2">
-            <ul className="flex space-x-8">
-              <li>
-                <Link
-                  href="/supported-games"
-                  className="hover:text-gray-200 transition-colors"
-                  prefetch={true}
-                  title="View list of supported GFWL games"
-                >
-                  Supported Games
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/faq"
-                  className="hover:text-gray-200 transition-colors"
-                  prefetch={true}
-                  title="Frequently asked questions"
-                >
-                  FAQ
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/contact"
-                  className="hover:text-gray-200 transition-colors"
-                  title="Contact us"
-                >
-                  Contact
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/download"
-                  className="hover:text-gray-200 transition-colors"
-                  prefetch={true}
-                  title="Download GFWL Legacy 5x5 Bypass Tool"
-                >
-                  Legacy Bypass
-                </Link>
-              </li>
-              {/* Show dashboard link for reviewers and admins */}
-              {session &&
-                (session.user.role === "reviewer" ||
-                  session.user.role === "admin") && (
-                  <li>
-                    <Link
-                      href="/dashboard"
-                      className="hover:text-gray-200 transition-colors"
-                      prefetch={true}
-                      title="Reviewer and admin dashboard"
-                    >
-                      Dashboard
-                    </Link>
-                  </li>
-                )}
+          <nav className="hidden xl:flex items-center justify-center flex-1 order-2 gap-6">
+            <ul className="flex items-center space-x-6">
+              {NAV_LINKS.map((link) => (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className={NavLinkClass(isActive(link.href))}
+                    prefetch={true}
+                    title={link.title}
+                    aria-current={isActive(link.href) ? "page" : undefined}
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+              {isStaff && (
+                <li>
+                  <Link
+                    href="/dashboard"
+                    className={`inline-flex items-center gap-2 ${NavLinkClass(
+                      isActive("/dashboard")
+                    )}`}
+                    prefetch={true}
+                    title="Reviewer and admin dashboard"
+                    aria-current={
+                      isActive("/dashboard") ? "page" : undefined
+                    }
+                  >
+                    <span>Dashboard</span>
+                    {pendingBadge}
+                  </Link>
+                </li>
+              )}
             </ul>
           </nav>
 
-          {/* Right side items */}
-          <div className="hidden xl:flex items-center gap-4 order-3">
+          <div className="hidden xl:flex items-center gap-3 order-3">
+            <GameSearch
+              variant="header"
+              id="header-game-search"
+              className="w-44 2xl:w-56"
+            />
+            <ThemeToggle />
             <UserMenu />
           </div>
 
-          {/* Mobile user menu - Right side on mobile/tablet/iPad Pro */}
           <div className="xl:hidden flex items-center gap-2 order-3">
+            <ThemeToggle />
             <UserMenu />
           </div>
         </div>
       </div>
 
-      {/* Mobile navigation */}
       {isMenuOpen && (
         <div className="xl:hidden bg-[#0e6b0e] py-4">
           <nav className="container mx-auto px-4">
+            <div className="mb-4">
+              <GameSearch
+                variant="header"
+                id="mobile-game-search"
+                className="w-full"
+                onNavigate={() => setIsMenuOpen(false)}
+              />
+            </div>
             <ul className="space-y-4">
+              {NAV_LINKS.map((link) => (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className={`block ${NavLinkClass(isActive(link.href))}`}
+                    onClick={() => setIsMenuOpen(false)}
+                    title={link.title}
+                    aria-current={isActive(link.href) ? "page" : undefined}
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
               <li>
                 <Link
-                  href="/supported-games"
+                  href={DISCORD_INVITE}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="block hover:text-gray-200 transition-colors"
                   onClick={() => setIsMenuOpen(false)}
-                  title="View list of supported GFWL games"
+                  title="Join the GFWL Hub Discord"
                 >
-                  Supported Games
+                  Join Discord
                 </Link>
               </li>
-              <li>
-                <Link
-                  href="/faq"
-                  className="block hover:text-gray-200 transition-colors"
-                  onClick={() => setIsMenuOpen(false)}
-                  title="Frequently asked questions"
-                >
-                  FAQ
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/contact"
-                  className="block hover:text-gray-200 transition-colors"
-                  onClick={() => setIsMenuOpen(false)}
-                  title="Contact us"
-                >
-                  Contact
-                </Link>
-              </li>
-              {/* Show dashboard links for authenticated users */}
-              {session &&
-                (session.user.role === "reviewer" ||
-                  session.user.role === "admin") && (
-                  <>
-                    <li className="pt-2 border-t border-gray-600"></li>
-                    <li>
-                      <Link
-                        href="/dashboard"
-                        className="block hover:text-gray-200 transition-colors"
-                        onClick={() => setIsMenuOpen(false)}
-                        title="Reviewer and admin dashboard"
-                      >
-                        Dashboard
-                      </Link>
-                    </li>
-                    <li>
-                      <Link
-                        href="/dashboard/submissions"
-                        className="flex items-center gap-2 hover:text-gray-200 transition-colors"
-                        onClick={() => setIsMenuOpen(false)}
-                        title="Review correction submissions"
-                      >
-                        <span>Submissions</span>
-                        {pendingCount > 0 && (
-                          <span className="bg-orange-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
-                            {pendingCount > 99 ? "99+" : pendingCount}
-                          </span>
-                        )}
-                      </Link>
-                    </li>
-                    <li>
-                      <Link
-                        href="/dashboard/faq-submissions"
-                        className="flex items-center gap-2 hover:text-gray-200 transition-colors"
-                        onClick={() => setIsMenuOpen(false)}
-                        title="Review FAQ submissions"
-                      >
-                        <span>FAQ Submissions</span>
-                        {pendingFaqSubmissionsCount > 0 && (
-                          <span className="bg-orange-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
-                            {pendingFaqSubmissionsCount > 99 ? "99+" : pendingFaqSubmissionsCount}
-                          </span>
-                        )}
-                      </Link>
-                    </li>
-                    {session.user.role === "admin" && (
-                      <>
-                        <li>
-                          <Link
-                            href="/dashboard/game-submissions"
-                            className="flex items-center gap-2 hover:text-gray-200 transition-colors"
-                            onClick={() => setIsMenuOpen(false)}
-                            title="Review game submissions"
-                          >
-                            <span>Game Submissions</span>
-                            {pendingGameSubmissionsCount > 0 && (
-                              <span className="bg-orange-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
-                                {pendingGameSubmissionsCount > 99
-                                  ? "99+"
-                                  : pendingGameSubmissionsCount}
-                              </span>
-                            )}
-                          </Link>
-                        </li>
-                        <li>
-                          <Link
-                            href="/dashboard/games"
-                            className="block hover:text-gray-200 transition-colors"
-                            onClick={() => setIsMenuOpen(false)}
-                            title="Manage game entries"
-                          >
-                            Manage Games
-                          </Link>
-                        </li>
-                        <li>
-                          <Link
-                            href="/dashboard/users"
-                            className="block hover:text-gray-200 transition-colors"
-                            onClick={() => setIsMenuOpen(false)}
-                            title="Manage users"
-                          >
-                            Users
-                          </Link>
-                        </li>
-                        <li>
-                          <Link
-                            href="/dashboard/audit"
-                            className="block hover:text-gray-200 transition-colors"
-                            onClick={() => setIsMenuOpen(false)}
-                            title="View audit log"
-                          >
-                            Audit Log
-                          </Link>
-                        </li>
-                        <li>
-                          <Link
-                            href="/dashboard/moderation"
-                            className="block hover:text-gray-200 transition-colors"
-                            onClick={() => setIsMenuOpen(false)}
-                            title="View moderation log"
-                          >
-                            Moderation Log
-                          </Link>
-                        </li>
-                        <li>
-                          <Link
-                            href="/dashboard/reviewer-applications"
-                            className="block hover:text-gray-200 transition-colors"
-                            onClick={() => setIsMenuOpen(false)}
-                            title="Review reviewer applications"
-                          >
-                            Reviewer Applications
-                          </Link>
-                        </li>
-                      </>
-                    )}
-                    {/* Leaderboard - Reviewers and Admins */}
-                    <li className="pt-2 border-t border-gray-600">
-                      <Link
-                        href="/leaderboard"
-                        className="flex items-center gap-2 hover:text-gray-200 transition-colors"
-                        onClick={() => setIsMenuOpen(false)}
-                        title="View contributor leaderboard"
-                      >
-                        <span>Leaderboard</span>
-                        <span className="bg-yellow-500/20 text-yellow-400 text-[10px] font-bold rounded px-1.5 py-0.5 uppercase">
-                          Beta
-                        </span>
-                      </Link>
-                    </li>
-                  </>
-                )}
+              {isStaff && (
+                <>
+                  <li className="pt-2 border-t border-white/20" />
+                  <li>
+                    <Link
+                      href="/dashboard"
+                      className={`flex items-center gap-2 ${NavLinkClass(
+                        isActive("/dashboard")
+                      )}`}
+                      onClick={() => setIsMenuOpen(false)}
+                      title="Reviewer and admin dashboard"
+                      aria-current={
+                        isActive("/dashboard") ? "page" : undefined
+                      }
+                    >
+                      <span>Dashboard</span>
+                      {pendingBadge}
+                    </Link>
+                  </li>
+                </>
+              )}
             </ul>
           </nav>
         </div>

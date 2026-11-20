@@ -15,15 +15,33 @@ import {
   FaPlus,
   FaUserShield,
   FaTrophy,
-  FaFlask,
   FaUserCheck,
   FaQuestionCircle,
+  FaBars,
+  FaTimes,
 } from "react-icons/fa";
 
 interface DashboardLayoutProps {
   children: ReactNode;
   requireRole?: "user" | "reviewer" | "admin";
 }
+
+type NavSection = "overview" | "review" | "admin" | "community";
+
+interface NavItem {
+  href: string;
+  icon: typeof FaHome;
+  label: string;
+  roles: string[];
+  section: NavSection;
+}
+
+const SECTION_LABELS: Record<NavSection, string> = {
+  overview: "Overview",
+  review: "Review",
+  admin: "Admin",
+  community: "Community",
+};
 
 export default function DashboardLayout({
   children,
@@ -32,26 +50,22 @@ export default function DashboardLayout({
   const { data: session, status } = useSession();
   const router = useRouter();
   const pathname = usePathname();
-  const [pendingCount, setPendingCount] = useState<number>(0);
+  const [pendingCount, setPendingCount] = useState(0);
   const [pendingGameSubmissionsCount, setPendingGameSubmissionsCount] =
-    useState<number>(0);
+    useState(0);
   const [pendingFaqSubmissionsCount, setPendingFaqSubmissionsCount] =
-    useState<number>(0);
+    useState(0);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
-    // Redirect to signin if not authenticated
     if (status === "unauthenticated") {
-      // Pass the current pathname as callbackUrl so user returns here after sign-in
       const callbackUrl = encodeURIComponent(pathname);
       router.push(`/auth/signin?callbackUrl=${callbackUrl}`);
       return;
     }
 
-    // If authenticated, check if user has access to dashboard
-    // Only reviewers and admins can access the dashboard area
     if (status === "authenticated" && session) {
       const userRole = session.user.role;
-      // Regular users cannot access any dashboard pages
       if (userRole === "user") {
         router.push("/");
         return;
@@ -59,18 +73,14 @@ export default function DashboardLayout({
     }
   }, [status, router, session, pathname]);
 
-  // Fetch pending corrections count for reviewers and admins
   useEffect(() => {
-    // Only proceed if authenticated
-    if (status !== "authenticated" || !session) {
-      return;
-    }
+    setMobileNavOpen(false);
+  }, [pathname]);
 
+  useEffect(() => {
+    if (status !== "authenticated" || !session?.user?.id) return;
     const userRole = session.user.role;
-    // Only fetch for reviewers and admins
-    if (userRole !== "reviewer" && userRole !== "admin") {
-      return;
-    }
+    if (userRole !== "reviewer" && userRole !== "admin") return;
 
     let isMounted = true;
     let intervalId: NodeJS.Timeout | null = null;
@@ -78,7 +88,6 @@ export default function DashboardLayout({
 
     const fetchPendingCount = async () => {
       if (!isMounted) return;
-      
       try {
         const response = await fetch("/api/corrections?status=pending");
         if (response.ok && isMounted) {
@@ -92,49 +101,29 @@ export default function DashboardLayout({
       }
     };
 
-    // Initial fetch
     fetchPendingCount();
-    
-    // Refresh count every 60 seconds (reduced frequency)
     intervalId = setInterval(fetchPendingCount, 60000);
-    
-    // Listen for custom event to refresh immediately after review (with debounce)
+
     const handleCorrectionsUpdated = () => {
-      if (debounceTimeout) {
-        clearTimeout(debounceTimeout);
-      }
+      if (debounceTimeout) clearTimeout(debounceTimeout);
       debounceTimeout = setTimeout(() => {
-        if (isMounted) {
-          fetchPendingCount();
-        }
-      }, 500); // Debounce to 500ms
+        if (isMounted) fetchPendingCount();
+      }, 500);
     };
     window.addEventListener("correctionsUpdated", handleCorrectionsUpdated);
-    
+
     return () => {
       isMounted = false;
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-      if (debounceTimeout) {
-        clearTimeout(debounceTimeout);
-      }
+      if (intervalId) clearInterval(intervalId);
+      if (debounceTimeout) clearTimeout(debounceTimeout);
       window.removeEventListener("correctionsUpdated", handleCorrectionsUpdated);
     };
   }, [status, session]);
 
-  // Fetch pending game submissions count for reviewers and admins
   useEffect(() => {
-    // Only proceed if authenticated
-    if (status !== "authenticated" || !session) {
-      return;
-    }
-
+    if (status !== "authenticated" || !session?.user?.id) return;
     const userRole = session.user.role;
-    // Only fetch for reviewers and admins
-    if (userRole !== "reviewer" && userRole !== "admin") {
-      return;
-    }
+    if (userRole !== "reviewer" && userRole !== "admin") return;
 
     let isMounted = true;
     let intervalId: NodeJS.Timeout | null = null;
@@ -142,15 +131,11 @@ export default function DashboardLayout({
 
     const fetchPendingGameSubmissionsCount = async () => {
       if (!isMounted) return;
-      
       try {
         const response = await fetch("/api/game-submissions?status=pending");
         if (response.ok && isMounted) {
           const data = await response.json();
-          // API returns array directly
-          setPendingGameSubmissionsCount(
-            Array.isArray(data) ? data.length : 0
-          );
+          setPendingGameSubmissionsCount(Array.isArray(data) ? data.length : 0);
         }
       } catch (error) {
         if (isMounted) {
@@ -162,40 +147,33 @@ export default function DashboardLayout({
       }
     };
 
-    // Initial fetch
     fetchPendingGameSubmissionsCount();
-    
-    // Refresh count every 90 seconds (increased interval to reduce rate limiting)
     intervalId = setInterval(fetchPendingGameSubmissionsCount, 90000);
-    
-    // Listen for custom event to refresh immediately after review (with debounce)
+
     const handleGameSubmissionsUpdated = () => {
-      if (debounceTimeout) {
-        clearTimeout(debounceTimeout);
-      }
+      if (debounceTimeout) clearTimeout(debounceTimeout);
       debounceTimeout = setTimeout(() => {
-        if (isMounted) {
-          fetchPendingGameSubmissionsCount();
-        }
-      }, 500); // Debounce to 500ms
+        if (isMounted) fetchPendingGameSubmissionsCount();
+      }, 500);
     };
-    window.addEventListener("gameSubmissionsUpdated", handleGameSubmissionsUpdated);
-    
+    window.addEventListener(
+      "gameSubmissionsUpdated",
+      handleGameSubmissionsUpdated
+    );
+
     return () => {
       isMounted = false;
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-      if (debounceTimeout) {
-        clearTimeout(debounceTimeout);
-      }
-      window.removeEventListener("gameSubmissionsUpdated", handleGameSubmissionsUpdated);
+      if (intervalId) clearInterval(intervalId);
+      if (debounceTimeout) clearTimeout(debounceTimeout);
+      window.removeEventListener(
+        "gameSubmissionsUpdated",
+        handleGameSubmissionsUpdated
+      );
     };
   }, [status, session]);
 
-  // Fetch pending FAQ submissions count for reviewers and admins
   useEffect(() => {
-    if (status !== "authenticated" || !session) return;
+    if (status !== "authenticated" || !session?.user?.id) return;
     const userRole = session.user.role;
     if (userRole !== "reviewer" && userRole !== "admin") return;
 
@@ -212,43 +190,44 @@ export default function DashboardLayout({
           setPendingFaqSubmissionsCount(Array.isArray(data) ? data.length : 0);
         }
       } catch (error) {
-        if (isMounted) safeLog.error("Error fetching pending FAQ submissions count:", error);
+        if (isMounted) {
+          safeLog.error(
+            "Error fetching pending FAQ submissions count:",
+            error
+          );
+        }
       }
     };
 
     fetchPendingFaqSubmissionsCount();
     intervalId = setInterval(fetchPendingFaqSubmissionsCount, 60000);
+
     const handleFaqSubmissionsUpdated = () => {
       if (debounceTimeout) clearTimeout(debounceTimeout);
       debounceTimeout = setTimeout(() => {
         if (isMounted) fetchPendingFaqSubmissionsCount();
       }, 500);
     };
-    window.addEventListener("faqSubmissionsUpdated", handleFaqSubmissionsUpdated);
+    window.addEventListener(
+      "faqSubmissionsUpdated",
+      handleFaqSubmissionsUpdated
+    );
 
     return () => {
       isMounted = false;
       if (intervalId) clearInterval(intervalId);
       if (debounceTimeout) clearTimeout(debounceTimeout);
-      window.removeEventListener("faqSubmissionsUpdated", handleFaqSubmissionsUpdated);
+      window.removeEventListener(
+        "faqSubmissionsUpdated",
+        handleFaqSubmissionsUpdated
+      );
     };
   }, [status, session]);
 
-  // Show loading state while checking auth
-  if (status === "loading") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[rgb(var(--bg-dashboard))]">
-        <div className="text-[rgb(var(--text-primary))]">Loading...</div>
-      </div>
-    );
-  }
-
-  // Don't render anything if not authenticated (will redirect)
-  if (!session) {
+  if (status !== "loading" && !session) {
     return null;
   }
 
-  // Check role requirements - only check if session is fully loaded
   if (requireRole && status === "authenticated" && session) {
     const userRole = session.user.role;
     const hasPermission =
@@ -266,7 +245,11 @@ export default function DashboardLayout({
             <p className="text-[rgb(var(--text-secondary))] mb-4">
               You don&apos;t have permission to access this page.
             </p>
-            <Link href="/dashboard" className="text-[#107c10] hover:underline" prefetch={true}>
+            <Link
+              href="/dashboard"
+              className="text-[#107c10] hover:underline"
+              prefetch={true}
+            >
               Return to Dashboard
             </Link>
           </div>
@@ -275,203 +258,243 @@ export default function DashboardLayout({
     }
   }
 
-  const navItems = [
+  const navItems: NavItem[] = [
     {
       href: "/dashboard",
       icon: FaHome,
       label: "Dashboard",
       roles: ["reviewer", "admin"],
-      section: "main",
+      section: "overview",
     },
     {
       href: "/dashboard/submissions",
       icon: FaClock,
       label: "Corrections",
       roles: ["reviewer", "admin"],
-      section: "main",
+      section: "review",
     },
     {
       href: "/dashboard/game-submissions",
       icon: FaPlus,
       label: "Game Submissions",
       roles: ["reviewer", "admin"],
-      section: "main",
+      section: "review",
     },
     {
       href: "/dashboard/faq-submissions",
       icon: FaQuestionCircle,
       label: "FAQ Submissions",
       roles: ["reviewer", "admin"],
-      section: "main",
+      section: "review",
     },
     {
       href: "/dashboard/users",
       icon: FaUsers,
       label: "Users",
       roles: ["admin"],
-      section: "main",
+      section: "admin",
     },
     {
       href: "/dashboard/games",
       icon: FaGamepad,
       label: "Manage Games",
       roles: ["admin"],
-      section: "main",
+      section: "admin",
     },
     {
       href: "/dashboard/audit",
       icon: FaHistory,
       label: "Audit Log",
       roles: ["admin"],
-      section: "main",
+      section: "admin",
     },
     {
       href: "/dashboard/moderation",
       icon: FaUserShield,
       label: "Moderation Log",
       roles: ["admin"],
-      section: "main",
+      section: "admin",
     },
     {
       href: "/leaderboard",
       icon: FaTrophy,
       label: "Leaderboard",
       roles: ["reviewer", "admin"],
-      section: "experimental",
+      section: "community",
     },
     {
       href: "/dashboard/reviewer-applications",
       icon: FaUserCheck,
       label: "Reviewer Applications",
       roles: ["admin"],
-      section: "experimental",
+      section: "community",
     },
   ];
 
-  const userRole = session.user.role;
-  const visibleNavItems = navItems.filter((item) =>
-    item.roles.includes(userRole)
-  );
-  
-  // Separate navigation items by section
-  const mainNavItems = visibleNavItems.filter((item) => item.section === "main");
-  const experimentalNavItems = visibleNavItems.filter((item) => item.section === "experimental");
+  const userRole = session?.user.role;
+  const visibleNavItems = userRole
+    ? navItems.filter((item) => item.roles.includes(userRole))
+    : [];
 
-  return (
-    <div className="min-h-screen flex bg-[rgb(var(--bg-dashboard))]">
-      {/* Sidebar - Only visible on xl screens and up - Fixed position to scroll with user */}
-      {/* Position below header (header is h-16 = 64px) */}
-      <aside className="hidden xl:block w-72 bg-[rgb(var(--bg-sidebar))] border-r border-[rgb(var(--border-color))] fixed top-16 left-0 h-[calc(100vh-4rem)] flex-shrink-0 z-10">
-        <div className="flex flex-col h-full">
-          {/* Sidebar Header */}
-          <div className="p-4 border-b border-[rgb(var(--border-color))] flex-shrink-0">
-            <h2 className="text-xl font-bold text-[rgb(var(--text-primary))]">Dashboard</h2>
+  const sections: NavSection[] = ["overview", "review", "admin", "community"];
+
+  const renderNavLink = (item: NavItem) => {
+    const Icon = item.icon;
+    const isActive = pathname === item.href;
+    const showCorrectionsBadge =
+      item.href === "/dashboard/submissions" && pendingCount > 0;
+    const showGameSubmissionsBadge =
+      item.href === "/dashboard/game-submissions" &&
+      pendingGameSubmissionsCount > 0;
+    const showFaqSubmissionsBadge =
+      item.href === "/dashboard/faq-submissions" &&
+      pendingFaqSubmissionsCount > 0;
+    const badgeCount = showCorrectionsBadge
+      ? pendingCount
+      : showGameSubmissionsBadge
+        ? pendingGameSubmissionsCount
+        : showFaqSubmissionsBadge
+          ? pendingFaqSubmissionsCount
+          : 0;
+
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        onClick={() => setMobileNavOpen(false)}
+        className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors relative ${
+          isActive
+            ? "bg-[#107c10] text-white"
+            : "text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--bg-card))] hover:text-[rgb(var(--text-primary))]"
+        }`}
+      >
+        <Icon size={18} />
+        <span className="font-medium">{item.label}</span>
+        {item.section === "community" && item.href === "/leaderboard" && (
+          <span className="ml-auto bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 text-[10px] font-bold rounded px-1.5 py-0.5 uppercase">
+            Beta
+          </span>
+        )}
+        {badgeCount > 0 && (
+          <span className="ml-auto bg-orange-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+            {badgeCount > 99 ? "99+" : badgeCount}
+          </span>
+        )}
+      </Link>
+    );
+  };
+
+  const sidebarContent = (
+    <div className="flex flex-col h-full">
+      <div className="p-4 border-b border-[rgb(var(--border-color))] flex-shrink-0">
+        <h2 className="text-xl font-bold text-[rgb(var(--text-primary))]">
+          Dashboard
+        </h2>
+        {session ? (
+          <>
             <p className="text-xs text-[rgb(var(--text-secondary))] mt-1">
               {session.user.name || session.user.email}
             </p>
-            <p className="text-xs text-[#107c10] capitalize">
-              {session.user.role}
-            </p>
+            <p className="text-xs text-[#107c10] capitalize">{session.user.role}</p>
+          </>
+        ) : (
+          <div className="mt-2 space-y-2" aria-hidden>
+            <div className="h-3 w-32 bg-[rgb(var(--bg-card))] rounded animate-pulse" />
+            <div className="h-3 w-16 bg-[rgb(var(--bg-card))] rounded animate-pulse" />
           </div>
+        )}
+      </div>
 
-          {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-            {/* Main Navigation */}
-            {mainNavItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              const showCorrectionsBadge =
-                item.href === "/dashboard/submissions" && pendingCount > 0;
-              const showGameSubmissionsBadge =
-                item.href === "/dashboard/game-submissions" &&
-                pendingGameSubmissionsCount > 0;
-              const showFaqSubmissionsBadge =
-                item.href === "/dashboard/faq-submissions" &&
-                pendingFaqSubmissionsCount > 0;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors relative ${
-                    isActive
-                      ? "bg-[#107c10] text-white"
-                      : "text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--bg-card))] hover:text-[rgb(var(--text-primary))]"
-                  }`}
-                >
-                  <Icon size={18} />
-                  <span className="font-medium">{item.label}</span>
-                  {showCorrectionsBadge && (
-                    <span className="ml-auto bg-orange-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
-                      {pendingCount > 99 ? "99+" : pendingCount}
-                    </span>
-                  )}
-                  {showGameSubmissionsBadge && (
-                    <span className="ml-auto bg-orange-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
-                      {pendingGameSubmissionsCount > 99
-                        ? "99+"
-                        : pendingGameSubmissionsCount}
-                    </span>
-                  )}
-                  {showFaqSubmissionsBadge && (
-                    <span className="ml-auto bg-orange-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
-                      {pendingFaqSubmissionsCount > 99
-                        ? "99+"
-                        : pendingFaqSubmissionsCount}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
-            
-            {/* Experimental/Testing Section */}
-            {experimentalNavItems.length > 0 && (
-              <>
-                <div className="pt-4 pb-2 px-2">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-[rgb(var(--text-muted))] uppercase tracking-wider">
-                    <FaFlask size={12} />
-                    <span>Experimental</span>
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+        {status === "loading" ? (
+          <div className="space-y-2" aria-hidden>
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div
+                key={index}
+                className="h-11 rounded-lg bg-[rgb(var(--bg-card))] animate-pulse"
+              />
+            ))}
+          </div>
+        ) : (
+          sections.map((section) => {
+            const items = visibleNavItems.filter(
+              (item) => item.section === section
+            );
+            if (items.length === 0) return null;
+            return (
+              <div key={section} className="pb-3">
+                {section !== "overview" && (
+                  <div className="pt-2 pb-2 px-2">
+                    <div className="text-xs font-semibold text-[rgb(var(--text-muted))] uppercase tracking-wider">
+                      {SECTION_LABELS[section]}
+                    </div>
                   </div>
-                </div>
-                {experimentalNavItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = pathname === item.href;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors relative ${
-                        isActive
-                          ? "bg-[#107c10] text-white"
-                          : "text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--bg-card))] hover:text-[rgb(var(--text-primary))]"
-                      }`}
-                    >
-                      <Icon size={18} />
-                      <span className="font-medium">{item.label}</span>
-                      <span className="ml-auto bg-yellow-500/20 dark:bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 text-[10px] font-bold rounded px-1.5 py-0.5 uppercase">
-                        Beta
-                      </span>
-                    </Link>
-                  );
-                })}
-              </>
-            )}
-          </nav>
+                )}
+                <div className="space-y-1">{items.map(renderNavLink)}</div>
+              </div>
+            );
+          })
+        )}
+      </nav>
 
-          {/* Sidebar Footer - z-10 and min-h so it stays above nav and doesn't clip */}
-          <div className="p-4 border-t border-[rgb(var(--border-color))] flex-shrink-0 min-h-[3.5rem] relative z-10 bg-[rgb(var(--bg-sidebar))]">
-            <Link
-              href="/"
-              className="flex items-center gap-2 text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] text-sm transition-colors whitespace-nowrap"
-            >
-              ← Back to Site
-            </Link>
-          </div>
-        </div>
+      <div className="p-4 border-t border-[rgb(var(--border-color))] flex-shrink-0 min-h-[3.5rem] relative z-10 bg-[rgb(var(--bg-sidebar))]">
+        <Link
+          href="/"
+          className="flex items-center gap-2 text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] text-sm transition-colors whitespace-nowrap"
+        >
+          ← Back to Site
+        </Link>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen flex bg-[rgb(var(--bg-dashboard))]">
+      {/* Desktop / large tablet sidebar */}
+      <aside className="hidden lg:block w-72 bg-[rgb(var(--bg-sidebar))] border-r border-[rgb(var(--border-color))] fixed top-16 left-0 h-[calc(100vh-4rem)] flex-shrink-0 z-10">
+        {sidebarContent}
       </aside>
 
-      {/* Main Content - Add left margin to account for fixed sidebar */}
-      <div className="flex-1 flex flex-col min-w-0 xl:ml-72">
-        {/* Page Content */}
+      {/* Mobile dashboard nav toggle */}
+      <div className="lg:hidden fixed top-16 left-0 right-0 z-20 border-b border-[rgb(var(--border-color))] bg-[rgb(var(--bg-sidebar))]">
+        <div className="flex items-center justify-between px-4 py-2">
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen((open) => !open)}
+            className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--bg-card))] focus:outline-none focus:ring-2 focus:ring-[#107c10]/40"
+            aria-expanded={mobileNavOpen}
+            aria-label={
+              mobileNavOpen ? "Close dashboard menu" : "Open dashboard menu"
+            }
+          >
+            {mobileNavOpen ? <FaTimes size={16} /> : <FaBars size={16} />}
+            Dashboard menu
+          </button>
+          {(pendingCount +
+            pendingGameSubmissionsCount +
+            pendingFaqSubmissionsCount) >
+            0 && (
+            <span className="bg-orange-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+              {pendingCount +
+                pendingGameSubmissionsCount +
+                pendingFaqSubmissionsCount >
+              99
+                ? "99+"
+                : pendingCount +
+                  pendingGameSubmissionsCount +
+                  pendingFaqSubmissionsCount}
+            </span>
+          )}
+        </div>
+        {mobileNavOpen && (
+          <div className="max-h-[70vh] overflow-y-auto border-t border-[rgb(var(--border-color))] bg-[rgb(var(--bg-sidebar))]">
+            {sidebarContent}
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1 flex flex-col min-w-0 lg:ml-72">
+        <div className="lg:hidden h-12 flex-shrink-0" aria-hidden />
         <main className="flex-1">{children}</main>
       </div>
     </div>

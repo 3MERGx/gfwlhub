@@ -35,6 +35,7 @@ interface GameImageProps {
   height?: number;
   className?: string;
   priority?: boolean;
+  fill?: boolean;
 }
 
 export default function GameImage({
@@ -44,26 +45,45 @@ export default function GameImage({
   height = 400,
   className = "",
   priority = false,
+  fill = false,
 }: GameImageProps) {
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const imageSrc = useImageSrc(src);
 
-  // Fallback: if image doesn't load within 5 seconds, show placeholder
+  useEffect(() => {
+    setImageError(false);
+    setImageLoaded(false);
+  }, [imageSrc]);
+
   useEffect(() => {
     if (!imageSrc) return;
-    
+
     const timer = setTimeout(() => {
       if (!imageLoaded) {
         setImageError(true);
       }
-    }, 5000);
+    }, fill ? 15000 : 5000);
 
     return () => clearTimeout(timer);
-  }, [imageSrc, imageLoaded]);
+  }, [imageSrc, imageLoaded, fill]);
 
-  // Show placeholder if no image or error
   if (imageError || !imageSrc) {
+    if (fill) {
+      return (
+        <div
+          className={`absolute inset-0 flex flex-col items-center justify-center bg-[rgb(var(--bg-card-alt))] px-3 text-center ${className}`}
+        >
+          <p className="text-[rgb(var(--text-secondary))] text-sm font-medium">
+            No Image Available
+          </p>
+          <p className="text-[rgb(var(--text-muted))] text-xs mt-1">
+            Help us add one!
+          </p>
+        </div>
+      );
+    }
+
     return (
       <div
         className={`relative flex items-center justify-center bg-[rgb(var(--bg-card))] border border-[rgb(var(--border-color))] rounded-lg shadow-lg ${className}`}
@@ -87,19 +107,47 @@ export default function GameImage({
               />
             </svg>
           </div>
-          <p className="text-[rgb(var(--text-secondary))] text-sm font-medium">No Image Available</p>
-          <p className="text-[rgb(var(--text-muted))] text-xs mt-1">Help us add one!</p>
+          <p className="text-[rgb(var(--text-secondary))] text-sm font-medium">
+            No Image Available
+          </p>
+          <p className="text-[rgb(var(--text-muted))] text-xs mt-1">
+            Help us add one!
+          </p>
         </div>
       </div>
     );
   }
 
-  // Use plain <img> for proxy URLs so the browser hits the proxy directly.
-  // next/image with a relative proxy URL can mangle the query string and cause 400.
   const isProxyUrl =
     typeof imageSrc === "string" && imageSrc.startsWith("/api/image-proxy");
+  const isRemoteUrl =
+    typeof imageSrc === "string" && imageSrc.startsWith("http");
+  const useNativeImg = isProxyUrl || isRemoteUrl;
 
-  if (isProxyUrl) {
+  const handleError = () => {
+    setImageError(true);
+    setImageLoaded(false);
+  };
+
+  const handleLoad = () => {
+    setImageLoaded(true);
+    setImageError(false);
+  };
+
+  if (useNativeImg) {
+    if (fill) {
+      return (
+        <img
+          src={imageSrc}
+          alt={alt}
+          className={`absolute inset-0 h-full w-full object-cover ${className}`}
+          loading={priority ? "eager" : "lazy"}
+          onError={handleError}
+          onLoad={handleLoad}
+        />
+      );
+    }
+
     return (
       <img
         src={imageSrc}
@@ -108,15 +156,24 @@ export default function GameImage({
         height={height}
         className={className}
         loading={priority ? "eager" : "lazy"}
-        onError={() => {
-          setImageError(true);
-          setImageLoaded(false);
-        }}
-        onLoad={() => {
-          setImageLoaded(true);
-          setImageError(false);
-        }}
+        onError={handleError}
+        onLoad={handleLoad}
         style={{ width, height, objectFit: "cover" }}
+      />
+    );
+  }
+
+  if (fill) {
+    return (
+      <Image
+        src={imageSrc}
+        alt={alt}
+        fill
+        className={`object-cover ${className}`}
+        priority={priority}
+        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+        onError={handleError}
+        onLoad={handleLoad}
       />
     );
   }
@@ -130,15 +187,8 @@ export default function GameImage({
       className={className}
       priority={priority}
       loading={priority ? undefined : "lazy"}
-      onError={() => {
-        setImageError(true);
-        setImageLoaded(false);
-      }}
-      onLoad={() => {
-        setImageLoaded(true);
-        setImageError(false);
-      }}
+      onError={handleError}
+      onLoad={handleLoad}
     />
   );
 }
-

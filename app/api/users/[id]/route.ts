@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
-import { deleteUserAndAnonymizeContent } from "@/lib/crowdsource-service-mongodb";
+import { canManageUsers, deleteUserAndAnonymizeContent } from "@/lib/crowdsource-service-mongodb";
+import { toObjectId } from "@/lib/mongo-sanitize";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { parseEnum, parseIsoDateInRange } from "@/lib/request-validation";
 import { revalidatePath } from "next/cache";
 import { validateCSRFToken } from "@/lib/csrf";
 import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
+import { requireAdmin, requireSession } from "@/lib/api-auth";
 
 // GET - Get user by ID
 export async function GET(
@@ -15,9 +15,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireSession();
+    if (!auth.ok) return auth.response;
+    const { user: viewer } = auth;
+
+    const identifier = getClientIdentifier(request, viewer.id);
     if (!rateLimiters.api.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
@@ -25,15 +27,11 @@ export async function GET(
       );
     }
 
-    // Must be signed in to view profiles
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { id } = await params;
     const sanitizedId = sanitizeString(String(id || ""), 50);
     
-    if (!sanitizedId || !ObjectId.isValid(sanitizedId)) {
+    const objectId = toObjectId(sanitizedId);
+    if (!objectId) {
       return NextResponse.json(
         { error: "Invalid user ID" },
         { status: 400 }
@@ -43,34 +41,57 @@ export async function GET(
     const db = await getGFWLDatabase();
     const usersCollection = db.collection("users");
 
-    const user = await usersCollection.findOne({ _id: new ObjectId(sanitizedId) });
+    const user = await usersCollection.findOne({ _id: objectId });
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Return user data
+    const isOwner = viewer.id === sanitizedId;
+    const isAdmin = canManageUsers(viewer);
+    const isPublic = user.settings?.publicProfile !== false;
+
+    if (!isOwner && !isAdmin && !isPublic) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const showStatistics =
+      isOwner || isAdmin || user.settings?.showStatistics !== false;
+
+    const publicSettings = {
+      publicProfile: user.settings?.publicProfile ?? true,
+      showStatistics: user.settings?.showStatistics ?? true,
+    };
+
     return NextResponse.json(
       {
-      id: user._id.toString(),
-      name: user.name,
-      email: user.email,
-      avatar: user.image,
-      role: user.role || "user",
-      status: user.status || "active",
-      provider: user.providerInfo?.provider || "unknown",
-      submissionsCount: user.submissionsCount || 0,
-      approvedCount: user.approvedCount || 0,
-      rejectedCount: user.rejectedCount || 0,
-      createdAt: user.createdAt || new Date(),
-      lastLoginAt: user.lastLoginAt || undefined,
-      providerInfo: user.providerInfo,
-      settings: user.settings || { publicProfile: true, showStatistics: true },
-    },
-    {
-      headers: {
-        "Cache-Control": "private, no-cache, must-revalidate",
+        id: user._id.toString(),
+        name: user.name,
+        avatar: user.image,
+        role: user.role || "user",
+        status: user.status || "active",
+        createdAt: user.createdAt || new Date(),
+        settings: isOwner || isAdmin ? (user.settings || publicSettings) : publicSettings,
+        ...(showStatistics
+          ? {
+              submissionsCount: user.submissionsCount || 0,
+              approvedCount: user.approvedCount || 0,
+              rejectedCount: user.rejectedCount || 0,
+            }
+          : {}),
+        ...(isOwner || isAdmin
+          ? {
+              email: user.email,
+              provider: user.providerInfo?.provider || "unknown",
+              lastLoginAt: user.lastLoginAt || undefined,
+              providerInfo: user.providerInfo,
+            }
+          : {}),
       },
-    }
+      {
+        headers: {
+          "Cache-Control": "private, no-cache, must-revalidate",
+        },
+      }
     );
   } catch (error) {
     safeLog.error("Error fetching user:", error);
@@ -87,19 +108,16 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireAdmin();
+    if (!auth.ok) return auth.response;
+    const { session } = auth;
+
+    const identifier = getClientIdentifier(request, session.user.id);
     if (!rateLimiters.admin.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
       );
-    }
-
-    // Only admins can update users
-    if (!session || session.user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id } = await params;
@@ -121,11 +139,20 @@ export async function PATCH(
 
     // Sanitize inputs
     const sanitizedId = sanitizeString(String(id || ""), 50);
-    const sanitizedRole = role ? sanitizeString(String(role), 50) : undefined;
-    const sanitizedStatus = status ? sanitizeString(String(status), 50) : undefined;
+    const sanitizedRole = role
+      ? parseEnum(role, ["user", "reviewer", "admin"] as const, 50)
+      : undefined;
+    const sanitizedStatus = status
+      ? parseEnum(
+          status,
+          ["active", "suspended", "restricted", "blocked"] as const,
+          50
+        )
+      : undefined;
     const sanitizedModerationReason = moderationReason ? sanitizeString(String(moderationReason), 2000) : undefined;
 
-    if (!sanitizedId || !ObjectId.isValid(sanitizedId)) {
+    const objectId = toObjectId(sanitizedId);
+    if (!objectId) {
       return NextResponse.json(
         { error: "Invalid user ID" },
         { status: 400 }
@@ -140,16 +167,11 @@ export async function PATCH(
       );
     }
 
-    // Validate role if provided
-    if (sanitizedRole && !["user", "reviewer", "admin"].includes(sanitizedRole)) {
+    if (role && !sanitizedRole) {
       return NextResponse.json({ error: "Invalid role" }, { status: 400 });
     }
 
-    // Validate status if provided
-    if (
-      sanitizedStatus &&
-      !["active", "suspended", "restricted", "blocked"].includes(sanitizedStatus)
-    ) {
+    if (status && !sanitizedStatus) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
 
@@ -157,7 +179,7 @@ export async function PATCH(
     const usersCollection = db.collection("users");
 
     // Check if user exists
-    const user = await usersCollection.findOne({ _id: new ObjectId(sanitizedId) });
+    const user = await usersCollection.findOne({ _id: objectId });
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
@@ -209,20 +231,27 @@ export async function PATCH(
       // If setting to active or restricted, remove suspendedUntil
       if (sanitizedStatus === "active" || sanitizedStatus === "restricted") {
         await usersCollection.updateOne(
-          { _id: new ObjectId(sanitizedId) },
+          { _id: objectId },
           { $unset: { suspendedUntil: "" } }
         );
       }
 
       // If suspending, set the suspendedUntil date
       if (sanitizedStatus === "suspended" && suspendedUntil) {
-        updateData.suspendedUntil = new Date(suspendedUntil);
+        const parsedUntil = parseIsoDateInRange(suspendedUntil);
+        if (!parsedUntil) {
+          return NextResponse.json(
+            { error: "Invalid suspension end date" },
+            { status: 400 }
+          );
+        }
+        updateData.suspendedUntil = parsedUntil;
       }
     }
 
     // Update user
     await usersCollection.updateOne(
-      { _id: new ObjectId(sanitizedId) },
+      { _id: objectId },
       { $set: updateData }
     );
 
@@ -252,7 +281,7 @@ export async function PATCH(
 
       // Add moderation action to user's moderationHistory array
       await usersCollection.updateOne(
-        { _id: new ObjectId(sanitizedId) },
+        { _id: objectId },
         {
           $push: {
             moderationHistory: {
@@ -288,18 +317,16 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireSession();
+    if (!auth.ok) return auth.response;
+    const { user: actor } = auth;
+
+    const identifier = getClientIdentifier(request, actor.id);
     if (!rateLimiters.api.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
       );
-    }
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // CSRF protection
@@ -314,7 +341,7 @@ export async function DELETE(
     const { id } = await params;
     const sanitizedId = sanitizeString(String(id || ""), 50);
 
-    if (!sanitizedId || !ObjectId.isValid(sanitizedId)) {
+    if (!toObjectId(sanitizedId)) {
       return NextResponse.json(
         { error: "Invalid user ID" },
         { status: 400 }
@@ -322,7 +349,7 @@ export async function DELETE(
     }
 
     // Users can only delete their own account
-    if (session.user.id !== sanitizedId) {
+    if (actor.id !== sanitizedId) {
       return NextResponse.json(
         { error: "You can only delete your own account" },
         { status: 403 }

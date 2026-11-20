@@ -17,6 +17,10 @@ import {
 } from "react-icons/fa";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
+import DashboardPageHeader from "@/components/dashboard/DashboardPageHeader";
+import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import DashboardErrorBanner from "@/components/dashboard/DashboardErrorBanner";
+import { formatReviewDateTime } from "@/lib/format-review-date";
 import {
   Select,
   SelectContent,
@@ -51,11 +55,7 @@ function formatAuditDate(date: Date): string {
   if (diffMins < 60) return `${diffMins}m ago`;
   if (diffHours < 24) return `${diffHours}h ago`;
   if (diffDays < 7) return `${diffDays}d ago`;
-  return new Date(date).toLocaleDateString(undefined, {
-    month: "2-digit",
-    day: "2-digit",
-    year: "numeric",
-  });
+  return formatReviewDateTime(date);
 }
 
 /** Renders the "Change" cell: old → new, or "… → Rejected" when outcome is rejected */
@@ -312,21 +312,10 @@ export default function AuditPage() {
     <DashboardLayout requireRole="admin">
       <div className="container mx-auto px-4 py-6 md:py-8">
         <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="mb-6">
-            <Link
-              href="/dashboard"
-              className="text-[#107c10] hover:underline text-sm mb-2 inline-block"
-            >
-              ← Back to Dashboard
-            </Link>
-            <h1 className="text-2xl md:text-3xl font-bold text-[rgb(var(--text-primary))] mb-2">
-              Audit Log
-            </h1>
-            <p className="text-[rgb(var(--text-secondary))] text-sm md:text-base">
-              History of all review decisions: corrections (approved, modified, or rejected), game submissions (approved or rejected), and FAQ submissions (approved or rejected).
-            </p>
-          </div>
+          <DashboardPageHeader
+            title="Audit Log"
+            subtitle="History of all review decisions: corrections (approved, modified, or rejected), game submissions (approved or rejected), and FAQ submissions (approved or rejected)."
+          />
 
           {/* Search and Controls */}
           <div className="bg-[rgb(var(--bg-card))] rounded-lg p-4 mb-6">
@@ -507,17 +496,11 @@ export default function AuditPage() {
             </div>
           </div>
 
-          {/* Error banner */}
           {fetchError && (
-            <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-[rgb(var(--text-primary))] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <p className="text-sm">{fetchError}</p>
-              <button
-                onClick={() => setRetryCount((c) => c + 1)}
-                className="px-4 py-2 bg-[#107c10] hover:bg-[#0d6b0d] text-white rounded-lg text-sm transition-colors whitespace-nowrap"
-              >
-                Try again
-              </button>
-            </div>
+            <DashboardErrorBanner
+              message={fetchError}
+              onRetry={() => setRetryCount((c) => c + 1)}
+            />
           )}
 
           {/* Results Count */}
@@ -538,14 +521,28 @@ export default function AuditPage() {
                 <p className="text-[rgb(var(--text-secondary))]">Loading audit logs...</p>
               </div>
             ) : paginatedLogs.length === 0 ? (
-              <div className="p-8 text-center">
-                <FaHistory className="mx-auto text-[rgb(var(--text-muted))] mb-4" size={48} />
-                <p className="text-[rgb(var(--text-secondary))]">
-                  {logs.length > 0 && (debouncedSearchQuery || roleFilter !== "all" || fieldFilter !== "all")
-                    ? "No logs match the current filters. Try clearing filters or changing search."
-                    : "No audit logs found"}
-                </p>
-              </div>
+              <DashboardEmptyState
+                icon={<FaHistory className="mx-auto" size={48} />}
+                title={
+                  logs.length > 0 && (debouncedSearchQuery || roleFilter !== "all" || fieldFilter !== "all")
+                    ? "No logs match the current filters."
+                    : "No audit logs found"
+                }
+                description={
+                  logs.length > 0 && (debouncedSearchQuery || roleFilter !== "all" || fieldFilter !== "all")
+                    ? "Try clearing filters or changing search."
+                    : undefined
+                }
+                onClearFilters={
+                  logs.length > 0 && (debouncedSearchQuery || roleFilter !== "all" || fieldFilter !== "all")
+                    ? () => {
+                        setSearchQuery("");
+                        setRoleFilter("all");
+                        setFieldFilter("all");
+                      }
+                    : undefined
+                }
+              />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -756,14 +753,28 @@ export default function AuditPage() {
                 <p className="text-[rgb(var(--text-secondary))]">Loading audit logs...</p>
               </div>
             ) : paginatedLogs.length === 0 ? (
-              <div className="bg-[rgb(var(--bg-card))] rounded-lg p-8 text-center">
-                <FaHistory className="mx-auto text-[rgb(var(--text-muted))] mb-4" size={48} />
-                <p className="text-[rgb(var(--text-secondary))]">
-                  {logs.length > 0 && (debouncedSearchQuery || roleFilter !== "all" || fieldFilter !== "all")
-                    ? "No logs match the current filters. Try clearing filters or changing search."
-                    : "No audit logs found"}
-                </p>
-              </div>
+              <DashboardEmptyState
+                icon={<FaHistory className="mx-auto" size={48} />}
+                title={
+                  logs.length > 0 && (debouncedSearchQuery || roleFilter !== "all" || fieldFilter !== "all")
+                    ? "No logs match the current filters."
+                    : "No audit logs found"
+                }
+                description={
+                  logs.length > 0 && (debouncedSearchQuery || roleFilter !== "all" || fieldFilter !== "all")
+                    ? "Try clearing filters or changing search."
+                    : undefined
+                }
+                onClearFilters={
+                  logs.length > 0 && (debouncedSearchQuery || roleFilter !== "all" || fieldFilter !== "all")
+                    ? () => {
+                        setSearchQuery("");
+                        setRoleFilter("all");
+                        setFieldFilter("all");
+                      }
+                    : undefined
+                }
+              />
             ) : (
               paginatedLogs.map((log) => (
                 <AuditLogCard

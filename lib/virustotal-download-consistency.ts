@@ -36,6 +36,23 @@ export function buildVirusTotalGuiUrlForUrlScan(canonicalUrl: string): string {
   return `https://www.virustotal.com/gui/url/${hex}/detection`;
 }
 
+export const PRIMARY_DOWNLOAD_FIELD = "downloadLink";
+export const COMMUNITY_DOWNLOAD_FIELD = "communityAlternativeDownloadLink";
+export const PRIMARY_VIRUSTOTAL_FIELD = "virusTotalUrl";
+export const COMMUNITY_VIRUSTOTAL_FIELD = "communityAlternativeVirusTotalUrl";
+
+export function isDownloadLinkField(field: string): boolean {
+  return field === PRIMARY_DOWNLOAD_FIELD || field === COMMUNITY_DOWNLOAD_FIELD;
+}
+
+export function virusTotalFieldForDownloadField(
+  field: string
+): typeof PRIMARY_VIRUSTOTAL_FIELD | typeof COMMUNITY_VIRUSTOTAL_FIELD {
+  return field === COMMUNITY_DOWNLOAD_FIELD
+    ? COMMUNITY_VIRUSTOTAL_FIELD
+    : PRIMARY_VIRUSTOTAL_FIELD;
+}
+
 export function virusTotalUrlCandidates(raw: string): string[] {
   const trimmed = raw.trim();
   const out = new Set<string>();

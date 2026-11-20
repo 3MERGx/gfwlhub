@@ -11,9 +11,11 @@ import {
   FaTrophy,
   FaFlask,
   FaArrowRight,
+  FaQuestionCircle,
 } from "react-icons/fa";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
+import DashboardPageHeader from "@/components/dashboard/DashboardPageHeader";
 import { useSession } from "next-auth/react";
 import { safeLog } from "@/lib/security";
 
@@ -26,7 +28,27 @@ interface Stats {
   pendingSubmissions: number;
   approvedSubmissions: number;
   rejectedSubmissions: number;
+  pendingGameSubmissions: number;
+  pendingFaqSubmissions: number;
   totalChanges: number;
+}
+
+function StatValue({
+  value,
+  loaded,
+}: {
+  value?: number;
+  loaded: boolean;
+}) {
+  if (!loaded) {
+    return (
+      <span
+        className="inline-block h-9 w-16 rounded bg-[rgb(var(--bg-card-alt))] animate-pulse"
+        aria-hidden
+      />
+    );
+  }
+  return <>{value ?? 0}</>;
 }
 
 export default function AdminPanel() {
@@ -58,6 +80,8 @@ export default function AdminPanel() {
             pendingSubmissions: 0,
             approvedSubmissions: 0,
             rejectedSubmissions: 0,
+            pendingGameSubmissions: 0,
+            pendingFaqSubmissions: 0,
             totalChanges: 0,
           });
         }
@@ -73,6 +97,8 @@ export default function AdminPanel() {
           pendingSubmissions: 0,
           approvedSubmissions: 0,
           rejectedSubmissions: 0,
+          pendingGameSubmissions: 0,
+          pendingFaqSubmissions: 0,
           totalChanges: 0,
         });
       }
@@ -84,16 +110,13 @@ export default function AdminPanel() {
     <DashboardLayout requireRole="reviewer">
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8">
         <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="mb-4 sm:mb-6 md:mb-8">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-[rgb(var(--text-primary))] mb-1 sm:mb-2">Dashboard</h1>
-            <p className="text-[rgb(var(--text-secondary))] text-sm sm:text-base">
-              Manage crowdsourced contributions and users
-            </p>
-          </div>
+          <DashboardPageHeader
+            title="Dashboard"
+            subtitle="Manage crowdsourced contributions and users"
+          />
 
           {/* Statistics Grid */}
-          <div className={`grid grid-cols-1 sm:grid-cols-2 ${isAdmin ? "lg:grid-cols-4" : "lg:grid-cols-3"} gap-4 sm:gap-5 md:gap-6 mb-6 sm:mb-8 md:mb-10`}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 md:gap-6 mb-6 sm:mb-8 md:mb-10">
             {/* Total Users - Admin Only */}
             {isAdmin && (
               <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 p-5 sm:p-6 rounded-xl border border-blue-500/20 shadow-lg">
@@ -106,31 +129,73 @@ export default function AdminPanel() {
                   </div>
                 </div>
                 <p className="text-3xl sm:text-4xl font-bold text-[rgb(var(--text-primary))] mb-2">
-                  {stats?.totalUsers || 0}
+                  <StatValue value={stats?.totalUsers} loaded={stats !== null} />
                 </p>
                 <p className="text-xs text-[rgb(var(--text-secondary))]">
-                  {stats?.activeUsers || 0} active, {stats?.suspendedUsers || 0} suspended
+                  {stats ? `${stats.activeUsers} active, ${stats.suspendedUsers} suspended` : "Loading user counts"}
                 </p>
               </div>
             )}
 
-            {/* Pending Submissions */}
-            <div className="bg-gradient-to-br from-yellow-500/10 to-yellow-600/5 p-5 sm:p-6 rounded-xl border border-yellow-500/20 shadow-lg">
+            <Link
+              href="/dashboard/submissions"
+              className="bg-gradient-to-br from-yellow-500/10 to-yellow-600/5 p-5 sm:p-6 rounded-xl border border-yellow-500/20 shadow-lg block focus:outline-none focus:ring-2 focus:ring-yellow-500/40"
+            >
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-[rgb(var(--text-secondary))] text-sm font-medium">
-                  Pending Review
+                  Pending Corrections
                 </h3>
                 <div className="p-2 bg-yellow-500/20 rounded-lg">
                   <FaClock className="text-yellow-400" size={20} />
                 </div>
               </div>
               <p className="text-3xl sm:text-4xl font-bold text-[rgb(var(--text-primary))] mb-2">
-                {stats?.pendingSubmissions || 0}
+                <StatValue value={stats?.pendingSubmissions} loaded={stats !== null} />
               </p>
               <p className="text-xs text-[rgb(var(--text-secondary))]">
-                {stats?.totalSubmissions || 0} total submissions
+                {stats ? `${stats.totalSubmissions} total · Open corrections queue` : "Loading corrections"}
               </p>
-            </div>
+            </Link>
+
+            <Link
+              href="/dashboard/game-submissions"
+              className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 p-5 sm:p-6 rounded-xl border border-blue-500/20 shadow-lg block focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-[rgb(var(--text-secondary))] text-sm font-medium">
+                  Pending Game submissions
+                </h3>
+                <div className="p-2 bg-blue-500/20 rounded-lg">
+                  <FaGamepad className="text-blue-400" size={20} />
+                </div>
+              </div>
+              <p className="text-3xl sm:text-4xl font-bold text-[rgb(var(--text-primary))] mb-2">
+                <StatValue value={stats?.pendingGameSubmissions} loaded={stats !== null} />
+              </p>
+              <p className="text-xs text-[rgb(var(--text-secondary))]">
+                Open game submissions queue
+              </p>
+            </Link>
+
+            <Link
+              href="/dashboard/faq-submissions"
+              className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 p-5 sm:p-6 rounded-xl border border-purple-500/20 shadow-lg block focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-[rgb(var(--text-secondary))] text-sm font-medium">
+                  Pending FAQ submissions
+                </h3>
+                <div className="p-2 bg-purple-500/20 rounded-lg">
+                  <FaQuestionCircle className="text-purple-400" size={20} />
+                </div>
+              </div>
+              <p className="text-3xl sm:text-4xl font-bold text-[rgb(var(--text-primary))] mb-2">
+                <StatValue value={stats?.pendingFaqSubmissions} loaded={stats !== null} />
+              </p>
+              <p className="text-xs text-[rgb(var(--text-secondary))]">
+                Open FAQ submissions queue
+              </p>
+            </Link>
 
             {/* Approved Submissions */}
             <div className="bg-gradient-to-br from-green-500/10 to-green-600/5 p-5 sm:p-6 rounded-xl border border-green-500/20 shadow-lg">
@@ -141,10 +206,10 @@ export default function AdminPanel() {
                 </div>
               </div>
               <p className="text-3xl sm:text-4xl font-bold text-[rgb(var(--text-primary))] mb-2">
-                {stats?.approvedSubmissions || 0}
+                <StatValue value={stats?.approvedSubmissions} loaded={stats !== null} />
               </p>
               <p className="text-xs text-[rgb(var(--text-secondary))]">
-                {stats?.totalChanges || 0} total changes made
+                {stats ? `${stats.totalChanges} total changes made` : "Loading approved count"}
               </p>
             </div>
 
@@ -157,7 +222,7 @@ export default function AdminPanel() {
                 </div>
               </div>
               <p className="text-3xl sm:text-4xl font-bold text-[rgb(var(--text-primary))] mb-2">
-                {stats?.rejectedSubmissions || 0}
+                <StatValue value={stats?.rejectedSubmissions} loaded={stats !== null} />
               </p>
               <p className="text-xs text-[rgb(var(--text-secondary))]">
                 Quality control maintained
@@ -178,7 +243,7 @@ export default function AdminPanel() {
                     <FaClock className="text-yellow-500" size={22} />
                   </div>
                   <h3 className="text-[rgb(var(--text-primary))] font-semibold text-lg md:text-xl">
-                    Review Submissions
+                    Review corrections
                   </h3>
                 </div>
                 <FaArrowRight className="text-[rgb(var(--text-muted))] group-hover:text-[#107c10] transition-colors" size={16} />
@@ -189,10 +254,10 @@ export default function AdminPanel() {
               <div className="mt-auto pt-4 border-t border-[rgb(var(--border-color))]">
                 <div className="flex items-center justify-between">
                   <span className="text-[#107c10] text-sm font-medium">
-                    {stats?.pendingSubmissions || 0} pending
+                    {stats ? `${stats.pendingSubmissions} pending` : "Loading…"}
                   </span>
                   <span className="text-[rgb(var(--text-muted))] text-xs">
-                    {stats?.totalSubmissions || 0} total
+                    {stats ? `${stats.totalSubmissions} total` : ""}
                   </span>
                 </div>
               </div>
@@ -220,7 +285,34 @@ export default function AdminPanel() {
               <div className="mt-auto pt-4 border-t border-[rgb(var(--border-color))]">
                 <div className="flex items-center justify-between">
                   <span className="text-[#107c10] text-sm font-medium">
-                    View submissions
+                    {stats ? `${stats.pendingGameSubmissions} pending` : "Loading…"}
+                  </span>
+                </div>
+              </div>
+            </Link>
+
+            <Link
+              href="/dashboard/faq-submissions"
+              className="bg-gradient-to-br from-[rgb(var(--bg-card))] to-[rgb(var(--bg-card-alt))] p-5 sm:p-6 md:p-7 rounded-xl border border-[rgb(var(--border-color))] hover:border-[#107c10] hover:shadow-lg hover:shadow-[#107c10]/20 transition-all group flex flex-col touch-manipulation transform hover:scale-[1.02]"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-purple-500/10 rounded-lg">
+                    <FaQuestionCircle className="text-purple-500" size={22} />
+                  </div>
+                  <h3 className="text-[rgb(var(--text-primary))] font-semibold text-lg md:text-xl">
+                    FAQ submissions
+                  </h3>
+                </div>
+                <FaArrowRight className="text-[rgb(var(--text-muted))] group-hover:text-[#107c10] transition-colors" size={16} />
+              </div>
+              <p className="text-[rgb(var(--text-secondary))] text-sm mb-4 leading-relaxed">
+                Review community-submitted FAQ questions and answers
+              </p>
+              <div className="mt-auto pt-4 border-t border-[rgb(var(--border-color))]">
+                <div className="flex items-center justify-between">
+                  <span className="text-[#107c10] text-sm font-medium">
+                    {stats ? `${stats.pendingFaqSubmissions} pending` : "Loading…"}
                   </span>
                 </div>
               </div>
@@ -283,10 +375,10 @@ export default function AdminPanel() {
                 <div className="mt-auto pt-4 border-t border-[rgb(var(--border-color))]">
                   <div className="flex items-center justify-between">
                     <span className="text-[#107c10] text-sm font-medium">
-                      {stats?.totalUsers || 0} users
+                      {stats ? `${stats.totalUsers} users` : "Loading…"}
                     </span>
                     <span className="text-[rgb(var(--text-muted))] text-xs">
-                      {stats?.activeUsers || 0} active
+                      {stats ? `${stats.activeUsers} active` : ""}
                     </span>
                   </div>
                 </div>
@@ -344,7 +436,7 @@ export default function AdminPanel() {
                 <div className="mt-auto pt-4 border-t border-[rgb(var(--border-color))]">
                   <div className="flex items-center justify-between">
                     <span className="text-purple-500 text-sm font-medium">
-                      {stats?.totalChanges || 0} changes
+                      {stats ? `${stats.totalChanges} changes` : "Loading…"}
                     </span>
                   </div>
                 </div>

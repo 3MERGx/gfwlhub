@@ -1,4 +1,5 @@
 import "next-auth";
+import "next-auth/jwt";
 import { UserRole, UserStatus } from "./crowdsource";
 
 declare module "next-auth" {
@@ -27,6 +28,20 @@ declare module "next-auth" {
     submissionsCount: number;
     approvedCount: number;
     rejectedCount: number;
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id?: string;
+    role?: UserRole;
+    status?: UserStatus;
+    submissionsCount?: number;
+    approvedCount?: number;
+    rejectedCount?: number;
+    lastActivity?: number;
+    sessionVersion?: number;
+    error?: "SessionInvalidated" | "SessionExpired";
   }
 }
 

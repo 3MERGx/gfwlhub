@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Contact - GFWL Hub",
+  title: "Game Communities - GFWL Hub",
   description:
     "Connect with the GFWL Hub community and find game-specific Discord and Reddit communities.",
 };

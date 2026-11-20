@@ -1,64 +1,69 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
-import { scanUrl, getScanReport, getUrlReport } from "@/lib/virustotal";
-import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import {
+  scanUrl,
+  getScanReport,
+  getUrlReport,
+  summarizeVirusTotalUrlReport,
+} from "@/lib/virustotal";
+import { buildVirusTotalGuiUrlForUrlScan } from "@/lib/virustotal-download-consistency";
+import {
+  safeLog,
+  sanitizeString,
+  rateLimiters,
+  getClientIdentifier,
+} from "@/lib/security";
+import { requireReviewer } from "@/lib/api-auth";
+import { internalError, jsonError } from "@/lib/api-error";
+import { readCsrfToken, validateCSRFToken } from "@/lib/csrf";
+import { saveCorrectionVirusTotalScan } from "@/lib/crowdsource-service-mongodb";
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireReviewer();
+    if (!auth.ok) return auth.response;
+
+    const identifier = getClientIdentifier(request, auth.user.id);
     if (!rateLimiters.api.isAllowed(identifier)) {
-      return NextResponse.json(
-        { error: "Too many requests. Please try again later." },
-        { status: 429 }
-      );
+      return jsonError("Too many requests. Please try again later.", 429);
     }
 
     if (!rateLimiters.virusTotal.isAllowed(identifier)) {
-      return NextResponse.json(
-        {
-          error:
-            "Too many VirusTotal requests. Wait a minute before scanning again (free tier limit).",
-        },
-        { status: 429 }
+      return jsonError(
+        "Too many VirusTotal requests. Wait a minute before scanning again (free tier limit).",
+        429
       );
     }
 
-    // Only reviewers and admins can scan URLs
-    if (!session || (session.user.role !== "reviewer" && session.user.role !== "admin")) {
-      return NextResponse.json(
-        { error: "Unauthorized. Reviewers and admins only." },
-        { status: 401 }
-      );
+    const body = await request.json();
+    const csrfToken = readCsrfToken(request, body);
+    if (!(await validateCSRFToken(csrfToken))) {
+      return jsonError("Invalid CSRF token", 403);
     }
 
-    const { url, action } = await request.json();
+    const { url, action, correctionId } = body;
 
     // Sanitize and validate inputs
     const sanitizedUrl = sanitizeString(String(url || ""), 2000);
     const sanitizedAction = action ? sanitizeString(String(action), 50) : "scan";
+    const sanitizedCorrectionId =
+      typeof correctionId === "string"
+        ? sanitizeString(correctionId, 64)
+        : "";
 
     if (!sanitizedUrl || typeof url !== "string") {
-      return NextResponse.json(
-        { error: "URL is required" },
-        { status: 400 }
-      );
+      return jsonError("URL is required", 400);
     }
 
     if (!["scan", "check"].includes(sanitizedAction)) {
-      return NextResponse.json(
-        { error: "Invalid action. Use 'scan' or 'check'" },
-        { status: 400 }
-      );
+      return jsonError("Invalid action. Use 'scan' or 'check'", 400);
     }
 
     const apiKey = process.env.VIRUSTOTAL_API_KEY;
     if (!apiKey) {
-      return NextResponse.json(
-        { error: "VirusTotal API key not configured" },
-        { status: 500 }
+      safeLog.error("VirusTotal API key not configured");
+      return jsonError(
+        "URL scanning is temporarily unavailable. Please try again later.",
+        503
       );
     }
 
@@ -66,87 +71,114 @@ export async function POST(request: NextRequest) {
     try {
       new URL(sanitizedUrl);
     } catch {
-      return NextResponse.json(
-        { error: "Invalid URL format" },
-        { status: 400 }
-      );
+      return jsonError("Invalid URL format", 400);
     }
+
+    const persistScan = async (report: NonNullable<
+      Awaited<ReturnType<typeof getUrlReport>>["report"]
+    >) => {
+      if (!sanitizedCorrectionId) return undefined;
+      const summary =
+        summarizeVirusTotalUrlReport(
+          report,
+          buildVirusTotalGuiUrlForUrlScan(sanitizedUrl)
+        ) || null;
+      if (!summary) return undefined;
+
+      const saved = await saveCorrectionVirusTotalScan(
+        sanitizedCorrectionId,
+        sanitizedUrl,
+        {
+          ...summary,
+          scannedAt: new Date(),
+          source: "review",
+        }
+      );
+      if (!saved.ok) {
+        safeLog.error(
+          "[VirusTotal] Failed to persist scan on correction:",
+          saved.error
+        );
+        return undefined;
+      }
+      return saved.correction.virusTotalScan;
+    };
 
     if (sanitizedAction === "scan") {
       // First check if URL was already scanned (this uses the API but doesn't count as a scan)
       const checkResult = await getUrlReport(sanitizedUrl, apiKey);
-      
+
       if (checkResult.success && checkResult.report) {
-        // URL already in database, return existing report
-        // This doesn't use a scan quota, just retrieves existing data
+        const virusTotalScan = await persistScan(checkResult.report);
         return NextResponse.json({
           success: true,
           report: checkResult.report,
-          fromCache: true, // Indicate this is from existing data, not a new scan
+          fromCache: true,
+          virusTotalScan,
         });
       }
 
       // URL not in database, submit for scanning (this WILL use API quota)
       safeLog.log(`[VirusTotal] Submitting new scan for URL: ${sanitizedUrl}`);
       const scanResult = await scanUrl(sanitizedUrl, apiKey);
-      
+
       if (!scanResult.success) {
-        safeLog.error(`[VirusTotal] Scan submission failed: ${scanResult.error}`);
-        return NextResponse.json(
-          { error: scanResult.error || "Failed to scan URL" },
-          { status: 500 }
+        safeLog.error(
+          `[VirusTotal] Scan submission failed: ${scanResult.error}`
         );
+        return jsonError("Failed to scan URL. Please try again later.", 503);
       }
 
-      safeLog.log(`[VirusTotal] Scan submitted, analysis ID: ${scanResult.analysisId}`);
+      safeLog.log(
+        `[VirusTotal] Scan submitted, analysis ID: ${scanResult.analysisId}`
+      );
 
       // Wait a moment for the scan to process, then get results
-      // Note: In production, you might want to poll or use webhooks
       await new Promise((resolve) => setTimeout(resolve, 3000));
 
       const reportResult = await getScanReport(scanResult.analysisId!, apiKey);
-      
-      if (!reportResult.success) {
-        safeLog.error(`[VirusTotal] Failed to get scan results: ${reportResult.error}`);
+
+      if (!reportResult.success || !reportResult.report) {
+        safeLog.error(
+          `[VirusTotal] Failed to get scan results: ${reportResult.error}`
+        );
         return NextResponse.json(
-          { 
-            error: reportResult.error || "Failed to get scan results",
+          {
+            error:
+              "URL submitted for scanning. Results may take a moment to process. Please try again in a few seconds.",
             analysisId: scanResult.analysisId,
-            message: "URL submitted for scanning. Results may take a moment to process. Please try again in a few seconds."
           },
-          { status: 202 } // Accepted but processing
+          { status: 202 }
         );
       }
 
       safeLog.log(`[VirusTotal] Scan results retrieved successfully`);
+      const virusTotalScan = await persistScan(reportResult.report);
       return NextResponse.json({
         success: true,
         analysisId: scanResult.analysisId,
         report: reportResult.report,
-        fromCache: false, // This was a new scan
+        fromCache: false,
+        virusTotalScan,
       });
     } else if (sanitizedAction === "check") {
-      // Check if URL was already scanned
       const reportResult = await getUrlReport(sanitizedUrl, apiKey);
-      
-      if (!reportResult.success) {
-        return NextResponse.json(
-          { error: reportResult.error || "Failed to check URL" },
-          { status: 404 }
-        );
+
+      if (!reportResult.success || !reportResult.report) {
+        safeLog.error(`[VirusTotal] Check failed: ${reportResult.error}`);
+        return jsonError("No scan report found for this URL", 404);
       }
 
+      const virusTotalScan = await persistScan(reportResult.report);
       return NextResponse.json({
         success: true,
         report: reportResult.report,
+        virusTotalScan,
       });
     }
+
+    return jsonError("Invalid action. Use 'scan' or 'check'", 400);
   } catch (error) {
-    safeLog.error("VirusTotal scan error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return internalError("VirusTotal scan error:", error);
   }
 }
-

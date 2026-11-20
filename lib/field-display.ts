@@ -1,3 +1,69 @@
+import type { CorrectionField } from "@/types/crowdsource";
+
+/** Public correction fields grouped for the suggest-a-correction picker. */
+export const CORRECTION_FIELD_GROUPS: ReadonlyArray<{
+  id: string;
+  label: string;
+  fields: readonly CorrectionField[];
+}> = [
+  {
+    id: "game-details",
+    label: "Game details",
+    fields: [
+      "title",
+      "description",
+      "releaseDate",
+      "developer",
+      "publisher",
+      "genres",
+      "platforms",
+      "additionalDRM",
+      "activationType",
+      "status",
+      "activationNotes",
+    ],
+  },
+  {
+    id: "playability",
+    label: "Playability",
+    fields: [
+      "playabilityStatus",
+      "isUnplayable",
+      "communityAlternativeName",
+      "communityAlternativeUrl",
+      "communityAlternativeDownloadLink",
+      "remasteredName",
+      "remasteredPlatform",
+    ],
+  },
+  {
+    id: "instructions-community",
+    label: "Instructions and community",
+    fields: ["instructions", "knownIssues", "communityTips"],
+  },
+  {
+    id: "links",
+    label: "Links",
+    fields: [
+      "discordLink",
+      "redditLink",
+      "wikiLink",
+      "steamDBLink",
+      "purchaseLink",
+      "gogDreamlistLink",
+    ],
+  },
+  {
+    id: "media",
+    label: "Media",
+    fields: ["imageUrl"],
+  },
+] as const;
+
+/** Fields shown in the public correction picker (excludes downloadLink / virusTotalUrl). */
+export const PUBLIC_CORRECTION_FIELDS: readonly CorrectionField[] =
+  CORRECTION_FIELD_GROUPS.flatMap((group) => [...group.fields]);
+
 /**
  * Returns a human-readable display name for a correction/crowdsource field key.
  * Used on profile, dashboard submissions, and audit pages for consistent labels.
@@ -6,7 +72,7 @@ export function getFieldDisplayName(field: string): string {
   const fieldDisplayMap: Record<string, string> = {
     gameSubmission: "Game submission",
     faqSubmission: "FAQ submission",
-    imageUrl: "Image URL",
+    imageUrl: "Box Art / Cover Image URL",
     additionalDRM: "Additional DRM",
     discordLink: "Discord Link",
     redditLink: "Reddit Link",
@@ -18,11 +84,18 @@ export function getFieldDisplayName(field: string): string {
     activationType: "Activation Type",
     playabilityStatus: "Playability Status",
     communityTips: "Community Tips",
+    activationNotes: "Activation Notes",
     knownIssues: "Known Issues",
     communityAlternativeName: "Community Alternative Name",
+    communityAlternativeUrl: "Community Alternative Website URL",
+    communityAlternativeDownloadLink: "Community Alternative Download Link",
+    communityAlternativeVirusTotalUrl:
+      "Community Alternative VirusTotal URL",
     remasteredName: "Remastered Name",
     remasteredPlatform: "Remastered Platform",
     virusTotalUrl: "VirusTotal URL",
+    downloadLink: "Download Link",
+    isUnplayable: "Is Unplayable",
   };
 
   if (fieldDisplayMap[field]) {
@@ -50,4 +123,22 @@ export function getFieldDisplayName(field: string): string {
 
   formatted = formatted.replace(/\s+/g, " ");
   return formatted;
+}
+
+/** Status label for correction/submission review outcomes. */
+export function getCorrectionStatusLabel(status: string): string {
+  switch (status) {
+    case "modified":
+      return "Approved with edits";
+    case "superseded":
+      return "Superseded";
+    case "pending":
+      return "Pending";
+    case "approved":
+      return "Approved";
+    case "rejected":
+      return "Rejected";
+    default:
+      return status.charAt(0).toUpperCase() + status.slice(1);
+  }
 }

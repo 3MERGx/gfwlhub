@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { toObjectId } from "@/lib/mongo-sanitize";
 import { revalidatePath } from "next/cache";
 import { validateCSRFToken } from "@/lib/csrf";
+import { requireSession } from "@/lib/api-auth";
 
 // GET - Get user settings
 export async function GET(
@@ -13,9 +12,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireSession();
+    if (!auth.ok) return auth.response;
+
+    const identifier = getClientIdentifier(request, auth.user.id);
     if (!rateLimiters.api.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
@@ -26,12 +26,12 @@ export async function GET(
     const { id } = await params;
     const sanitizedId = sanitizeString(String(id || ""), 50);
 
-    // Users can only view their own settings
-    if (!session || session.user.id !== sanitizedId) {
+    if (auth.user.id !== sanitizedId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!sanitizedId || !ObjectId.isValid(sanitizedId)) {
+    const objectId = toObjectId(sanitizedId);
+    if (!objectId) {
       return NextResponse.json(
         { error: "Invalid user ID" },
         { status: 400 }
@@ -41,7 +41,7 @@ export async function GET(
     const db = await getGFWLDatabase();
     const usersCollection = db.collection("users");
 
-    const user = await usersCollection.findOne({ _id: new ObjectId(sanitizedId) });
+    const user = await usersCollection.findOne({ _id: objectId });
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
@@ -75,9 +75,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireSession();
+    if (!auth.ok) return auth.response;
+
+    const identifier = getClientIdentifier(request, auth.user.id);
     if (!rateLimiters.api.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
@@ -88,12 +89,12 @@ export async function PATCH(
     const { id } = await params;
     const sanitizedId = sanitizeString(String(id || ""), 50);
 
-    // Users can only update their own settings
-    if (!session || session.user.id !== sanitizedId) {
+    if (auth.user.id !== sanitizedId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!sanitizedId || !ObjectId.isValid(sanitizedId)) {
+    const objectId = toObjectId(sanitizedId);
+    if (!objectId) {
       return NextResponse.json(
         { error: "Invalid user ID" },
         { status: 400 }
@@ -122,35 +123,50 @@ export async function PATCH(
     const usersCollection = db.collection("users");
 
     // Check if user exists
-    const user = await usersCollection.findOne({ _id: new ObjectId(id) });
+    const user = await usersCollection.findOne({ _id: objectId });
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Build settings object
-    const settings: Record<string, boolean | string> = {};
-    if (typeof showStatistics === "boolean") {
-      settings.showStatistics = showStatistics;
+    const existing = user.settings && typeof user.settings === "object" && !Array.isArray(user.settings)
+      ? (user.settings as Record<string, unknown>)
+      : {};
+
+    const mergedSettings: Record<string, boolean | string> = {};
+    if (typeof existing.showStatistics === "boolean") {
+      mergedSettings.showStatistics = existing.showStatistics;
     }
-    if (typeof emailNotifications === "boolean") {
-      settings.emailNotifications = emailNotifications;
+    if (typeof existing.emailNotifications === "boolean") {
+      mergedSettings.emailNotifications = existing.emailNotifications;
     }
-    if (typeof reviewNotifications === "boolean") {
-      settings.reviewNotifications = reviewNotifications;
+    if (typeof existing.reviewNotifications === "boolean") {
+      mergedSettings.reviewNotifications = existing.reviewNotifications;
     }
-    if (sanitizedTheme && (sanitizedTheme === "dark" || sanitizedTheme === "light")) {
-      settings.theme = sanitizedTheme;
+    if (existing.theme === "dark" || existing.theme === "light") {
+      mergedSettings.theme = existing.theme;
+    }
+    if (typeof existing.publicProfile === "boolean") {
+      mergedSettings.publicProfile = existing.publicProfile;
     }
 
-    // Update user settings
+    if (typeof showStatistics === "boolean") {
+      mergedSettings.showStatistics = showStatistics;
+    }
+    if (typeof emailNotifications === "boolean") {
+      mergedSettings.emailNotifications = emailNotifications;
+    }
+    if (typeof reviewNotifications === "boolean") {
+      mergedSettings.reviewNotifications = reviewNotifications;
+    }
+    if (sanitizedTheme && (sanitizedTheme === "dark" || sanitizedTheme === "light")) {
+      mergedSettings.theme = sanitizedTheme;
+    }
+
     await usersCollection.updateOne(
-      { _id: new ObjectId(sanitizedId) },
+      { _id: objectId },
       {
         $set: {
-          settings: {
-            ...(user.settings || {}),
-            ...settings,
-          },
+          settings: mergedSettings,
           updatedAt: new Date(),
         },
       }
@@ -160,7 +176,7 @@ export async function PATCH(
     revalidatePath("/settings");
     revalidatePath(`/profile/${sanitizedId}`);
 
-    return NextResponse.json({ success: true, settings });
+    return NextResponse.json({ success: true, settings: mergedSettings });
   } catch (error) {
     safeLog.error("Error updating user settings:", error);
     return NextResponse.json(

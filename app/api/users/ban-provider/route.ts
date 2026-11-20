@@ -1,61 +1,65 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
 import { addBannedProvider } from "@/lib/crowdsource-service-mongodb";
-import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { requireAdmin } from "@/lib/api-auth";
+import { internalError, jsonError } from "@/lib/api-error";
 import { revalidatePath } from "next/cache";
-import { validateCSRFToken } from "@/lib/csrf";
+import { readCsrfToken, validateCSRFToken } from "@/lib/csrf";
 import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
+import {
+  parseObjectIdParam,
+  parseOAuthProvider,
+} from "@/lib/request-validation";
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireAdmin();
+    if (!auth.ok) return auth.response;
+    const { session } = auth;
+
+    const identifier = getClientIdentifier(request, session.user.id);
     if (!rateLimiters.admin.isAllowed(identifier)) {
-      return NextResponse.json(
-        { error: "Too many requests. Please try again later." },
-        { status: 429 }
-      );
+      return jsonError("Too many requests. Please try again later.", 429);
     }
 
-    // Only admins can ban providers
-    if (!session || session.user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // CSRF protection
     const body = await request.json();
-    const csrfToken = request.headers.get("X-CSRF-Token") || body._csrf;
+    const csrfToken = readCsrfToken(request, body);
     if (!(await validateCSRFToken(csrfToken))) {
-      return NextResponse.json(
-        { error: "Invalid CSRF token" },
-        { status: 403 }
-      );
+      return jsonError("Invalid CSRF token", 403);
     }
-    
-    // Remove CSRF token from body if present
+
     delete body._csrf;
-    
+
     const { userId, provider, providerAccountId, reason, notes } = body;
 
-    // Sanitize inputs
-    const sanitizedProvider = sanitizeString(String(provider || ""), 50);
-    const sanitizedProviderAccountId = sanitizeString(String(providerAccountId || ""), 200);
+    const parsedProvider = parseOAuthProvider(provider);
+    const sanitizedProviderAccountId = sanitizeString(
+      String(providerAccountId || ""),
+      200
+    );
     const sanitizedReason = sanitizeString(String(reason || ""), 2000);
-    const sanitizedNotes = notes ? sanitizeString(String(notes), 2000) : undefined;
-    const sanitizedUserId = userId ? sanitizeString(String(userId), 50) : undefined;
+    const sanitizedNotes = notes
+      ? sanitizeString(String(notes), 2000)
+      : undefined;
 
-    if (!sanitizedProvider || !sanitizedProviderAccountId || !sanitizedReason) {
-      return NextResponse.json(
-        { error: "Provider, provider account ID, and reason are required" },
-        { status: 400 }
+    if (!parsedProvider || !sanitizedProviderAccountId || !sanitizedReason) {
+      return jsonError(
+        "Provider, provider account ID, and reason are required",
+        400
       );
     }
 
-    // Add to banned providers collection
+    let sanitizedUserId: string | undefined;
+    if (userId) {
+      const objectId = parseObjectIdParam(userId);
+      if (!objectId) {
+        return jsonError("Invalid user ID", 400);
+      }
+      sanitizedUserId = objectId.toString();
+    }
+
     await addBannedProvider({
-      provider: sanitizedProvider,
+      provider: parsedProvider,
       providerAccountId: sanitizedProviderAccountId,
       userId: sanitizedUserId,
       reason: sanitizedReason,
@@ -64,7 +68,6 @@ export async function POST(request: NextRequest) {
       bannedByName: session.user.name || "Unknown",
     });
 
-    // Revalidate paths
     revalidatePath("/dashboard/users");
     revalidatePath("/");
 
@@ -75,11 +78,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    safeLog.error("Error banning provider:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return internalError("Error banning provider:", error);
   }
 }
-

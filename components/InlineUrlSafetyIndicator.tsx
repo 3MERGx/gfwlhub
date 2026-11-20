@@ -3,6 +3,7 @@
 import { FaCheckCircle, FaTimesCircle, FaSpinner } from "react-icons/fa";
 import { useEffect, useState } from "react";
 import { isTrustedUrl } from "@/lib/url-whitelist";
+import { useCSRF } from "@/hooks/useCSRF";
 
 interface InlineUrlSafetyIndicatorProps {
   url: string;
@@ -15,6 +16,7 @@ interface InlineUrlSafetyIndicatorProps {
 export default function InlineUrlSafetyIndicator({
   url,
 }: InlineUrlSafetyIndicatorProps) {
+  const { csrfToken, loading: csrfLoading } = useCSRF();
   const [isChecking, setIsChecking] = useState(false);
   const [isSafe, setIsSafe] = useState<boolean | null>(null);
   const [threatType, setThreatType] = useState<string | null>(null);
@@ -45,6 +47,10 @@ export default function InlineUrlSafetyIndicator({
       return;
     }
 
+    if (csrfLoading || !csrfToken) {
+      return;
+    }
+
     // Debounce the check for non-trusted URLs
     const timeoutId = setTimeout(async () => {
       setIsChecking(true);
@@ -53,21 +59,26 @@ export default function InlineUrlSafetyIndicator({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "X-CSRF-Token": csrfToken,
           },
           body: JSON.stringify({ url }),
         });
 
         if (!response.ok) {
-          const data = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-          setError(data.error || `Failed to check URL (${response.status})`);
+          const data = await response.json().catch(() => ({}));
+          setError(
+            typeof data.error === "string"
+              ? data.error
+              : "Failed to check URL. Please try again later."
+          );
           setIsSafe(null);
         } else {
           const data = await response.json();
           setIsSafe(data.isSafe);
           setThreatType(data.threatType || null);
         }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to check URL");
+      } catch {
+        setError("Failed to check URL. Please try again later.");
         setIsSafe(null);
       } finally {
         setIsChecking(false);
@@ -75,7 +86,7 @@ export default function InlineUrlSafetyIndicator({
     }, 1000); // Wait 1 second after URL is detected
 
     return () => clearTimeout(timeoutId);
-  }, [url]);
+  }, [url, csrfToken, csrfLoading]);
 
   if (!url || url.trim() === "") {
     return null;

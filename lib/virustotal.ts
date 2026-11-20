@@ -1,21 +1,30 @@
 import { createHash } from "crypto";
+import { safeLog } from "@/lib/security";
 
 /**
  * VirusTotal API Integration
  * Free tier: 500 requests/day, 4 requests/minute
  */
 
+/** Control-flow sentinel: URL has never been scanned (safe to return to clients). */
+export const VT_URL_NOT_FOUND = "URL not found in VirusTotal database";
+
+const VT_PUBLIC_ERRORS = {
+  scanFailed: "Failed to scan URL. Please try again later.",
+  reportFailed: "Failed to get scan results. Please try again later.",
+  checkFailed: "Failed to check URL. Please try again later.",
+  unexpected: "VirusTotal request failed. Please try again later.",
+} as const;
+
 /**
- * Path segment for GET /v3/urls/{url_id} — URL-safe base64 (no padding) of the **raw SHA-256 digest**
- * of the UTF-8 URL string (not base64 of the URL itself). See VirusTotal API v3 docs.
+ * Path segment for GET /v3/urls/{url_id}.
+ * VirusTotal accepts the SHA-256 hex of the UTF-8 URL (same token as /gui/url/{id}).
+ * Base64 of the digest bytes is rejected with BadRequestError "Wrong URL id".
  */
 export function virusTotalApiUrlIdentifier(canonicalUrl: string): string {
-  const digest = createHash("sha256").update(canonicalUrl, "utf8").digest();
-  return digest
-    .toString("base64")
-    .replace(/=/g, "")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_");
+  return createHash("sha256")
+    .update(canonicalUrl.trim(), "utf8")
+    .digest("hex");
 }
 
 export interface VirusTotalScanResponse {
@@ -66,6 +75,52 @@ export interface VirusTotalError {
   };
 }
 
+export interface VirusTotalScanSummary {
+  reportUrl: string;
+  malicious: number;
+  suspicious: number;
+  harmless: number;
+  total: number;
+}
+
+/**
+ * Normalize VT URL/analysis report attributes into a compact scan summary.
+ */
+export function summarizeVirusTotalUrlReport(
+  report: VirusTotalReportResponse,
+  fallbackReportUrl?: string
+): VirusTotalScanSummary | null {
+  const attrs = report?.data?.attributes;
+  if (!attrs) return null;
+  const stats = attrs.last_analysis_stats || attrs.stats;
+  if (!stats) return null;
+
+  const malicious = stats.malicious || 0;
+  const suspicious = stats.suspicious || 0;
+  const harmless = stats.harmless || 0;
+  const undetected = stats.undetected || 0;
+  const total = malicious + suspicious + harmless + undetected;
+
+  const rawId = typeof report.data?.id === "string" ? report.data.id : "";
+  // URL object ids are 64-char hex; analysis ids look like u-{hex}-{stamp} and must not be used in /gui/url/
+  const urlObjectId = /^[a-f0-9]{64}$/i.test(rawId) ? rawId : null;
+  const reportUrl =
+    fallbackReportUrl ||
+    (urlObjectId
+      ? `https://www.virustotal.com/gui/url/${urlObjectId}/detection`
+      : "");
+
+  if (!reportUrl) return null;
+
+  return {
+    reportUrl,
+    malicious,
+    suspicious,
+    harmless,
+    total,
+  };
+}
+
 /**
  * Submit a URL to VirusTotal for scanning
  * @param url The URL to scan
@@ -87,10 +142,16 @@ export async function scanUrl(
     });
 
     if (!response.ok) {
-      const errorData = (await response.json()) as VirusTotalError;
+      let errorData: unknown;
+      try {
+        errorData = await response.json();
+      } catch {
+        errorData = { status: response.status };
+      }
+      safeLog.error("VirusTotal scanUrl API error:", errorData);
       return {
         success: false,
-        error: errorData.error?.message || `HTTP ${response.status}`,
+        error: VT_PUBLIC_ERRORS.scanFailed,
       };
     }
 
@@ -99,9 +160,10 @@ export async function scanUrl(
     const analysisId = data.data.id;
     return { success: true, analysisId };
   } catch (error) {
+    safeLog.error("VirusTotal scanUrl unexpected error:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: VT_PUBLIC_ERRORS.unexpected,
     };
   }
 }
@@ -129,19 +191,26 @@ export async function getScanReport(
     );
 
     if (!response.ok) {
-      const errorData = (await response.json()) as VirusTotalError;
+      let errorData: unknown;
+      try {
+        errorData = await response.json();
+      } catch {
+        errorData = { status: response.status };
+      }
+      safeLog.error("VirusTotal getScanReport API error:", errorData);
       return {
         success: false,
-        error: errorData.error?.message || `HTTP ${response.status}`,
+        error: VT_PUBLIC_ERRORS.reportFailed,
       };
     }
 
     const data = (await response.json()) as VirusTotalReportResponse;
     return { success: true, report: data };
   } catch (error) {
+    safeLog.error("VirusTotal getScanReport unexpected error:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: VT_PUBLIC_ERRORS.unexpected,
     };
   }
 }
@@ -174,23 +243,30 @@ export async function getUrlReport(
       if (response.status === 404) {
         return {
           success: false,
-          error: "URL not found in VirusTotal database",
+          error: VT_URL_NOT_FOUND,
         };
       }
-      
-      const errorData = (await response.json()) as VirusTotalError;
+
+      let errorData: unknown;
+      try {
+        errorData = await response.json();
+      } catch {
+        errorData = { status: response.status };
+      }
+      safeLog.error("VirusTotal getUrlReport API error:", errorData);
       return {
         success: false,
-        error: errorData.error?.message || `HTTP ${response.status}`,
+        error: VT_PUBLIC_ERRORS.checkFailed,
       };
     }
 
     const data = (await response.json()) as VirusTotalReportResponse;
     return { success: true, report: data };
   } catch (error) {
+    safeLog.error("VirusTotal getUrlReport unexpected error:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: VT_PUBLIC_ERRORS.unexpected,
     };
   }
 }

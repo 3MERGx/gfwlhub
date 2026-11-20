@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
 import {
   createCorrection,
   getPendingCorrections,
   getAllCorrections,
   canSubmitCorrections,
-  getUserByEmail,
+  canReviewCorrections,
   findRecentPendingCorrection,
 } from "@/lib/crowdsource-service-mongodb";
+import { requireSession } from "@/lib/api-auth";
 import { getGFWLDatabase } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
 import { CorrectionField, Correction } from "@/types/crowdsource";
+import { isCorrectionField, mustObjectId } from "@/lib/mongo-sanitize";
+import { sanitizeCorrectionValue } from "@/lib/request-validation";
 import { notifyCorrectionSubmitted } from "@/lib/discord-webhook";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 import { revalidatePath } from "next/cache";
@@ -23,24 +23,16 @@ import { resolveVirusTotalGuiUrlForDownloadLink } from "@/lib/virustotal-resolve
 // POST - Submit a new correction
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireSession();
+    if (!auth.ok) return auth.response;
+    const { session, user } = auth;
+
+    const identifier = getClientIdentifier(request, user.id);
     if (!rateLimiters.api.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
       );
-    }
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Get user from database
-    const user = await getUserByEmail(session.user.email!);
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     // Check if user can submit corrections
@@ -98,6 +90,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!isCorrectionField(sanitizedField)) {
+      return NextResponse.json(
+        { error: "Invalid field" },
+        { status: 400 }
+      );
+    }
+
     // Validate newValue based on field type
     // Required fields (title, status, activationType) cannot be null/empty
     const requiredFields = ["title", "status", "activationType"];
@@ -118,10 +117,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const sanitizedOldResult = sanitizeCorrectionValue(
+      oldValue,
+      sanitizedField
+    );
+    if (!sanitizedOldResult.ok) {
+      return NextResponse.json(
+        { error: "Invalid oldValue type" },
+        { status: 400 }
+      );
+    }
+    const sanitizedOldValue = sanitizedOldResult.value;
+
     // Sanitize newValue if it's a string
-    let sanitizedNewValue = newValue;
+    let sanitizedNewValue: unknown = newValue;
     if (typeof newValue === "string") {
-      sanitizedNewValue = sanitizeString(newValue, 5000);
+      const sanitizedStringValue = sanitizeString(newValue, 5000);
+      sanitizedNewValue = sanitizedStringValue;
       
       // Validate URL fields for NSFW domains and direct download links
       const urlFields: string[] = [
@@ -140,7 +152,7 @@ export async function POST(request: NextRequest) {
         const { isNsfwDomainBlocked, isDirectDownloadLink } = await import("@/lib/nsfw-blacklist");
         
         // Check NSFW domains
-        const nsfwCheck = isNsfwDomainBlocked(sanitizedNewValue);
+        const nsfwCheck = isNsfwDomainBlocked(sanitizedStringValue);
         if (nsfwCheck.isBlocked) {
           return NextResponse.json(
             { error: nsfwCheck.reason || "This URL is not allowed" },
@@ -150,7 +162,7 @@ export async function POST(request: NextRequest) {
         
         // Check for direct download links in non-download fields
         if (sanitizedField !== "downloadLink" && sanitizedField !== "communityAlternativeDownloadLink") {
-          const downloadCheck = isDirectDownloadLink(sanitizedNewValue);
+          const downloadCheck = isDirectDownloadLink(sanitizedStringValue);
           if (downloadCheck.isDirectDownload) {
             return NextResponse.json(
               { error: downloadCheck.reason || "Direct download links are not allowed in this field" },
@@ -160,8 +172,17 @@ export async function POST(request: NextRequest) {
         }
       }
     } else if (Array.isArray(newValue)) {
-      sanitizedNewValue = newValue.map((item) => 
-        typeof item === "string" ? sanitizeString(item, 500) : item
+      sanitizedNewValue = newValue
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => sanitizeString(item, 500));
+    } else if (typeof newValue === "boolean" && sanitizedField === "isUnplayable") {
+      sanitizedNewValue = newValue;
+    } else if (newValue === null) {
+      sanitizedNewValue = null;
+    } else {
+      return NextResponse.json(
+        { error: "Invalid newValue type" },
+        { status: 400 }
       );
     }
 
@@ -170,7 +191,12 @@ export async function POST(request: NextRequest) {
     const gamesCollection = db.collection("Games");
     const currentGame = await gamesCollection.findOne(
       { slug: sanitizedGameSlug },
-      { projection: { [sanitizedField]: 1 } }
+      {
+        projection: {
+          [sanitizedField]: 1,
+          communityAlternativeName: 1,
+        },
+      }
     );
     if (currentGame && sanitizedField in currentGame) {
       const currentValue = currentGame[sanitizedField as keyof typeof currentGame];
@@ -185,8 +211,46 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (
+      sanitizedField === "communityAlternativeDownloadLink" &&
+      typeof sanitizedNewValue === "string" &&
+      sanitizedNewValue.trim()
+    ) {
+      const existingName =
+        typeof currentGame?.communityAlternativeName === "string"
+          ? currentGame.communityAlternativeName.trim()
+          : "";
+      if (!existingName) {
+        const pendingName = await db.collection("corrections").findOne({
+          gameSlug: sanitizedGameSlug,
+          submittedBy: user.id,
+          field: "communityAlternativeName",
+          status: "pending",
+          submittedAt: { $gte: new Date(Date.now() - 10 * 60 * 1000) },
+        });
+        const pendingNameValue =
+          typeof pendingName?.newValue === "string"
+            ? pendingName.newValue.trim()
+            : "";
+        if (!pendingNameValue) {
+          return NextResponse.json(
+            {
+              error:
+                "A community alternative name is required when adding a community download link.",
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     let autoVirusTotalUrl: string | undefined;
-    if (sanitizedField === "downloadLink" && typeof sanitizedNewValue === "string") {
+    let virusTotalScan: Correction["virusTotalScan"] | undefined;
+    if (
+      (sanitizedField === "downloadLink" ||
+        sanitizedField === "communityAlternativeDownloadLink") &&
+      typeof sanitizedNewValue === "string"
+    ) {
       const trimmed = sanitizedNewValue.trim();
       if (/^https?:\/\//i.test(trimmed)) {
         try {
@@ -217,14 +281,21 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: resolved.error }, { status: 422 });
           }
           autoVirusTotalUrl = resolved.guiUrl;
+          if (resolved.scan) {
+            virusTotalScan = {
+              ...resolved.scan,
+              scannedAt: new Date(),
+              source: "submit",
+            };
+          }
         }
       }
     }
 
-    const correctionExtras =
-      autoVirusTotalUrl !== undefined
-        ? { autoVirusTotalUrl }
-        : {};
+    const correctionExtras = {
+      ...(autoVirusTotalUrl !== undefined ? { autoVirusTotalUrl } : {}),
+      ...(virusTotalScan !== undefined ? { virusTotalScan } : {}),
+    };
 
     // Check for recent pending correction from same user/game (within 10 minutes)
     const recentCorrection = await findRecentPendingCorrection(
@@ -262,7 +333,7 @@ export async function POST(request: NextRequest) {
             submittedBy: user.id,
             field: sanitizedField,
             status: "pending",
-            _id: { $ne: new ObjectId(recentCorrection.id) }, // Don't update the one we just found (it might be the same one)
+            _id: { $ne: mustObjectId(recentCorrection.id) }, // Don't update the one we just found (it might be the same one)
           },
           {
             $set: {
@@ -276,14 +347,14 @@ export async function POST(request: NextRequest) {
         // Get existing webhook message IDs before marking as superseded
         // Need to fetch raw document to access discordMessageIds field
         const recentCorrectionDoc = await correctionsCollection.findOne(
-          { _id: new ObjectId(recentCorrection.id) }
+          { _id: mustObjectId(recentCorrection.id) }
         );
         const existingMessageIds = recentCorrectionDoc?.discordMessageIds as string[] | undefined ||
           (recentCorrectionDoc?.discordMessageId ? [recentCorrectionDoc.discordMessageId as string] : null);
         
         // Also mark the recent correction itself if it's still pending
         await correctionsCollection.updateOne(
-          { _id: new ObjectId(recentCorrection.id), status: "pending" },
+          { _id: mustObjectId(recentCorrection.id), status: "pending" },
           {
             $set: {
               status: "superseded",
@@ -301,7 +372,7 @@ export async function POST(request: NextRequest) {
           submittedBy: user.id,
           submittedByName: user.name,
           field: sanitizedField as CorrectionField,
-          oldValue: oldValue === undefined ? null : oldValue,
+          oldValue: sanitizedOldValue,
           newValue: sanitizedNewValue,
           reason: sanitizedReason,
           ...correctionExtras,
@@ -369,7 +440,7 @@ export async function POST(request: NextRequest) {
           }]).then(async (messageIds) => {
             if (messageIds && messageIds.length > 0 && correction) {
               await correctionsCollection.updateOne(
-                { _id: new ObjectId(correction.id) },
+                { _id: mustObjectId(correction.id) },
                 { $set: { discordMessageIds: messageIds } }
               );
             }
@@ -398,7 +469,7 @@ export async function POST(request: NextRequest) {
         submittedBy: user.id,
         submittedByName: user.name,
         field: sanitizedField as CorrectionField,
-        oldValue: oldValue === undefined ? null : oldValue,
+        oldValue: sanitizedOldValue,
         newValue: sanitizedNewValue,
         reason: sanitizedReason,
         ...correctionExtras,
@@ -434,7 +505,7 @@ export async function POST(request: NextRequest) {
       // Update webhook with merged corrections
       // Need to fetch raw document to access discordMessageIds field
       const recentCorrectionDoc = await correctionsCollection.findOne(
-        { _id: new ObjectId(recentCorrection.id) }
+        { _id: mustObjectId(recentCorrection.id) }
       );
       const existingMessageIds = recentCorrectionDoc?.discordMessageIds as string[] | undefined ||
         (recentCorrectionDoc?.discordMessageId ? [recentCorrectionDoc.discordMessageId as string] : null);
@@ -467,7 +538,7 @@ export async function POST(request: NextRequest) {
         submittedBy: user.id,
         submittedByName: user.name,
         field: sanitizedField as CorrectionField,
-        oldValue: oldValue === undefined ? null : oldValue,
+        oldValue: sanitizedOldValue,
         newValue: sanitizedNewValue,
         reason: sanitizedReason,
         ...correctionExtras,
@@ -489,7 +560,7 @@ export async function POST(request: NextRequest) {
           const db = await getGFWLDatabase();
           const correctionsCollection = db.collection("corrections");
           await correctionsCollection.updateOne(
-            { _id: new ObjectId(correction.id) },
+            { _id: mustObjectId(correction.id) },
             { $set: { discordMessageIds: messageIds } }
           );
         }
@@ -516,24 +587,16 @@ export async function POST(request: NextRequest) {
 // GET - Fetch corrections (with optional filters)
 export async function GET(request: NextRequest) {
   try {
-    // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireSession();
+    if (!auth.ok) return auth.response;
+    const { user } = auth;
+
+    const identifier = getClientIdentifier(request, user.id);
     if (!rateLimiters.api.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
       );
-    }
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Get user from database
-    const user = await getUserByEmail(session.user.email!);
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     const searchParams = request.nextUrl.searchParams;
@@ -542,7 +605,7 @@ export async function GET(request: NextRequest) {
     const userId = sanitizeString(searchParams.get("userId") || "", 50);
 
     // Regular users can only see their own corrections
-    if (user.role === "user") {
+    if (!canReviewCorrections(user)) {
       const { getCorrectionsByUser } = await import(
         "@/lib/crowdsource-service-mongodb"
       );

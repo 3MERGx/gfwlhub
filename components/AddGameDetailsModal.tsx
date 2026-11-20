@@ -52,6 +52,7 @@ export default function AddGameDetailsModal({
     instructions: game.instructions || [],
     knownIssues: game.knownIssues || [],
     communityTips: game.communityTips || [],
+    activationNotes: game.activationNotes || "",
     additionalDRM: game.additionalDRM || "",
     playabilityStatus: game.playabilityStatus || "",
     isUnplayable: game.isUnplayable || false,
@@ -446,6 +447,7 @@ export default function AddGameDetailsModal({
               formData.communityTips.length > 0
                 ? formData.communityTips
                 : undefined,
+            activationNotes: formData.activationNotes || undefined,
             additionalDRM: formData.additionalDRM || undefined,
             playabilityStatus: formData.playabilityStatus || undefined,
             isUnplayable: formData.isUnplayable || undefined,
@@ -925,6 +927,24 @@ export default function AddGameDetailsModal({
                   <option value="unsupported">Unsupported</option>
                 </select>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-[rgb(var(--text-secondary))] mb-2">
+                Activation Notes
+              </label>
+              <textarea
+                value={formData.activationNotes}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    activationNotes: e.target.value,
+                  })
+                }
+                rows={2}
+                placeholder="Optional. Shown under the badges when this title needs extra activation guidance."
+                className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
+              />
             </div>
           </div>
 

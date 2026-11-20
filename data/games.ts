@@ -1,5 +1,6 @@
 export type ActivationType = "Legacy (5x5)" | "Legacy (Per-Title)" | "SSA";
 export type SupportStatus = "supported" | "testing" | "unsupported";
+export type DownloadType = "game_files" | "launcher";
 export type PlayabilityStatus =
   | "playable" // Normal state - playable with GFWL
   | "unplayable" // Completely unplayable (original form)
@@ -29,12 +30,25 @@ export interface Game {
   publishedBy?: string;
   downloadLink?: string;
   fileName?: string;
+  /** What the primary download is. Defaults to game files. */
+  downloadType?: DownloadType;
+  /**
+   * Whether the hosted download still needs GFWL / 5x5.
+   * Defaults to true. Set false for community builds that strip GFWL.
+   */
+  downloadRequiresGfwl?: boolean;
   purchaseLink?: string;
   gogDreamlistLink?: string;
   instructions?: string[];
   virusTotalUrl?: string;
   knownIssues?: string[];
   communityTips?: string[];
+  /**
+   * Optional per-game play/activation note shown under the badges.
+   * Use this instead of generic 5x5/SSA copy when the hosted files differ
+   * from the original GFWL activation type.
+   */
+  activationNotes?: string;
   additionalDRM?: string;
   // New playability fields
   playabilityStatus?: PlayabilityStatus; // Defaults to "playable" if not set
@@ -42,6 +56,8 @@ export interface Game {
   communityAlternativeName?: string; // e.g., "Project Celeste"
   communityAlternativeUrl?: string; // Website/store page URL for the community alternative
   communityAlternativeDownloadLink?: string; // Direct download link (optional)
+  /** VirusTotal URL-scan report for communityAlternativeDownloadLink only (not the main download). */
+  communityAlternativeVirusTotalUrl?: string;
   remasteredName?: string; // e.g., "FlatOut: Ultimate Carnage Collector's Edition"
   remasteredPlatform?: string; // e.g., "Steam", "Epic Games", etc.
 }
@@ -65,7 +81,11 @@ export const games: Game[] = [
     redditLink: "https://www.reddit.com/r/shadowrunfps/",
     featureEnabled: true,
     downloadLink: "https://downloads.shadowrunfps.com/launcher/Shadowrun%20FPS%20Launcher%20Setup%200.9.112.exe",
-    fileName: "Shadowrun Launcher",
+    fileName: "Shadowrun FPS Launcher",
+    downloadType: "launcher",
+    // Set downloadRequiresGfwl: false and update activationNotes when the 1.5 GFWL-stripped launcher is published.
+    activationNotes:
+      "After installing the launcher, run the 5x5 activation bypass.",
     // purchaseLink: "https://www.gog.com/en/game/shadowrun_returns",
     virusTotalUrl:
       "https://www.virustotal.com/gui/url/5c3783fa496b5e468c580cf7cf30820a107451aea22ff7eaae68513a6ca00432/detection",

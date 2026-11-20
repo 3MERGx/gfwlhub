@@ -13,6 +13,7 @@ export interface Game {
   downloadLink?: string;
   knownIssues?: string[];
   communityTips?: string[];
+  activationNotes?: string;
   featureEnabled?: boolean;
   readyToPublish?: boolean;
   publishedAt?: Date;
@@ -22,6 +23,7 @@ export interface Game {
   communityAlternativeName?: string;
   communityAlternativeUrl?: string;
   communityAlternativeDownloadLink?: string;
+  communityAlternativeVirusTotalUrl?: string;
   remasteredName?: string;
   remasteredPlatform?: string;
 }

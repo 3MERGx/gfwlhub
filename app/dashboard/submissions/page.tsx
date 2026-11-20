@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import {
   FaSearch,
@@ -15,6 +15,7 @@ import {
   FaUser,
   FaShieldAlt,
   FaSpinner,
+  FaExclamationTriangle,
 } from "react-icons/fa";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -25,12 +26,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getFieldDisplayName } from "@/lib/field-display";
+import {
+  getFieldDisplayName,
+  getCorrectionStatusLabel,
+} from "@/lib/field-display";
+import { CORRECTION_FIELDS } from "@/types/crowdsource";
 import { valuesAreEffectivelySame } from "@/lib/normalize-value";
 import { useCSRF } from "@/hooks/useCSRF";
 import { useDebounce } from "@/hooks/useDebounce";
 import { usePusherChannel } from "@/hooks/usePusherChannel";
 import { PUSHER_EVENTS } from "@/lib/pusher-client";
+import CorrectionValueDiff from "@/components/CorrectionValueDiff";
+import SubmitterHoverLink from "@/components/SubmitterHoverLink";
+import DashboardPageHeader from "@/components/dashboard/DashboardPageHeader";
+import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import DashboardErrorBanner from "@/components/dashboard/DashboardErrorBanner";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import { useToast } from "@/components/ui/toast-context";
+import { formatReviewDateTime } from "@/lib/format-review-date";
+import { safeLog } from "@/lib/security";
 import Image from "next/image";
 
 // Image Preview Component
@@ -179,16 +193,67 @@ interface Correction {
   oldValue: string | number | boolean | string[] | null;
   newValue: string | number | boolean | string[] | null;
   reason: string;
-  status: "pending" | "approved" | "rejected" | "modified";
+  status: "pending" | "approved" | "rejected" | "modified" | "superseded";
   reviewedBy?: string;
   reviewedByName?: string;
   reviewedAt?: Date;
   reviewNotes?: string;
   finalValue?: string | number | boolean | string[] | null;
+  autoVirusTotalUrl?: string;
+  virusTotalScan?: {
+    reportUrl: string;
+    malicious: number;
+    suspicious: number;
+    harmless: number;
+    total: number;
+    scannedAt: Date | string;
+    source?: "submit" | "review";
+  };
+}
+
+function isCleanVirusTotalScan(
+  scan: Correction["virusTotalScan"] | undefined
+): boolean {
+  if (!scan || !(scan.total > 0)) return false;
+  return (scan.malicious || 0) + (scan.suspicious || 0) === 0;
+}
+
+function DownloadLinkScanBadge({
+  scan,
+}: {
+  scan: Correction["virusTotalScan"] | undefined;
+}) {
+  if (isCleanVirusTotalScan(scan)) {
+    return (
+      <span className="px-2 py-1 rounded text-xs border bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-500/30 inline-flex items-center gap-1 font-semibold">
+        <FaCheck size={10} />
+        Download Link
+      </span>
+    );
+  }
+
+  const flagged =
+    scan && (scan.malicious || 0) + (scan.suspicious || 0) > 0;
+  if (flagged) {
+    return (
+      <span className="px-2 py-1 rounded text-xs border bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/30 inline-flex items-center gap-1 font-semibold">
+        <FaExclamationTriangle size={10} />
+        Download Link
+      </span>
+    );
+  }
+
+  return (
+    <span className="px-2 py-1 rounded text-xs border bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-500/30 inline-flex items-center gap-1 font-semibold">
+      <FaExclamationTriangle size={10} />
+      Download Link
+    </span>
+  );
 }
 
 export default function SubmissionsPage() {
   const { data: session } = useSession();
+  const { showToast } = useToast();
   const [corrections, setCorrections] = useState<Correction[]>([]);
   const [filteredCorrections, setFilteredCorrections] = useState<Correction[]>(
     []
@@ -203,19 +268,52 @@ export default function SubmissionsPage() {
     useState<Correction | null>(null);
   const [selectedBatch, setSelectedBatch] = useState<Correction[] | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage] = useState(20);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [userIdFilter, setUserIdFilter] = useState<string | null>(null);
+  const [userNameFilter, setUserNameFilter] = useState<string | null>(null);
+  const reviewModalOpenRef = useRef(false);
+  const fetchInFlightRef = useRef(false);
 
   // Get userId from URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setUserIdFilter(params.get("userId"));
+    setUserNameFilter(params.get("userName"));
   }, []);
 
-  // Fetch real corrections from API (cache-bust so new submissions show immediately)
-  const fetchCorrections = async () => {
-    setLoading(true);
+  useEffect(() => {
+    reviewModalOpenRef.current = Boolean(selectedCorrection || selectedBatch);
+  }, [selectedCorrection, selectedBatch]);
+
+  const applyVirusTotalScanToCorrection = (
+    correctionId: string,
+    scan: NonNullable<Correction["virusTotalScan"]>
+  ) => {
+    const patch = {
+      virusTotalScan: scan,
+      autoVirusTotalUrl: scan.reportUrl,
+    };
+    setCorrections((prev) =>
+      prev.map((c) => (c.id === correctionId ? { ...c, ...patch } : c))
+    );
+    setSelectedCorrection((prev) =>
+      prev?.id === correctionId ? { ...prev, ...patch } : prev
+    );
+    setSelectedBatch((prev) =>
+      prev
+        ? prev.map((c) => (c.id === correctionId ? { ...c, ...patch } : c))
+        : prev
+    );
+  };
+
+  // Fetch corrections. Background refreshes stay silent so opening Review doesn't flash the list.
+  const fetchCorrections = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
+    if (fetchInFlightRef.current && silent) return;
+    fetchInFlightRef.current = true;
+    if (!silent) setLoading(true);
     try {
       const url = `/api/corrections?_t=${Date.now()}`;
       const response = await fetch(url, { cache: "no-store" });
@@ -223,35 +321,46 @@ export default function SubmissionsPage() {
         const data = await response.json();
         const correctionsData = data.corrections || [];
         setCorrections(correctionsData);
-        // Filtered corrections will be updated by the useEffect that watches corrections
-      } else {
-        console.error("Failed to fetch corrections");
+        setFetchError(null);
+      } else if (!silent) {
+        setFetchError("Failed to fetch corrections. Please try again.");
+        showToast("Failed to fetch corrections", 3000, "error");
       }
     } catch (error) {
-      console.error("Error fetching corrections:", error);
+      safeLog.error("Error fetching corrections:", error);
+      if (!silent) {
+        setFetchError("Failed to fetch corrections. Please try again.");
+        showToast("Failed to fetch corrections", 3000, "error");
+      }
     } finally {
-      setLoading(false);
+      fetchInFlightRef.current = false;
+      if (!silent) setLoading(false);
     }
-  };
+  }, [showToast]);
 
   // Debounce search query
   const debouncedSearchQuery = useDebounce(searchQuery, 400);
 
   useEffect(() => {
-    fetchCorrections();
+    void fetchCorrections();
   }, []);
 
   // Real-time: refetch when server broadcasts that submissions changed
   usePusherChannel(PUSHER_EVENTS.SUBMISSIONS_UPDATED, () => {
-    fetchCorrections();
+    if (reviewModalOpenRef.current) return;
+    void fetchCorrections({ silent: true });
     window.dispatchEvent(new CustomEvent("correctionsUpdated"));
   });
 
-  // Fallback: refetch when this tab regains focus (catches submissions from another tab or missed Pusher)
+  // Fallback: silent refetch when tab becomes visible again (not on every in-page focus)
   useEffect(() => {
-    const onFocus = () => fetchCorrections();
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      if (reviewModalOpenRef.current) return;
+      void fetchCorrections({ silent: true });
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
 
   // Filter and sort corrections
@@ -318,6 +427,54 @@ export default function SubmissionsPage() {
     sortOrder,
     userIdFilter,
   ]);
+
+  const userFilterDisplayName =
+    userNameFilter ||
+    corrections.find((correction) => correction.submittedBy === userIdFilter)
+      ?.submittedByName ||
+    null;
+
+  useEffect(() => {
+    if (!userIdFilter || userFilterDisplayName) return;
+    let cancelled = false;
+    const loadName = async () => {
+      try {
+        const response = await fetch(
+          `/api/users/${encodeURIComponent(userIdFilter)}`,
+          { cache: "no-store" }
+        );
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!cancelled && data.name) {
+          setUserNameFilter(data.name);
+        }
+      } catch (error) {
+        safeLog.error("Error fetching submitter name:", error);
+      }
+    };
+    void loadName();
+    return () => {
+      cancelled = true;
+    };
+  }, [userIdFilter, userFilterDisplayName]);
+
+  const hasActiveFilters = Boolean(
+    debouncedSearchQuery ||
+      fieldFilter !== "all" ||
+      userIdFilter ||
+      statusFilter !== "pending"
+  );
+
+  const clearCorrectionFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("pending");
+    setFieldFilter("all");
+    setUserIdFilter(null);
+    setUserNameFilter(null);
+    if (typeof window !== "undefined" && window.location.search) {
+      window.history.replaceState({}, "", "/dashboard/submissions");
+    }
+  };
 
   // Group corrections by user + game + timeframe (10 minutes)
   const groupCorrections = (
@@ -415,6 +572,8 @@ export default function SubmissionsPage() {
         return "bg-red-500/20 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-500/50 dark:border-red-500/30";
       case "modified":
         return "bg-blue-500/20 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-500/50 dark:border-blue-500/30";
+      case "superseded":
+        return "bg-gray-500/20 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400 border-gray-500/50 dark:border-gray-500/30";
       default:
         return "bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] border-[rgb(var(--border-color))]";
     }
@@ -424,35 +583,41 @@ export default function SubmissionsPage() {
     <DashboardLayout requireRole="reviewer">
       <div className="container mx-auto px-4 py-6 md:py-8">
         <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="mb-6">
-            <Link
-              href="/dashboard"
-              className="text-[#107c10] hover:underline text-sm mb-2 inline-block"
-            >
-              ← Back to Dashboard
-            </Link>
-            <h1 className="text-2xl md:text-3xl font-bold text-[rgb(var(--text-primary))] mb-2">
-              Review Submissions
-            </h1>
-            <p className="text-[rgb(var(--text-secondary))] text-sm md:text-base">
-              Review and approve game information corrections
-            </p>
+          <DashboardPageHeader
+            title="Review corrections"
+            subtitle="Review and approve game information corrections"
+          >
             {userIdFilter && (
               <div className="mt-3 p-3 bg-[#107c10]/10 border border-[#107c10]/30 rounded-lg">
-                <p className="text-sm text-[rgb(var(--text-primary))]">
-                  <span className="font-semibold">Filtered by user:</span>{" "}
-                  Showing corrections for user ID: {userIdFilter}
+                <p className="text-sm text-[rgb(var(--text-primary))] flex flex-wrap items-center gap-2">
+                  <span className="font-semibold">Filtered by user:</span>
+                  <SubmitterHoverLink
+                    userId={userIdFilter}
+                    name={userFilterDisplayName || "Loading name…"}
+                  />
                   <Link
                     href="/dashboard/submissions"
-                    className="ml-2 text-[#107c10] hover:underline inline-flex items-center gap-1"
+                    onClick={() => {
+                      setUserIdFilter(null);
+                      setUserNameFilter(null);
+                    }}
+                    className="text-[#107c10] hover:underline inline-flex items-center gap-1"
                   >
                     Clear filter
                   </Link>
                 </p>
               </div>
             )}
-          </div>
+          </DashboardPageHeader>
+
+          {fetchError && (
+            <DashboardErrorBanner
+              message={fetchError}
+              onRetry={() => {
+                void fetchCorrections();
+              }}
+            />
+          )}
 
           {/* Search and Controls */}
           <div className="bg-[rgb(var(--bg-card))] rounded-lg p-4 mb-6">
@@ -493,7 +658,8 @@ export default function SubmissionsPage() {
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="approved">Approved</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
-                  <SelectItem value="modified">Modified</SelectItem>
+                  <SelectItem value="modified">Approved with edits</SelectItem>
+                  <SelectItem value="superseded">Superseded</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -504,13 +670,11 @@ export default function SubmissionsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Fields</SelectItem>
-                  <SelectItem value="title">Title</SelectItem>
-                  <SelectItem value="description">Description</SelectItem>
-                  <SelectItem value="developer">Developer</SelectItem>
-                  <SelectItem value="publisher">Publisher</SelectItem>
-                  <SelectItem value="releaseDate">Release Date</SelectItem>
-                  <SelectItem value="genres">Genres</SelectItem>
-                  <SelectItem value="platforms">Platforms</SelectItem>
+                  {CORRECTION_FIELDS.map((fieldKey) => (
+                    <SelectItem key={fieldKey} value={fieldKey}>
+                      {getFieldDisplayName(fieldKey)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 
@@ -586,11 +750,7 @@ export default function SubmissionsPage() {
             Showing {startIndex + 1}-
             {Math.min(endIndex, groupedCorrections.length)} of{" "}
             {groupedCorrections.length} item
-            {groupedCorrections.length !== 1 ? "s" : ""} (
-            {filteredCorrections.length} correction
-            {filteredCorrections.length !== 1 ? "s" : ""})
-            {filteredCorrections.length !== corrections.length &&
-              ` (filtered from ${corrections.length} total)`}
+            {groupedCorrections.length !== 1 ? "s" : ""}
           </div>
 
           {/* Submissions List */}
@@ -599,19 +759,27 @@ export default function SubmissionsPage() {
               <div className="bg-[rgb(var(--bg-card))] rounded-lg p-12 text-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#107c10] mx-auto mb-4"></div>
                 <p className="text-[rgb(var(--text-secondary))]">
-                  Loading submissions...
+                  Loading corrections...
                 </p>
               </div>
             ) : paginatedCorrections.length === 0 ? (
-              <div className="bg-[rgb(var(--bg-card))] rounded-lg p-8 text-center">
-                <FaClock
-                  className="mx-auto text-[rgb(var(--text-muted))] mb-4"
-                  size={48}
-                />
-                <p className="text-[rgb(var(--text-secondary))]">
-                  No submissions found
-                </p>
-              </div>
+              <DashboardEmptyState
+                title={
+                  debouncedSearchQuery
+                    ? "No corrections found matching your search."
+                    : statusFilter === "all"
+                      ? "No corrections found."
+                      : `No ${statusFilter} corrections.`
+                }
+                description={
+                  debouncedSearchQuery
+                    ? "Try different keywords or clear the search."
+                    : statusFilter !== "all"
+                      ? 'Try "All Statuses" to see other corrections.'
+                      : undefined
+                }
+                onClearFilters={hasActiveFilters ? clearCorrectionFilters : undefined}
+              />
             ) : (
               paginatedCorrections.map((item, index) => {
                 interface SessionUser {
@@ -651,8 +819,8 @@ export default function SubmissionsPage() {
             )}
           </div>
 
-          {/* Pagination - Only show if more than 50 items */}
-          {groupedCorrections.length > 50 && totalPages > 1 && (
+          {/* Pagination */}
+          {totalPages > 1 && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
               <div className="text-sm text-[rgb(var(--text-secondary))]">
                 Page {currentPage} of {totalPages}
@@ -713,10 +881,17 @@ export default function SubmissionsPage() {
               correction={selectedCorrection}
               onClose={() => setSelectedCorrection(null)}
               getFieldDisplayName={getFieldDisplayName}
-              onReview={async () => {
+              onVirusTotalScanSaved={applyVirusTotalScanToCorrection}
+              onReview={async (action) => {
                 // Refetch first so list and counts update before closing modal
-                await fetchCorrections();
+                await fetchCorrections({ silent: true });
                 window.dispatchEvent(new CustomEvent("correctionsUpdated"));
+                const messages = {
+                  approve: "Correction approved",
+                  reject: "Correction rejected",
+                  modify: "Correction modified",
+                };
+                showToast(messages[action], 3000, "success");
                 setSelectedCorrection(null);
               }}
             />
@@ -728,9 +903,11 @@ export default function SubmissionsPage() {
               corrections={selectedBatch}
               onClose={() => setSelectedBatch(null)}
               getFieldDisplayName={getFieldDisplayName}
+              onVirusTotalScanSaved={applyVirusTotalScanToCorrection}
               onReview={async () => {
-                await fetchCorrections();
+                await fetchCorrections({ silent: true });
                 window.dispatchEvent(new CustomEvent("correctionsUpdated"));
+                showToast("Corrections reviewed", 3000, "success");
                 setSelectedBatch(null);
               }}
             />
@@ -831,8 +1008,7 @@ function CorrectionCard({
             correction.status
           )}`}
         >
-          {correction.status.charAt(0).toUpperCase() +
-            correction.status.slice(1)}
+          {getCorrectionStatusLabel(correction.status)}
         </span>
         <span className="px-2 py-1 rounded text-xs border bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/30 inline-flex items-center gap-1">
           <FaEdit size={10} />
@@ -848,9 +1024,7 @@ function CorrectionCard({
         )}
         {(correction.field === "downloadLink" ||
           correction.field === "communityAlternativeDownloadLink") && (
-          <span className="px-2 py-1 rounded text-xs border bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-500/30 inline-flex items-center gap-1 font-semibold">
-            ⚠️ Download Link
-          </span>
+          <DownloadLinkScanBadge scan={correction.virusTotalScan} />
         )}
       </div>
 
@@ -886,10 +1060,13 @@ function CorrectionCard({
       <div className="flex flex-wrap items-center gap-2 text-xs text-[rgb(var(--text-secondary))]">
         <div className="flex items-center gap-1">
           <FaUser size={10} />
-          <span>{correction.submittedByName}</span>
+          <SubmitterHoverLink
+            userId={correction.submittedBy}
+            name={correction.submittedByName}
+          />
         </div>
         <span>•</span>
-        <span>{new Date(correction.submittedAt).toLocaleDateString()}</span>
+        <span>{formatReviewDateTime(correction.submittedAt)}</span>
       </div>
     </div>
   );
@@ -957,16 +1134,18 @@ function BatchCorrectionCard({
       <div className="mb-3 p-3 bg-[#107c10]/10 rounded-lg border border-[#107c10]/30">
         <div className="flex items-center gap-2 mb-2">
           <FaUser size={12} className="text-[rgb(var(--text-secondary))]" />
-          <span className="text-sm font-medium text-[rgb(var(--text-primary))]">
-            {firstCorrection.submittedByName}
-          </span>
+          <SubmitterHoverLink
+            userId={firstCorrection.submittedBy}
+            name={firstCorrection.submittedByName}
+            className="text-sm font-medium text-[rgb(var(--text-primary))]"
+          />
           <span className="text-xs text-[rgb(var(--text-muted))]">
-            • {new Date(firstCorrection.submittedAt).toLocaleString()}
+            • {formatReviewDateTime(firstCorrection.submittedAt)}
           </span>
         </div>
         <div className="text-xs text-[rgb(var(--text-secondary))]">
           {corrections.length} correction{corrections.length > 1 ? "s" : ""}{" "}
-          submitted within 5 minutes
+          submitted within 10 minutes
         </div>
       </div>
 
@@ -984,6 +1163,15 @@ function BatchCorrectionCard({
             {getFieldDisplayName(field)}
           </span>
         ))}
+        {corrections
+          .filter(
+            (c) =>
+              c.field === "downloadLink" ||
+              c.field === "communityAlternativeDownloadLink"
+          )
+          .map((c) => (
+            <DownloadLinkScanBadge key={`vt-${c.id}`} scan={c.virusTotalScan} />
+          ))}
       </div>
 
       {/* Preview of Changes */}
@@ -1029,11 +1217,284 @@ function BatchCorrectionCard({
   );
 }
 
+interface VirusTotalScanResult {
+  url: string;
+  malicious: number;
+  harmless: number;
+  suspicious: number;
+  total: number;
+  reportUrl?: string;
+  scannedAt?: string;
+  source?: "submit" | "review";
+}
+
+function scanResultFromCorrection(
+  url: string,
+  correction: Pick<Correction, "virusTotalScan" | "autoVirusTotalUrl">
+): VirusTotalScanResult | null {
+  const saved = correction.virusTotalScan;
+  if (saved?.reportUrl) {
+    return {
+      url,
+      malicious: saved.malicious || 0,
+      harmless: saved.harmless || 0,
+      suspicious: saved.suspicious || 0,
+      total: saved.total || 0,
+      reportUrl: saved.reportUrl,
+      scannedAt: saved.scannedAt
+        ? new Date(saved.scannedAt).toISOString()
+        : undefined,
+      source: saved.source,
+    };
+  }
+  if (correction.autoVirusTotalUrl) {
+    return {
+      url,
+      malicious: 0,
+      harmless: 0,
+      suspicious: 0,
+      total: 0,
+      reportUrl: correction.autoVirusTotalUrl,
+      source: "submit",
+    };
+  }
+  return null;
+}
+
+function VirusTotalScanPanel({
+  url,
+  correctionId,
+  csrfToken,
+  scanningUrl,
+  setScanningUrl,
+  scanResult,
+  setScanResult,
+  setError,
+  onScanPersisted,
+}: {
+  url: string;
+  correctionId?: string;
+  csrfToken: string | null;
+  scanningUrl: string | null;
+  setScanningUrl: (url: string | null) => void;
+  scanResult: VirusTotalScanResult | null;
+  setScanResult: (result: VirusTotalScanResult | null) => void;
+  setError: (error: string) => void;
+  onScanPersisted?: (scan: NonNullable<Correction["virusTotalScan"]>) => void;
+}) {
+  const activeResult =
+    scanResult && scanResult.url === url ? scanResult : null;
+  const flagged = activeResult
+    ? activeResult.malicious + activeResult.suspicious
+    : 0;
+  const isClean = flagged === 0;
+  const hasEngineCounts = Boolean(activeResult && activeResult.total > 0);
+
+  const runScan = async () => {
+    setScanningUrl(url);
+    try {
+      const response = await fetch("/api/virustotal/scan", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken || "",
+        },
+        body: JSON.stringify({
+          url,
+          action: "scan",
+          ...(correctionId ? { correctionId } : {}),
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        setError(data.error || "Failed to scan URL");
+        return;
+      }
+
+      const scanData = await response.json();
+      const persisted = scanData.virusTotalScan as
+        | Correction["virusTotalScan"]
+        | undefined;
+
+      if (persisted?.reportUrl) {
+        const next: VirusTotalScanResult = {
+          url,
+          malicious: persisted.malicious || 0,
+          harmless: persisted.harmless || 0,
+          suspicious: persisted.suspicious || 0,
+          total: persisted.total || 0,
+          reportUrl: persisted.reportUrl,
+          scannedAt: persisted.scannedAt
+            ? new Date(persisted.scannedAt).toISOString()
+            : new Date().toISOString(),
+          source: persisted.source || "review",
+        };
+        setScanResult(next);
+        onScanPersisted?.(persisted);
+        return;
+      }
+
+      if (scanData.report?.data?.attributes) {
+        const attrs = scanData.report.data.attributes;
+        const stats = attrs.last_analysis_stats || attrs.stats;
+
+        if (!stats) {
+          setError(
+            "Scan results are not yet available. Please try again in a moment."
+          );
+          return;
+        }
+
+        const rawId =
+          typeof scanData.report?.data?.id === "string"
+            ? scanData.report.data.id
+            : "";
+        let reportId = /^[a-f0-9]{64}$/i.test(rawId) ? rawId : "";
+        if (!reportId) {
+          const digest = await crypto.subtle.digest(
+            "SHA-256",
+            new TextEncoder().encode(url.trim())
+          );
+          reportId = Array.from(new Uint8Array(digest))
+            .map((byte) => byte.toString(16).padStart(2, "0"))
+            .join("");
+        }
+        setScanResult({
+          url,
+          malicious: stats.malicious || 0,
+          harmless: stats.harmless || 0,
+          suspicious: stats.suspicious || 0,
+          total:
+            (stats.malicious || 0) +
+            (stats.harmless || 0) +
+            (stats.suspicious || 0) +
+            (stats.undetected || 0),
+          reportUrl: `https://www.virustotal.com/gui/url/${reportId}/detection`,
+          scannedAt: new Date().toISOString(),
+          source: "review",
+        });
+      } else if (scanData.analysisId) {
+        setError(
+          "Scan submitted but results not yet available. Please try again in a moment."
+        );
+      } else {
+        setError("Unexpected response format from VirusTotal API");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to scan URL");
+    } finally {
+      setScanningUrl(null);
+    }
+  };
+
+  return (
+    <div className="pt-2 border-t border-[rgb(var(--border-color))]">
+      <div className="flex items-center gap-2 mb-2">
+        <FaShieldAlt className="text-blue-400" size={16} />
+        <span className="text-sm font-medium text-[rgb(var(--text-primary))]">
+          VirusTotal Security Scan
+        </span>
+      </div>
+      {scanningUrl === url ? (
+        <div className="flex items-center gap-2 text-sm text-[rgb(var(--text-secondary))]">
+          <FaSpinner className="animate-spin" size={14} />
+          <span>Scanning URL...</span>
+        </div>
+      ) : activeResult ? (
+        <div
+          className={`p-3 bg-[rgb(var(--bg-card-alt))] rounded-lg border-l-4 space-y-2 ${
+            hasEngineCounts
+              ? isClean
+                ? "border-green-500"
+                : "border-red-500"
+              : "border-blue-500"
+          }`}
+        >
+          <div className="space-y-1 text-sm">
+            {hasEngineCounts ? (
+              <>
+                <p
+                  className={`font-semibold ${
+                    isClean ? "text-green-400" : "text-red-400"
+                  }`}
+                >
+                  {isClean
+                    ? "No threats detected"
+                    : `${flagged} of ${activeResult.total} engines flagged this URL`}
+                </p>
+                <p className="text-xs text-[rgb(var(--text-muted))]">
+                  {activeResult.malicious} malicious ·{" "}
+                  {activeResult.suspicious} suspicious
+                  {activeResult.total > 0
+                    ? ` · ${activeResult.total} engines checked`
+                    : ""}
+                </p>
+              </>
+            ) : (
+              <p className="font-semibold text-blue-300">
+                VirusTotal report already linked
+              </p>
+            )}
+            {activeResult.scannedAt && (
+              <p className="text-xs text-[rgb(var(--text-muted))]">
+                Saved{" "}
+                {formatReviewDateTime(activeResult.scannedAt)}
+                {activeResult.source === "submit"
+                  ? " (at submit)"
+                  : activeResult.source === "review"
+                    ? " (by reviewer)"
+                    : ""}
+              </p>
+            )}
+          </div>
+          <div className="text-xs text-yellow-400 bg-yellow-900/20 border border-yellow-500/30 rounded p-2">
+            VirusTotal results are not a guarantee of safety. Proceed with
+            caution.
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {activeResult.reportUrl && (
+              <a
+                href={activeResult.reportUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-400 hover:text-blue-300 underline inline-block"
+              >
+                View full report on VirusTotal →
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={runScan}
+              className="text-xs text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] underline"
+            >
+              {hasEngineCounts ? "Rescan" : "Load engine results"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={runScan}
+          className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md transition-colors"
+        >
+          <FaShieldAlt size={12} />
+          Scan URL with VirusTotal
+        </button>
+      )}
+    </div>
+  );
+}
+
 // Review Modal Component
 interface ReviewModalProps {
   correction: Correction;
   onClose: () => void;
   getFieldDisplayName: (field: string) => string;
+  onVirusTotalScanSaved?: (
+    correctionId: string,
+    scan: NonNullable<Correction["virusTotalScan"]>
+  ) => void;
   onReview: (action: "approve" | "reject" | "modify") => void | Promise<void>;
 }
 
@@ -1041,6 +1502,7 @@ function ReviewModal({
   correction,
   onClose,
   getFieldDisplayName,
+  onVirusTotalScanSaved,
   onReview,
 }: ReviewModalProps) {
   const { csrfToken } = useCSRF();
@@ -1056,36 +1518,110 @@ function ReviewModal({
       : JSON.stringify(correction.newValue, null, 2)
   );
   const [showModify, setShowModify] = useState(false);
-
-  const formatValue = (
-    value: string | number | boolean | string[] | null,
-    isNewValue = false
-  ) => {
-    if (value === null || value === undefined || value === "") {
-      return isNewValue ? "(clearing field)" : "N/A";
-    }
-    if (Array.isArray(value)) {
-      return value.length === 0
-        ? isNewValue
-          ? "(clearing field)"
-          : "N/A"
-        : JSON.stringify(value, null, 2);
-    }
-    if (typeof value === "object") return JSON.stringify(value, null, 2);
-    return String(value);
-  };
-
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [staleBase, setStaleBase] = useState(false);
   const [scanningUrl, setScanningUrl] = useState<string | null>(null);
-  const [scanResult, setScanResult] = useState<{
-    url: string;
-    malicious: number;
-    harmless: number;
-    suspicious: number;
-    total: number;
-    reportUrl?: string;
-  } | null>(null);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const initialModifiedValue = useRef(modifiedValue);
+  const [scanResult, setScanResult] = useState<VirusTotalScanResult | null>(
+    () =>
+      typeof correction.newValue === "string"
+        ? scanResultFromCorrection(correction.newValue, correction)
+        : null
+  );
+
+  const isDirty =
+    reviewNotes.trim() !== "" ||
+    showModify ||
+    modifiedValue !== initialModifiedValue.current;
+
+  const requestClose = useCallback(() => {
+    if (isDirty) {
+      setShowDiscardConfirm(true);
+      return;
+    }
+    onClose();
+  }, [isDirty, onClose]);
+
+  useEffect(() => {
+    previousFocusRef.current = document.activeElement as HTMLElement;
+    const focusable = modalRef.current?.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    focusable?.[0]?.focus();
+    return () => {
+      previousFocusRef.current?.focus();
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (showDiscardConfirm) {
+          setShowDiscardConfirm(false);
+          return;
+        }
+        requestClose();
+        return;
+      }
+      if (event.key !== "Tab" || !modalRef.current) return;
+      const focusable = Array.from(
+        modalRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => !el.hasAttribute("disabled"));
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [requestClose, showDiscardConfirm]);
+
+  useEffect(() => {
+    if (typeof correction.newValue === "string") {
+      setScanResult(scanResultFromCorrection(correction.newValue, correction));
+    } else {
+      setScanResult(null);
+    }
+  }, [correction]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const checkStaleBase = async () => {
+      try {
+        const response = await fetch(
+          `/api/games/${encodeURIComponent(correction.gameSlug)}`,
+          { cache: "no-store" }
+        );
+        if (!response.ok || cancelled) return;
+        const game = await response.json();
+        const liveValue = game?.[correction.field];
+        if (
+          !cancelled &&
+          !valuesAreEffectivelySame(liveValue, correction.oldValue)
+        ) {
+          setStaleBase(true);
+        }
+      } catch {
+        // Non-blocking: review can proceed without live comparison
+      }
+    };
+    checkStaleBase();
+    return () => {
+      cancelled = true;
+    };
+  }, [correction.gameSlug, correction.field, correction.oldValue]);
 
   const handleApprove = async () => {
     setIsSubmitting(true);
@@ -1105,7 +1641,8 @@ function ReviewModal({
       });
 
       if (!response.ok) {
-        throw new Error("Failed to approve correction");
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to approve correction");
       }
 
       await onReview("approve");
@@ -1117,6 +1654,11 @@ function ReviewModal({
   };
 
   const handleReject = async () => {
+    if (!reviewNotes.trim()) {
+      setError("Please add review notes explaining why this was rejected.");
+      return;
+    }
+
     setIsSubmitting(true);
     setError("");
     try {
@@ -1129,12 +1671,13 @@ function ReviewModal({
         body: JSON.stringify({
           correctionId: correction.id,
           status: "rejected",
-          reviewNotes,
+          reviewNotes: reviewNotes.trim(),
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to reject correction");
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to reject correction");
       }
 
       await onReview("reject");
@@ -1155,7 +1698,6 @@ function ReviewModal({
     setError("");
     try {
       let parsedValue;
-      // Try to parse as JSON if it looks like JSON (starts with [ or {)
       if (
         modifiedValue.trim().startsWith("[") ||
         modifiedValue.trim().startsWith("{")
@@ -1168,7 +1710,6 @@ function ReviewModal({
           return;
         }
       } else {
-        // For simple strings, use as-is
         parsedValue = modifiedValue.trim();
       }
 
@@ -1202,17 +1743,26 @@ function ReviewModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/75 p-4"
-      onClick={onClose}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) requestClose();
+      }}
     >
       <div
-        className="bg-[rgb(var(--bg-card))] rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="review-modal-title"
+        className="bg-[rgb(var(--bg-card))] rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="sticky top-0 z-20 bg-[rgb(var(--bg-card))] border-b border-[rgb(var(--border-color))] p-6">
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="text-xl font-bold text-[rgb(var(--text-primary))] mb-1">
+              <h2
+                id="review-modal-title"
+                className="text-xl font-bold text-[rgb(var(--text-primary))] mb-1"
+              >
                 Review Submission
               </h2>
               <p className="text-[rgb(var(--text-secondary))] text-sm">
@@ -1220,10 +1770,11 @@ function ReviewModal({
               </p>
             </div>
             <button
-              onClick={onClose}
+              onClick={requestClose}
               className="text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] text-2xl"
+              aria-label="Close"
             >
-              ×
+              <FaTimes />
             </button>
           </div>
         </div>
@@ -1235,6 +1786,14 @@ function ReviewModal({
               <p className="text-amber-800 dark:text-amber-300 text-sm">
                 No meaningful change. Proposed value matches current after
                 normalizing spaces and case.
+              </p>
+            </div>
+          )}
+          {staleBase && (
+            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-500/30 rounded-lg p-3">
+              <p className="text-orange-800 dark:text-orange-300 text-sm">
+                The live page value for this field has changed since this
+                correction was submitted. Review carefully before applying.
               </p>
             </div>
           )}
@@ -1255,230 +1814,68 @@ function ReviewModal({
             <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">
               Submitted By
             </h3>
-            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3 flex items-center justify-between">
-              <span className="text-[rgb(var(--text-primary))]">
-                {correction.submittedByName}
-              </span>
-              <span className="text-[rgb(var(--text-muted))] text-sm">
-                {new Date(correction.submittedAt).toLocaleString()}
+            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3 flex items-center justify-between gap-3">
+              <SubmitterHoverLink
+                userId={correction.submittedBy}
+                name={correction.submittedByName}
+                className="text-[rgb(var(--text-primary))]"
+              />
+              <span className="text-[rgb(var(--text-muted))] text-sm shrink-0">
+                {formatReviewDateTime(correction.submittedAt)}
               </span>
             </div>
           </div>
 
-          {/* Current Value */}
-          <div>
-            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">
-              Current Value
-            </h3>
-            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3">
-              <pre className="text-[rgb(var(--text-secondary))] text-sm whitespace-pre-wrap break-all">
-                {formatValue(correction.oldValue)}
-              </pre>
-              {correction.field === "imageUrl" &&
-                typeof correction.oldValue === "string" &&
+          <CorrectionValueDiff
+            oldValue={correction.oldValue}
+            newValue={correction.newValue}
+          />
+
+          {correction.field === "imageUrl" && (
+            <div className="grid md:grid-cols-2 gap-4">
+              {typeof correction.oldValue === "string" &&
                 correction.oldValue && (
-                  <div className="mt-3">
-                    <ImagePreview
-                      imageUrl={correction.oldValue}
-                      label="Current image"
-                    />
-                  </div>
+                  <ImagePreview
+                    imageUrl={correction.oldValue}
+                    label="Current image"
+                  />
                 )}
-            </div>
-          </div>
-
-          {/* Proposed Value */}
-          <div>
-            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">
-              Proposed Value
-            </h3>
-            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3 border-l-4 border-[#107c10]">
-              <pre className="text-[#107c10] text-sm whitespace-pre-wrap break-all">
-                {formatValue(correction.newValue, true)}
-              </pre>
-              {correction.field === "imageUrl" &&
-                typeof correction.newValue === "string" &&
+              {typeof correction.newValue === "string" &&
                 correction.newValue && (
-                  <div className="mt-3">
-                    <ImagePreview
-                      imageUrl={correction.newValue}
-                      label="Proposed image"
-                    />
-                  </div>
-                )}
-              {/* VirusTotal Scan for Download Links */}
-              {(correction.field === "downloadLink" ||
-                correction.field === "communityAlternativeDownloadLink") &&
-                typeof correction.newValue === "string" &&
-                correction.newValue &&
-                (correction.newValue.startsWith("http://") ||
-                  correction.newValue.startsWith("https://")) && (
-                  <div className="mt-3 pt-3 border-t border-[rgb(var(--border-color))]">
-                    <div className="flex items-center gap-2 mb-2">
-                      <FaShieldAlt className="text-blue-400" size={16} />
-                      <span className="text-sm font-medium text-[rgb(var(--text-primary))]">
-                        VirusTotal Security Scan
-                      </span>
-                    </div>
-                    {scanningUrl === correction.newValue ? (
-                      <div className="flex items-center gap-2 text-sm text-[rgb(var(--text-secondary))]">
-                        <FaSpinner className="animate-spin" size={14} />
-                        <span>Scanning URL...</span>
-                      </div>
-                    ) : scanResult && scanResult.url === correction.newValue ? (
-                      <div className="space-y-2">
-                        <div className="p-3 bg-[rgb(var(--bg-card-alt))] rounded-lg border-l-4 border-green-500">
-                          <div className="flex items-center gap-4 text-sm mb-2">
-                            <div className="flex items-center gap-1">
-                              <span className="text-green-400 font-semibold">
-                                {scanResult.harmless}
-                              </span>
-                              <span className="text-[rgb(var(--text-secondary))]">
-                                clean
-                              </span>
-                            </div>
-                            {scanResult.malicious > 0 && (
-                              <div className="flex items-center gap-1">
-                                <span className="text-red-400 font-semibold">
-                                  {scanResult.malicious}
-                                </span>
-                                <span className="text-[rgb(var(--text-secondary))]">
-                                  malicious
-                                </span>
-                              </div>
-                            )}
-                            {scanResult.suspicious > 0 && (
-                              <div className="flex items-center gap-1">
-                                <span className="text-yellow-400 font-semibold">
-                                  {scanResult.suspicious}
-                                </span>
-                                <span className="text-[rgb(var(--text-secondary))]">
-                                  suspicious
-                                </span>
-                              </div>
-                            )}
-                            {scanResult.total > 0 && (
-                              <span className="text-[rgb(var(--text-muted))] text-xs">
-                                ({scanResult.total} total engines)
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-xs text-yellow-400 bg-yellow-900/20 dark:bg-yellow-900/10 border border-yellow-500/30 rounded p-2 mt-2">
-                            ⚠️ <strong>Important:</strong> VirusTotal results
-                            are not a guarantee of safety. Proceed with caution
-                            and use antivirus software.
-                          </div>
-                          {scanResult.reportUrl && (
-                            <a
-                              href={scanResult.reportUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-400 hover:text-blue-300 underline mt-2 inline-block"
-                            >
-                              View full report on VirusTotal →
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={async () => {
-                          const url = correction.newValue as string;
-                          setScanningUrl(url);
-                          setScanResult(null);
-                          try {
-                            const response = await fetch(
-                              "/api/virustotal/scan",
-                              {
-                                method: "POST",
-                                headers: {
-                                  "Content-Type": "application/json",
-                                },
-                                body: JSON.stringify({
-                                  url,
-                                  action: "scan",
-                                }),
-                              }
-                            );
-
-                            if (!response.ok) {
-                              const data = await response.json();
-                              setError(data.error || "Failed to scan URL");
-                              setScanningUrl(null);
-                              return;
-                            }
-
-                            const scanData = await response.json();
-                            if (scanData.report?.data?.attributes) {
-                              const attrs = scanData.report.data.attributes;
-                              // VirusTotal URL report endpoint uses 'last_analysis_stats' instead of 'stats'
-                              // Analysis endpoint uses 'stats'
-                              const stats =
-                                attrs.last_analysis_stats || attrs.stats;
-
-                              if (!stats) {
-                                setError(
-                                  "Scan results are not yet available. Please try again in a moment."
-                                );
-                                setScanningUrl(null);
-                                return;
-                              }
-
-                              // Construct the correct VirusTotal URL report link
-                              // URL needs to be base64 encoded (without padding, with URL-safe characters)
-                              const encodedUrl = btoa(url)
-                                .replace(/=/g, "")
-                                .replace(/\+/g, "-")
-                                .replace(/\//g, "_");
-                              setScanResult({
-                                url,
-                                malicious: stats.malicious || 0,
-                                harmless: stats.harmless || 0,
-                                suspicious: stats.suspicious || 0,
-                                total:
-                                  (stats.malicious || 0) +
-                                  (stats.harmless || 0) +
-                                  (stats.suspicious || 0) +
-                                  (stats.undetected || 0),
-                                reportUrl: `https://www.virustotal.com/gui/url/${encodedUrl}`,
-                              });
-                            } else if (scanData.analysisId) {
-                              setError(
-                                "Scan submitted but results not yet available. Please try again in a moment."
-                              );
-                            } else {
-                              setError(
-                                "Unexpected response format from VirusTotal API"
-                              );
-                            }
-                          } catch (err) {
-                            setError(
-                              err instanceof Error
-                                ? err.message
-                                : "Failed to scan URL"
-                            );
-                          } finally {
-                            setScanningUrl(null);
-                          }
-                        }}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md transition-colors"
-                      >
-                        <FaShieldAlt size={12} />
-                        Scan URL with VirusTotal
-                      </button>
-                    )}
-                  </div>
+                  <ImagePreview
+                    imageUrl={correction.newValue}
+                    label="Proposed image"
+                  />
                 )}
             </div>
-            {(correction.newValue === null ||
-              correction.newValue === "" ||
-              (Array.isArray(correction.newValue) &&
-                correction.newValue.length === 0)) && (
-              <p className="text-xs text-yellow-400 mt-1">
-                ⚠️ This will clear/remove the field value
-              </p>
+          )}
+
+          {(correction.field === "downloadLink" ||
+            correction.field === "communityAlternativeDownloadLink") &&
+            typeof correction.newValue === "string" &&
+            correction.newValue &&
+            (correction.newValue.startsWith("http://") ||
+              correction.newValue.startsWith("https://")) && (
+              <VirusTotalScanPanel
+                url={correction.newValue}
+                correctionId={correction.id}
+                csrfToken={csrfToken}
+                scanningUrl={scanningUrl}
+                setScanningUrl={setScanningUrl}
+                scanResult={scanResult}
+                setScanResult={setScanResult}
+                setError={setError}
+                onScanPersisted={(scan) => {
+                  setScanResult(
+                    scanResultFromCorrection(correction.newValue as string, {
+                      virusTotalScan: scan,
+                      autoVirusTotalUrl: scan.reportUrl,
+                    })
+                  );
+                  onVirusTotalScanSaved?.(correction.id, scan);
+                }}
+              />
             )}
-          </div>
 
           {/* Reason */}
           <div>
@@ -1510,12 +1907,13 @@ function ReviewModal({
           {/* Review Notes */}
           <div>
             <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">
-              Review Notes (Optional)
+              Review notes{" "}
+              <span className="text-red-400">(required to reject)</span>
             </h3>
             <textarea
               value={reviewNotes}
               onChange={(e) => setReviewNotes(e.target.value)}
-              placeholder="Add notes about your decision..."
+              placeholder="Add notes about your decision. Required when rejecting."
               className="w-full p-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
               rows={3}
             />
@@ -1577,7 +1975,7 @@ function ReviewModal({
               </p>
               <p className="text-[rgb(var(--text-muted))] text-xs mt-1">
                 {correction.reviewedAt &&
-                  new Date(correction.reviewedAt).toLocaleString()}
+                  formatReviewDateTime(correction.reviewedAt)}
               </p>
               {correction.reviewNotes && (
                 <p className="text-[rgb(var(--text-secondary))] text-sm mt-2">
@@ -1586,7 +1984,7 @@ function ReviewModal({
               )}
             </div>
             <button
-              onClick={onClose}
+              onClick={requestClose}
               className="w-full px-4 py-2 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] rounded-lg transition-colors border border-[rgb(var(--border-color))]"
             >
               Close
@@ -1594,6 +1992,16 @@ function ReviewModal({
           </div>
         )}
       </div>
+      <ConfirmDialog
+        isOpen={showDiscardConfirm}
+        title="Discard review?"
+        message="You have unsaved review notes or changes. Close anyway?"
+        confirmText="Discard"
+        cancelText="Keep editing"
+        variant="warning"
+        onConfirm={onClose}
+        onCancel={() => setShowDiscardConfirm(false)}
+      />
     </div>
   );
 }
@@ -1603,6 +2011,10 @@ interface BatchReviewModalProps {
   corrections: Correction[];
   onClose: () => void;
   getFieldDisplayName: (field: string) => string;
+  onVirusTotalScanSaved?: (
+    correctionId: string,
+    scan: NonNullable<Correction["virusTotalScan"]>
+  ) => void;
   onReview: () => void;
 }
 
@@ -1610,6 +2022,7 @@ function BatchReviewModal({
   corrections,
   onClose,
   getFieldDisplayName,
+  onVirusTotalScanSaved,
   onReview,
 }: BatchReviewModalProps) {
   const { csrfToken } = useCSRF();
@@ -1626,10 +2039,45 @@ function BatchReviewModal({
   const [batchNotes, setBatchNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [partialResultMessage, setPartialResultMessage] = useState("");
+  const [scanningUrl, setScanningUrl] = useState<string | null>(null);
+  const [scanResultsByCorrection, setScanResultsByCorrection] = useState<
+    Map<string, VirusTotalScanResult | null>
+  >(new Map());
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
 
-  // Initialize review states
+  const isDirty =
+    batchNotes.trim() !== "" ||
+    Array.from(reviewStates.values()).some(
+      (state) => state.action !== "pending" || Boolean(state.reviewNotes?.trim())
+    );
+
+  const requestClose = useCallback(() => {
+    if (isDirty) {
+      setShowDiscardConfirm(true);
+      return;
+    }
+    onClose();
+  }, [isDirty, onClose]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (showDiscardConfirm) {
+          setShowDiscardConfirm(false);
+          return;
+        }
+        requestClose();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [requestClose, showDiscardConfirm]);
+
   useEffect(() => {
     const states = new Map();
+    const scans = new Map<string, VirusTotalScanResult | null>();
     corrections.forEach((correction) => {
       states.set(correction.id, {
         action: "pending" as const,
@@ -1639,8 +2087,15 @@ function BatchReviewModal({
             ? String(correction.newValue)
             : JSON.stringify(correction.newValue, null, 2),
       });
+      scans.set(
+        correction.id,
+        typeof correction.newValue === "string"
+          ? scanResultFromCorrection(correction.newValue, correction)
+          : null
+      );
     });
     setReviewStates(states);
+    setScanResultsByCorrection(scans);
   }, [corrections]);
 
   const updateReviewState = (
@@ -1662,7 +2117,12 @@ function BatchReviewModal({
   };
 
   const setAllActions = async (action: "approve" | "reject") => {
-    // Set all actions
+    const label = action === "approve" ? "approve" : "reject";
+    const confirmed = window.confirm(
+      `This will immediately ${label} all ${corrections.length} corrections. Continue?`
+    );
+    if (!confirmed) return;
+
     setReviewStates((prev) => {
       const newMap = new Map(prev);
       corrections.forEach((correction) => {
@@ -1674,9 +2134,9 @@ function BatchReviewModal({
       return newMap;
     });
 
-    // Submit immediately
     setIsSubmitting(true);
     setError("");
+    setPartialResultMessage("");
 
     try {
       if (!csrfToken) {
@@ -1685,8 +2145,19 @@ function BatchReviewModal({
         return;
       }
 
-      // Submit all reviews with the batch action using batch endpoint
-      // Convert action to API status format: "approve" -> "approved", "reject" -> "rejected"
+      if (action === "reject" && !batchNotes.trim()) {
+        const hasAnyNotes = Array.from(reviewStates.values()).some((s) =>
+          s.reviewNotes?.trim()
+        );
+        if (!hasAnyNotes) {
+          setError(
+            "Add batch review notes before rejecting all (submitters need an explanation)."
+          );
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       const apiStatus = action === "approve" ? "approved" : "rejected";
 
       const reviews = corrections.map((correction) => ({
@@ -1704,10 +2175,21 @@ function BatchReviewModal({
         body: JSON.stringify({ reviews }),
       });
 
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const data = await response.json();
         throw new Error(data.error || "Failed to submit batch reviews");
       }
+
+      if (
+        typeof data.processed === "number" &&
+        typeof data.total === "number" &&
+        data.processed < data.total
+      ) {
+        setPartialResultMessage(
+          `Processed ${data.processed} of ${data.total} reviews.`
+        );
+      }
+
       onReview();
       onClose();
     } catch (err) {
@@ -1719,6 +2201,7 @@ function BatchReviewModal({
   const handleSubmit = async () => {
     setIsSubmitting(true);
     setError("");
+    setPartialResultMessage("");
 
     try {
       if (!csrfToken) {
@@ -1727,7 +2210,6 @@ function BatchReviewModal({
         return;
       }
 
-      // Check if all corrections have an action
       const hasPending = Array.from(reviewStates.values()).some(
         (state) => state.action === "pending"
       );
@@ -1737,7 +2219,22 @@ function BatchReviewModal({
         return;
       }
 
-      // Submit all reviews using batch endpoint
+      const missingRejectNotes = corrections.some((correction) => {
+        const state = reviewStates.get(correction.id);
+        return (
+          state?.action === "reject" &&
+          !state.reviewNotes?.trim() &&
+          !batchNotes.trim()
+        );
+      });
+      if (missingRejectNotes) {
+        setError(
+          "Add review notes for rejected items (batch notes or per-item notes)."
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
       const reviews = corrections
         .map((correction) => {
           const state = reviewStates.get(correction.id);
@@ -1745,25 +2242,21 @@ function BatchReviewModal({
             return null;
           }
 
-          // Parse finalValue if it's JSON (for arrays/objects)
           let parsedFinalValue: unknown = undefined;
           if (state.action === "modify" && state.modifiedValue) {
             try {
-              // Try to parse as JSON first (for arrays/objects)
               parsedFinalValue = JSON.parse(state.modifiedValue);
             } catch {
-              // If not valid JSON, use as string
               parsedFinalValue = state.modifiedValue;
             }
           }
 
-          // Convert action to API status format: "approve" -> "approved", "reject" -> "rejected", "modify" -> "modified"
           const apiStatus =
             state.action === "approve"
               ? "approved"
               : state.action === "reject"
-              ? "rejected"
-              : "modified";
+                ? "rejected"
+                : "modified";
 
           return {
             correctionId: correction.id,
@@ -1790,10 +2283,21 @@ function BatchReviewModal({
         body: JSON.stringify({ reviews }),
       });
 
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const data = await response.json();
         throw new Error(data.error || "Failed to submit batch reviews");
       }
+
+      if (
+        typeof data.processed === "number" &&
+        typeof data.total === "number" &&
+        data.processed < data.total
+      ) {
+        window.alert(
+          `Partial success: processed ${data.processed} of ${data.total} reviews.`
+        );
+      }
+
       onReview();
       onClose();
     } catch (err) {
@@ -1803,32 +2307,22 @@ function BatchReviewModal({
     }
   };
 
-  const formatValue = (
-    value: string | number | boolean | string[] | null,
-    isNewValue = false
-  ) => {
-    if (value === null || value === undefined || value === "") {
-      return isNewValue ? "(clearing field)" : "N/A";
-    }
-    if (Array.isArray(value)) {
-      return value.length === 0
-        ? isNewValue
-          ? "(clearing field)"
-          : "N/A"
-        : JSON.stringify(value, null, 2);
-    }
-    if (typeof value === "object") return JSON.stringify(value, null, 2);
-    return String(value);
-  };
-
   const firstCorrection = corrections[0];
+  const allReviewed = Array.from(reviewStates.values()).every(
+    (state) => state.action !== "pending"
+  );
 
   return (
     <div
       className="fixed inset-0 bg-black/40 dark:bg-black/70 flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto"
-      onClick={onClose}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) requestClose();
+      }}
     >
       <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
         className="bg-[rgb(var(--bg-card))] rounded-lg max-w-6xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto border border-[rgb(var(--border-color))] my-2"
         onClick={(e) => e.stopPropagation()}
       >
@@ -1840,11 +2334,15 @@ function BatchReviewModal({
             </h2>
             <p className="text-[rgb(var(--text-secondary))] text-xs sm:text-sm mt-1">
               {corrections.length} correction{corrections.length > 1 ? "s" : ""}{" "}
-              from {firstCorrection.submittedByName}
+              from{" "}
+              <SubmitterHoverLink
+                userId={firstCorrection.submittedBy}
+                name={firstCorrection.submittedByName}
+              />
             </p>
           </div>
           <button
-            onClick={onClose}
+            onClick={requestClose}
             className="text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] transition-colors flex-shrink-0 self-start sm:self-auto"
             aria-label="Close modal"
           >
@@ -1896,9 +2394,8 @@ function BatchReviewModal({
               </button>
             </div>
             <p className="text-xs text-[rgb(var(--text-muted))] mt-2">
-              Clicking &quot;Approve All&quot; or &quot;Reject All&quot; will
-              immediately submit all reviews. Use individual buttons below to
-              review corrections separately.
+              Approve All / Reject All applies immediately after confirmation.
+              Or set each item below and use Submit all reviews.
             </p>
           </div>
 
@@ -2000,31 +2497,57 @@ function BatchReviewModal({
                     </div>
                   </div>
 
-                  {/* Current and Proposed Values */}
-                  <div className="grid md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <h5 className="text-xs text-[rgb(var(--text-muted))] mb-2">
-                        Current Value
-                      </h5>
-                      <div className="bg-[rgb(var(--bg-card))] rounded p-3">
-                        <pre className="text-sm text-[rgb(var(--text-secondary))] whitespace-pre-wrap break-all">
-                          {formatValue(correction.oldValue)}
-                        </pre>
-                      </div>
-                    </div>
-                    <div>
-                      <h5 className="text-xs text-[rgb(var(--text-muted))] mb-2">
-                        Proposed Value
-                      </h5>
-                      <div className="bg-[rgb(var(--bg-card))] rounded p-3 border-l-4 border-[#107c10]">
-                        <pre className="text-sm text-[#107c10] whitespace-pre-wrap break-all">
-                          {formatValue(correction.newValue, true)}
-                        </pre>
-                      </div>
-                    </div>
+                  <div className="mb-4">
+                    <CorrectionValueDiff
+                      oldValue={correction.oldValue}
+                      newValue={correction.newValue}
+                    />
                   </div>
 
-                  {/* Reason */}
+                  {(correction.field === "downloadLink" ||
+                    correction.field ===
+                      "communityAlternativeDownloadLink") &&
+                    typeof correction.newValue === "string" &&
+                    correction.newValue &&
+                    (correction.newValue.startsWith("http://") ||
+                      correction.newValue.startsWith("https://")) && (
+                      <div className="mb-4">
+                        <VirusTotalScanPanel
+                          url={correction.newValue}
+                          correctionId={correction.id}
+                          csrfToken={csrfToken}
+                          scanningUrl={scanningUrl}
+                          setScanningUrl={setScanningUrl}
+                          scanResult={
+                            scanResultsByCorrection.get(correction.id) || null
+                          }
+                          setScanResult={(result) => {
+                            setScanResultsByCorrection((prev) => {
+                              const next = new Map(prev);
+                              next.set(correction.id, result);
+                              return next;
+                            });
+                          }}
+                          setError={setError}
+                          onScanPersisted={(scan) => {
+                            const downloadUrl = String(correction.newValue);
+                            setScanResultsByCorrection((prev) => {
+                              const next = new Map(prev);
+                              next.set(
+                                correction.id,
+                                scanResultFromCorrection(downloadUrl, {
+                                  virusTotalScan: scan,
+                                  autoVirusTotalUrl: scan.reportUrl,
+                                })
+                              );
+                              return next;
+                            });
+                            onVirusTotalScanSaved?.(correction.id, scan);
+                          }}
+                        />
+                      </div>
+                    )}
+
                   {correction.reason && (
                     <div className="mb-4">
                       <h5 className="text-xs text-[rgb(var(--text-muted))] mb-2">
@@ -2079,73 +2602,59 @@ function BatchReviewModal({
             })}
           </div>
 
-          {/* Error Message */}
           {error && (
             <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 text-red-400">
               {error}
+            </div>
+          )}
+          {partialResultMessage && (
+            <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg p-4 text-amber-300 text-sm">
+              {partialResultMessage}
             </div>
           )}
         </div>
 
         {/* Footer Actions */}
         <div className="sticky bottom-0 bg-[rgb(var(--bg-card))] border-t border-[rgb(var(--border-color))] p-4 sm:p-6 flex flex-col sm:flex-row gap-3">
-          {/* Only show Submit All Reviews if individual corrections have been manually reviewed */}
-          {(() => {
-            const states = Array.from(reviewStates.values());
-            const hasIndividualReviews = states.some(
-              (state) => state.action !== "pending"
-            );
-
-            // Check if there are mixed actions (user reviewed individually) or any modifications
-            const hasMixedActions =
-              new Set(states.map((s) => s.action)).size > 1;
-            const hasModifications = states.some(
-              (state) => state.action === "modify" || state.reviewNotes
-            );
-
-            // Show submit button if user has manually reviewed individual corrections
-            // (not just using approve all/reject all which submit immediately)
-            const showSubmitButton =
-              hasIndividualReviews && (hasMixedActions || hasModifications);
-
-            return showSubmitButton ? (
-              <button
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-                className="flex-1 px-6 py-3 bg-[#107c10] hover:bg-[#0d6b0d] text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {isSubmitting ? (
-                  <>
-                    <FaSpinner className="animate-spin" />
-                    Submitting...
-                  </>
-                ) : (
-                  <>
-                    <FaCheck />
-                    Submit All Reviews
-                  </>
-                )}
-              </button>
-            ) : null;
-          })()}
+          {allReviewed && (
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="flex-1 px-6 py-3 bg-[#107c10] hover:bg-[#0d6b0d] text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {isSubmitting ? (
+                <>
+                  <FaSpinner className="animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <FaCheck />
+                  Submit all reviews
+                </>
+              )}
+            </button>
+          )}
           <button
-            onClick={onClose}
+            onClick={requestClose}
             className={`px-6 py-3 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] rounded-lg transition-colors border border-[rgb(var(--border-color))] ${
-              Array.from(reviewStates.values()).some(
-                (state) => state.action !== "pending"
-              ) &&
-              Array.from(reviewStates.values()).some(
-                (state, _, arr) =>
-                  state.action !== arr[0]?.action || state.action === "pending"
-              )
-                ? "flex-1"
-                : ""
+              allReviewed ? "flex-1" : "w-full"
             }`}
           >
             {isSubmitting ? "Processing..." : "Close"}
           </button>
         </div>
       </div>
+      <ConfirmDialog
+        isOpen={showDiscardConfirm}
+        title="Discard batch review?"
+        message="You have unsaved review decisions or notes. Close anyway?"
+        confirmText="Discard"
+        cancelText="Keep editing"
+        variant="warning"
+        onConfirm={onClose}
+        onCancel={() => setShowDiscardConfirm(false)}
+      />
     </div>
   );
 }

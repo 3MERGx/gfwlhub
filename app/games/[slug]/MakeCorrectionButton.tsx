@@ -7,13 +7,21 @@ import { Game } from "@/data/games";
 import CorrectionModal from "@/components/CorrectionModal";
 import { usePathname, useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast-context";
+import type { CorrectionField } from "@/types/crowdsource";
 
 interface MakeCorrectionButtonProps {
   game: Game;
+  initialField?: CorrectionField;
+  /** Compact text link for section headers */
+  variant?: "button" | "link";
+  label?: string;
 }
 
 export default function MakeCorrectionButton({
   game,
+  initialField,
+  variant = "button",
+  label,
 }: MakeCorrectionButtonProps) {
   const { data: session, status } = useSession();
   const [showModal, setShowModal] = useState(false);
@@ -21,15 +29,19 @@ export default function MakeCorrectionButton({
   const pathname = usePathname();
   const router = useRouter();
 
+  const buttonLabel = label || "Suggest a correction";
+
   const handleSubmitSuccess = () => {
-    showToast("Correction submitted! Check your profile to track the review status.", 5000, "success");
-    setShowModal(false);
+    showToast(
+      "Correction submitted! A reviewer will check it before the page updates.",
+      5000,
+      "success"
+    );
   };
 
   const handleButtonClick = () => {
     if (!session) return;
 
-    // Check if user is suspended, restricted, or blocked
     const userStatus = session.user.status as
       | "active"
       | "suspended"
@@ -38,7 +50,6 @@ export default function MakeCorrectionButton({
       | "deleted";
 
     if (userStatus === "suspended") {
-      // Get suspension end date if available
       interface SessionUserWithSuspension {
         suspendedUntil?: string | Date;
       }
@@ -79,12 +90,27 @@ export default function MakeCorrectionButton({
       return;
     }
 
-    // User is active, open modal
     setShowModal(true);
   };
 
-  // Show loading state
+  const modal = showModal && session && (
+    <CorrectionModal
+      game={game}
+      onClose={() => setShowModal(false)}
+      onSubmit={handleSubmitSuccess}
+      userEmail={session.user.email || ""}
+      userName={session.user.name || "Anonymous"}
+      userId={session.user.id}
+      initialField={initialField}
+    />
+  );
+
   if (status === "loading") {
+    if (variant === "link") {
+      return (
+        <span className="text-xs text-[rgb(var(--text-muted))]">Loading...</span>
+      );
+    }
     return (
       <div className="flex items-center gap-2 text-gray-400">
         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
@@ -93,31 +119,57 @@ export default function MakeCorrectionButton({
     );
   }
 
-  // If not signed in, show sign in prompt
   if (!session) {
     const handleSignInClick = () => {
-      // Store callbackUrl in localStorage BEFORE navigation
       if (typeof window !== "undefined" && pathname) {
         try {
           localStorage.setItem("gfwl_callback_url", pathname);
         } catch {
-          // localStorage might be unavailable, continue anyway
+          // localStorage might be unavailable
         }
       }
-      
-      // Navigate to sign-in page with callbackUrl in URL
+
       const callbackUrl = encodeURIComponent(pathname);
       router.push(`/auth/signin?callbackUrl=${callbackUrl}`);
     };
-    
+
+    if (variant === "link") {
+      return (
+        <>
+          <button
+            type="button"
+            onClick={handleSignInClick}
+            className="text-xs text-[#107c10] hover:underline"
+          >
+            Sign in to suggest a change
+          </button>
+        </>
+      );
+    }
+
     return (
       <button
         onClick={handleSignInClick}
         className="inline-flex items-center gap-2 bg-[#107c10] hover:bg-[#0d6b0d] text-white font-semibold py-2 px-4 rounded-lg transition-colors shadow-md focus:outline-none focus:ring-2 focus:ring-[#107c10] focus:ring-opacity-75"
       >
         <FaSignInAlt />
-        Sign In to Submit Corrections
+        Sign in to suggest a correction
       </button>
+    );
+  }
+
+  if (variant === "link") {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={handleButtonClick}
+          className="text-xs text-[#107c10] hover:underline"
+        >
+          {label || "Suggest a change"}
+        </button>
+        {modal}
+      </>
     );
   }
 
@@ -128,18 +180,9 @@ export default function MakeCorrectionButton({
         className="inline-flex items-center gap-2 bg-[#107c10] hover:bg-[#0d6b0d] text-white font-semibold py-2 px-4 rounded-lg transition-colors shadow-md focus:outline-none focus:ring-2 focus:ring-[#107c10] focus:ring-opacity-75"
       >
         <FaEdit />
-        Make a Correction
+        {buttonLabel}
       </button>
-
-      {showModal && (
-        <CorrectionModal
-          game={game}
-          onClose={() => setShowModal(false)}
-          onSubmit={handleSubmitSuccess}
-          userEmail={session.user.email || ""}
-          userName={session.user.name || "Anonymous"}
-        />
-      )}
+      {modal}
     </>
   );
 }

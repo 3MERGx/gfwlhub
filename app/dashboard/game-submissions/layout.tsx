@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Game Submissions",
+  title: "Game submissions",
 };
 
 export default function GameSubmissionsLayout({

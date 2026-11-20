@@ -1,7 +1,10 @@
 import {
   getUrlReport,
   scanUrl,
+  summarizeVirusTotalUrlReport,
   virusTotalApiUrlIdentifier,
+  VT_URL_NOT_FOUND,
+  type VirusTotalScanSummary,
 } from "@/lib/virustotal";
 import { buildVirusTotalGuiUrlForUrlScan } from "@/lib/virustotal-download-consistency";
 import { safeLog } from "@/lib/security";
@@ -17,6 +20,18 @@ interface AnalysisPollJson {
 const POLL_INTERVAL_MS = 2000;
 /** Keep under typical serverless HTTP limits; URL usually exists after one poll. */
 const POLL_MAX_MS = 45000;
+
+const VT_RESOLVE_PUBLIC_ERRORS = {
+  lookupFailed: "Could not look up this URL on VirusTotal. Try again later.",
+  scanRefused:
+    "VirusTotal could not scan this URL right now. Try again in a minute.",
+  pollFailed: "VirusTotal scan could not be completed. Try again later.",
+  analysisFailed: "VirusTotal analysis failed for this URL.",
+  timeout:
+    "Timed out waiting for VirusTotal to finish scanning this URL. Try again in a minute.",
+  reportMissing:
+    "Scan finished but the URL report could not be loaded. Try again shortly.",
+} as const;
 
 async function pollAnalysisUntilComplete(
   analysisId: string,
@@ -35,9 +50,13 @@ async function pollAnalysisUntilComplete(
     );
 
     if (!response.ok) {
+      safeLog.error("VirusTotal analysis poll failed:", {
+        status: response.status,
+        analysisId,
+      });
       return {
         ok: false,
-        error: `VirusTotal analysis poll failed (HTTP ${response.status})`,
+        error: VT_RESOLVE_PUBLIC_ERRORS.pollFailed,
       };
     }
 
@@ -50,7 +69,7 @@ async function pollAnalysisUntilComplete(
     if (status === "failure") {
       return {
         ok: false,
-        error: "VirusTotal analysis failed for this URL.",
+        error: VT_RESOLVE_PUBLIC_ERRORS.analysisFailed,
       };
     }
 
@@ -59,8 +78,7 @@ async function pollAnalysisUntilComplete(
 
   return {
     ok: false,
-    error:
-      "Timed out waiting for VirusTotal to finish scanning this URL. Try again in a minute.",
+    error: VT_RESOLVE_PUBLIC_ERRORS.timeout,
   };
 }
 
@@ -71,21 +89,22 @@ async function pollAnalysisUntilComplete(
 export async function resolveVirusTotalGuiUrlForDownloadLink(
   downloadUrl: string,
   apiKey: string
-): Promise<{ ok: true; guiUrl: string } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; guiUrl: string; scan?: VirusTotalScanSummary }
+  | { ok: false; error: string }
+> {
   const canonical = downloadUrl.trim();
 
   let existing = await getUrlReport(canonical, apiKey);
 
   if (!existing.success) {
-    const isNotFound =
-      existing.error === "URL not found in VirusTotal database";
+    const isNotFound = existing.error === VT_URL_NOT_FOUND;
 
     if (!isNotFound) {
+      safeLog.error("VirusTotal URL lookup failed:", existing.error);
       return {
         ok: false,
-        error:
-          existing.error ||
-          "Could not look up this URL on VirusTotal. Try again later.",
+        error: VT_RESOLVE_PUBLIC_ERRORS.lookupFailed,
       };
     }
 
@@ -95,11 +114,10 @@ export async function resolveVirusTotalGuiUrlForDownloadLink(
 
     const scan = await scanUrl(canonical, apiKey);
     if (!scan.success || !scan.analysisId) {
+      safeLog.error("VirusTotal scan refused:", scan.error);
       return {
         ok: false,
-        error:
-          scan.error ||
-          "VirusTotal refused to scan this URL (rate limit or invalid URL).",
+        error: VT_RESOLVE_PUBLIC_ERRORS.scanRefused,
       };
     }
 
@@ -110,15 +128,17 @@ export async function resolveVirusTotalGuiUrlForDownloadLink(
 
     existing = await getUrlReport(canonical, apiKey);
     if (!existing.success) {
+      safeLog.error("VirusTotal report missing after scan:", existing.error);
       return {
         ok: false,
-        error:
-          existing.error ||
-          "Scan finished but the URL report could not be loaded. Try again shortly.",
+        error: VT_RESOLVE_PUBLIC_ERRORS.reportMissing,
       };
     }
   }
 
   const guiUrl = buildVirusTotalGuiUrlForUrlScan(canonical);
-  return { ok: true, guiUrl };
+  const scan = existing.report
+    ? summarizeVirusTotalUrlReport(existing.report, guiUrl) || undefined
+    : undefined;
+  return { ok: true, guiUrl, scan };
 }

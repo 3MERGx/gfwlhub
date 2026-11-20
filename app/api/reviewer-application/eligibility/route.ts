@@ -1,26 +1,15 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
-import {
-  getUserEligibilityDetails,
-  getUserByEmail,
-} from "@/lib/crowdsource-service-mongodb";
+import { getUserEligibilityDetails } from "@/lib/crowdsource-service-mongodb";
 import { safeLog } from "@/lib/security";
+import { requireSession } from "@/lib/api-auth";
 
 // GET - Get user's eligibility status
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireSession();
+    if (!auth.ok) return auth.response;
 
-    const user = await getUserByEmail(session.user.email!);
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    const eligibility = await getUserEligibilityDetails(user.id);
+    const eligibility = await getUserEligibilityDetails(auth.user.id);
     return NextResponse.json(eligibility);
   } catch (error) {
     safeLog.error("Error fetching eligibility:", error);
@@ -30,4 +19,3 @@ export async function GET() {
     );
   }
 }
-

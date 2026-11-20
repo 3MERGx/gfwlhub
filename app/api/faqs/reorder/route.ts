@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
-import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { toObjectId } from "@/lib/mongo-sanitize";
+import { requireAdmin } from "@/lib/api-auth";
+import { internalError } from "@/lib/api-error";
 import { revalidatePath } from "next/cache";
 import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 import { validateCSRFToken } from "@/lib/csrf";
@@ -12,17 +12,15 @@ import { validateCSRFToken } from "@/lib/csrf";
 export async function PATCH(request: NextRequest) {
   try {
     // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireAdmin();
+    if (!auth.ok) return auth.response;
+
+    const identifier = getClientIdentifier(request, auth.user.id);
     if (!rateLimiters.admin.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
       );
-    }
-
-    if (!session || session.user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // CSRF protection
@@ -48,20 +46,26 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Validate and sanitize FAQ data
-    const sanitizedFaqs = faqs.map((faq: { id: string; order: number }) => {
+    const sanitizedFaqs: { id: NonNullable<ReturnType<typeof toObjectId>>; order: number }[] =
+      [];
+    for (const faq of faqs as { id: string; order: number }[]) {
       const sanitizedId = sanitizeString(String(faq.id || ""), 50);
       const sanitizedOrder = Number(faq.order);
-      
-      if (!sanitizedId || !ObjectId.isValid(sanitizedId)) {
-        throw new Error("Invalid FAQ ID");
+      const objectId = toObjectId(sanitizedId);
+
+      if (!objectId) {
+        return NextResponse.json({ error: "Invalid FAQ ID" }, { status: 400 });
       }
-      
+
       if (isNaN(sanitizedOrder) || sanitizedOrder < 0) {
-        throw new Error("Invalid order value");
+        return NextResponse.json(
+          { error: "Invalid order value" },
+          { status: 400 }
+        );
       }
-      
-      return { id: sanitizedId, order: sanitizedOrder };
-    });
+
+      sanitizedFaqs.push({ id: objectId, order: sanitizedOrder });
+    }
 
     const db = await getGFWLDatabase();
     const faqsCollection = db.collection("faqs");
@@ -69,13 +73,13 @@ export async function PATCH(request: NextRequest) {
     // Batch update all FAQs with their new orders
     const bulkOps = sanitizedFaqs.map((faq) => ({
       updateOne: {
-        filter: { _id: new ObjectId(faq.id) },
+        filter: { _id: faq.id },
         update: {
           $set: {
             order: faq.order,
             updatedAt: new Date(),
-            updatedBy: session.user.id,
-            updatedByName: session.user.name || "Unknown",
+            updatedBy: auth.user.id,
+            updatedByName: auth.user.name || "Unknown",
           },
         },
       },
@@ -94,11 +98,7 @@ export async function PATCH(request: NextRequest) {
       modifiedCount: result.modifiedCount,
     });
   } catch (error) {
-    safeLog.error("Error batch updating FAQ orders:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return internalError("Error batch updating FAQ orders:", error);
   }
 }
 

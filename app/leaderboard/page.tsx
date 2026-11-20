@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import Image from "next/image";
 import DashboardLayout from "@/components/DashboardLayout";
+import DashboardPageHeader from "@/components/dashboard/DashboardPageHeader";
 import { safeLog } from "@/lib/security";
 import { useDebounce } from "@/hooks/useDebounce";
 import { getAvatarUrl } from "@/lib/image-utils";
@@ -292,24 +293,11 @@ export default function LeaderboardPage() {
             </div>
           </div>
 
-          {/* Header */}
-          <div className="mb-4 sm:mb-6">
-            <Link
-              href="/dashboard"
-              className="text-[#107c10] hover:underline text-xs sm:text-sm mb-2 inline-block"
-            >
-              ← Back to Dashboard
-            </Link>
-            <div className="flex items-center gap-3 mb-2">
-              <FaTrophy className="text-yellow-400 text-2xl sm:text-3xl" />
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-[rgb(var(--text-primary))]">
-                Community Leaderboard
-              </h1>
-            </div>
-            <p className="text-[rgb(var(--text-secondary))] text-xs sm:text-sm md:text-base">
-              Top contributors ranked by approval rate and submission count
-            </p>
-          </div>
+          <DashboardPageHeader
+            title="Community Leaderboard"
+            subtitle="Top contributors ranked by approval rate and submission count"
+            icon={<FaTrophy className="text-yellow-400" size={24} />}
+          />
 
           {/* Search and Filters */}
           <div className="bg-[rgb(var(--bg-card))] rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 border border-[rgb(var(--border-color))]">

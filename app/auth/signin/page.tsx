@@ -328,15 +328,15 @@ function SignInContent() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-12 bg-gradient-to-br from-[#0a0a0a] via-[#121212] to-[#1a1a1a]">
+    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-12 bg-[rgb(var(--bg-primary))]">
       <div className="max-w-6xl w-full grid md:grid-cols-2 gap-8 items-center">
         {/* Left Side - Marketing Content */}
         <div className="hidden md:block space-y-8">
           <div>
-            <h1 className="text-4xl lg:text-5xl font-bold text-white mb-4 leading-tight">
+            <h1 className="text-4xl lg:text-5xl font-bold text-[rgb(var(--text-primary))] mb-4 leading-tight">
               Join the GFWL Hub Community
             </h1>
-            <p className="text-xl text-gray-400 leading-relaxed">
+            <p className="text-xl text-[rgb(var(--text-secondary))] leading-relaxed">
               Help preserve gaming history by contributing accurate information
               about Games for Windows LIVE titles.
             </p>
@@ -348,10 +348,10 @@ function SignInContent() {
                 <FaEdit className="text-white" size={24} />
               </div>
               <div>
-                <h3 className="text-white font-semibold text-lg mb-1">
+                <h3 className="text-[rgb(var(--text-primary))] font-semibold text-lg mb-1">
                   Submit Corrections
                 </h3>
-                <p className="text-gray-400 text-sm">
+                <p className="text-[rgb(var(--text-secondary))] text-sm">
                   Help us maintain accurate game information by submitting
                   corrections and updates.
                 </p>
@@ -363,10 +363,10 @@ function SignInContent() {
                 <FaUsers className="text-white" size={24} />
               </div>
               <div>
-                <h3 className="text-white font-semibold text-lg mb-1">
+                <h3 className="text-[rgb(var(--text-primary))] font-semibold text-lg mb-1">
                   Community Driven
                 </h3>
-                <p className="text-gray-400 text-sm">
+                <p className="text-[rgb(var(--text-secondary))] text-sm">
                   Join a community of passionate gamers preserving classic GFWL
                   titles.
                 </p>
@@ -378,10 +378,10 @@ function SignInContent() {
                 <FaShieldAlt className="text-white" size={24} />
               </div>
               <div>
-                <h3 className="text-white font-semibold text-lg mb-1">
+                <h3 className="text-[rgb(var(--text-primary))] font-semibold text-lg mb-1">
                   Secure & Private
                 </h3>
-                <p className="text-gray-400 text-sm">
+                <p className="text-[rgb(var(--text-secondary))] text-sm">
                   We use secure OAuth authentication and never store your
                   passwords.
                 </p>
@@ -389,14 +389,14 @@ function SignInContent() {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-gray-800">
-            <p className="text-gray-500 text-sm">
+          <div className="pt-4 border-t border-[rgb(var(--border-color))]">
+            <p className="text-[rgb(var(--text-muted))] text-sm">
               Need help?{" "}
               <Link
                 href="/contact"
                 className="text-[#107c10] hover:text-[#0d6b0d] transition-colors"
               >
-                Contact us
+                Game communities
               </Link>
             </p>
           </div>
@@ -404,16 +404,18 @@ function SignInContent() {
 
         {/* Right Side - Sign In Form */}
         <div className="w-full">
-          <div className="bg-[#1e1e1e] p-8 rounded-2xl border border-gray-800 shadow-2xl">
+          <div className="bg-[rgb(var(--bg-card))] p-8 rounded-2xl border border-[rgb(var(--border-color))] shadow-2xl">
             {/* Header */}
             <div className="text-center mb-8">
               <div className="inline-block p-3 bg-[#107c10] rounded-full mb-4">
                 <FaShieldAlt className="text-white" size={32} />
               </div>
-              <h2 className="text-3xl font-bold text-white mb-2">
+              <h2 className="text-3xl font-bold text-[rgb(var(--text-primary))] mb-2">
                 Welcome Back
               </h2>
-              <p className="text-gray-400">Sign in to continue to GFWL Hub</p>
+              <p className="text-[rgb(var(--text-secondary))]">
+                Sign in to continue to GFWL Hub
+              </p>
             </div>
 
             {/* Sign In Buttons */}
@@ -487,23 +489,23 @@ function SignInContent() {
 
             {/* Info Box */}
             <div className="mt-8 p-4 bg-gradient-to-br from-[#107c10]/10 to-[#0d6b0d]/10 border border-[#107c10]/30 rounded-xl">
-              <p className="text-gray-300 text-sm text-center leading-relaxed">
-                🔒 Your data is secure. We only access your basic profile
+              <p className="text-[rgb(var(--text-secondary))] text-sm text-center leading-relaxed">
+                Your data is secure. We only access your basic profile
                 information to create your account.
               </p>
             </div>
 
             {/* Mobile marketing content */}
-            <div className="md:hidden mt-6 pt-6 border-t border-gray-800 space-y-4">
+            <div className="md:hidden mt-6 pt-6 border-t border-[rgb(var(--border-color))] space-y-4">
               <div className="flex items-center gap-3">
                 <FaEdit className="text-[#107c10]" size={20} />
-                <p className="text-gray-400 text-sm">
+                <p className="text-[rgb(var(--text-secondary))] text-sm">
                   Submit corrections and help the community
                 </p>
               </div>
               <div className="flex items-center gap-3">
                 <FaUsers className="text-[#107c10]" size={20} />
-                <p className="text-gray-400 text-sm">
+                <p className="text-[rgb(var(--text-secondary))] text-sm">
                   Join passionate GFWL preservationists
                 </p>
               </div>
@@ -514,7 +516,7 @@ function SignInContent() {
           <div className="text-center mt-6">
             <Link
               href="/"
-              className="text-gray-400 hover:text-white text-sm transition-colors"
+              className="text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] text-sm transition-colors"
             >
               ← Back to homepage
             </Link>
@@ -529,8 +531,8 @@ export default function SignIn() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
-          <div className="text-white">Loading...</div>
+        <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-[rgb(var(--bg-primary))]">
+          <div className="text-[rgb(var(--text-primary))]">Loading...</div>
         </div>
       }
     >

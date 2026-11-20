@@ -37,10 +37,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   const [theme, setThemeState] = useState<Theme>(getInitialTheme);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     // Sync with localStorage (script already applied the class, just sync state)
     const savedTheme = localStorage.getItem("theme") as Theme | null;
     if (savedTheme && (savedTheme === "dark" || savedTheme === "light")) {
@@ -59,11 +57,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("theme", newTheme);
     document.documentElement.classList.toggle("dark", newTheme === "dark");
   };
-
-  // Prevent hydration mismatch
-  if (!mounted) {
-    return <>{children}</>;
-  }
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme }}>

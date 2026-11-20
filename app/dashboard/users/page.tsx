@@ -28,6 +28,7 @@ import {
 import Link from "next/link";
 import Image from "next/image";
 import DashboardLayout from "@/components/DashboardLayout";
+import DashboardPageHeader from "@/components/dashboard/DashboardPageHeader";
 import {
   Select,
   SelectContent,
@@ -758,21 +759,10 @@ export default function UsersPage() {
     <DashboardLayout requireRole="admin">
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8">
         <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="mb-4 sm:mb-6">
-            <Link
-              href="/dashboard"
-              className="text-[#107c10] hover:underline text-xs sm:text-sm mb-2 inline-block"
-            >
-              ← Back to Dashboard
-            </Link>
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-[rgb(var(--text-primary))] mb-1 sm:mb-2">
-              User Management
-            </h1>
-            <p className="text-[rgb(var(--text-secondary))] text-xs sm:text-sm md:text-base">
-              Manage user roles, permissions, and access
-            </p>
-          </div>
+          <DashboardPageHeader
+            title="User Management"
+            subtitle="Manage user roles, permissions, and access"
+          />
 
           {/* Search and Controls */}
           <div className="bg-[rgb(var(--bg-card))] rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
@@ -1117,9 +1107,13 @@ export default function UsersPage() {
 
                       {/* Submissions */}
                       <div className="col-span-1 flex items-center justify-center">
-                        <span className="text-sm font-semibold text-[rgb(var(--text-primary))] px-3 py-1 rounded-md bg-[#107c10]/10">
+                        <Link
+                          href={`/dashboard/submissions?userId=${encodeURIComponent(user.id)}&userName=${encodeURIComponent(user.name)}`}
+                          className="text-sm font-semibold text-[#107c10] hover:underline px-3 py-1 rounded-md bg-[#107c10]/10"
+                          title={`View corrections from ${user.name}`}
+                        >
                           {user.submissionsCount}
-                        </span>
+                        </Link>
                       </div>
 
                       {/* Approval Rate */}
@@ -1203,6 +1197,13 @@ export default function UsersPage() {
                                           Change Permissions
                                         </button>
                                       )}
+                                      <Link
+                                        href={`/dashboard/submissions?userId=${encodeURIComponent(user.id)}&userName=${encodeURIComponent(user.name)}`}
+                                        className="w-full px-4 py-2 text-left text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--bg-card-alt))] flex items-center gap-2"
+                                        onClick={() => setOpenMenuId(null)}
+                                      >
+                                        View corrections
+                                      </Link>
                                       <button
                                         onClick={() => {
                                           setSelectedUser(user);
@@ -1517,9 +1518,13 @@ export default function UsersPage() {
                           <FaChartBar size={10} />
                           <span>Submissions</span>
                         </div>
-                        <p className="text-[rgb(var(--text-primary))] text-sm font-medium">
-                          {user.submissionsCount}
-                        </p>
+                        <Link
+                          href={`/dashboard/submissions?userId=${encodeURIComponent(user.id)}&userName=${encodeURIComponent(user.name)}`}
+                          className="text-[#107c10] text-sm font-medium hover:underline"
+                          title={`View corrections from ${user.name}`}
+                        >
+                          {user.submissionsCount} corrections
+                        </Link>
                       </div>
                       <div>
                         <div className="text-[rgb(var(--text-muted))] text-xs mb-1">

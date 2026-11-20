@@ -1,52 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
-import {
-  getReviewerActionLogs,
-  getUserByEmail,
-  canManageUsers,
-} from "@/lib/crowdsource-service-mongodb";
-import { safeLog, sanitizeString } from "@/lib/security";
+import { getReviewerActionLogs } from "@/lib/crowdsource-service-mongodb";
+import { rateLimiters, getClientIdentifier } from "@/lib/security";
+import { requireAdmin } from "@/lib/api-auth";
+import { internalError, jsonError } from "@/lib/api-error";
+import { parseClampedLimit } from "@/lib/request-validation";
 
 // GET - Get reviewer action logs (admin only)
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireAdmin();
+    if (!auth.ok) return auth.response;
+
+    const identifier = getClientIdentifier(request, auth.user.id);
+    if (!rateLimiters.admin.isAllowed(identifier)) {
+      return jsonError("Too many requests. Please try again later.", 429);
     }
 
-    const user = await getUserByEmail(session.user.email!);
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    // Check admin permissions
-    if (!canManageUsers(user)) {
-      return NextResponse.json(
-        { error: "Forbidden - Admin access required" },
-        { status: 403 }
-      );
-    }
-
-    // Get optional filters from query params
     const { searchParams } = new URL(request.url);
     const reviewerIdParam = searchParams.get("reviewerId");
-    const limitParam = searchParams.get("limit");
+    const limit = parseClampedLimit(searchParams.get("limit"), {
+      defaultLimit: 100,
+      min: 1,
+      max: 1000,
+    });
 
-    const reviewerId = reviewerIdParam
-      ? sanitizeString(reviewerIdParam, 50)
-      : undefined;
-    const limit = limitParam ? parseInt(limitParam, 10) : 100;
-
-    const logs = await getReviewerActionLogs(reviewerId, limit);
+    const logs = await getReviewerActionLogs(
+      reviewerIdParam ?? undefined,
+      limit
+    );
     return NextResponse.json({ logs });
   } catch (error) {
-    safeLog.error("Error fetching reviewer action logs:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return internalError("Error fetching reviewer action logs:", error);
   }
 }
-

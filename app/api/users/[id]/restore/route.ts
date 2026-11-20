@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
 import { restoreDeletedUser } from "@/lib/crowdsource-service-mongodb";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { requireAdmin } from "@/lib/api-auth";
 import { revalidatePath } from "next/cache";
 import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 import { validateCSRFToken } from "@/lib/csrf";
@@ -12,19 +11,16 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireAdmin();
+    if (!auth.ok) return auth.response;
+    const { session } = auth;
+
+    const identifier = getClientIdentifier(request, session.user.id);
     if (!rateLimiters.admin.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
       );
-    }
-
-    // Only admins can restore deleted users
-    if (!session || session.user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id } = await params;

@@ -1,14 +1,15 @@
 import { Metadata } from "next";
+import { requireAdminPage } from "@/lib/page-auth";
 
 export const metadata: Metadata = {
   title: "Moderation Log",
 };
 
-export default function ModerationLayout({
+export default async function ModerationLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return children;
+  await requireAdminPage("/dashboard/moderation");
+  return <>{children}</>;
 }
-

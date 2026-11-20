@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
 import {
   createReviewerApplication,
   getUserReviewerApplication,
   userEligibleForReviewer,
   hasPendingApplication,
-  getUserByEmail,
   canReapplyForReviewer,
 } from "@/lib/crowdsource-service-mongodb";
+import { requireSession } from "@/lib/api-auth";
 import {
   safeLog,
   sanitizeString,
@@ -19,29 +17,21 @@ import { validateCSRFToken } from "@/lib/csrf";
 import { notifyReviewerApplicationSubmitted } from "@/lib/discord-webhook";
 import { getGFWLDatabase } from "@/lib/mongodb";
 import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
-import { ObjectId } from "mongodb";
+import { mustObjectId } from "@/lib/mongo-sanitize";
 
 // POST - Submit a reviewer application
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireSession();
+    if (!auth.ok) return auth.response;
+    const { session, user } = auth;
 
-    // Rate limiting
-    const identifier = getClientIdentifier(request, session.user.id);
+    const identifier = getClientIdentifier(request, user.id);
     if (!rateLimiters.api.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
       );
-    }
-
-    // Get user from database
-    const user = await getUserByEmail(session.user.email!);
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     // Check if user is already a reviewer or admin
@@ -268,7 +258,7 @@ export async function POST(request: NextRequest) {
           
           // Store array of message IDs (one per webhook)
           await applicationsCollection.updateOne(
-            { _id: new ObjectId(application.id) },
+            { _id: mustObjectId(application.id) },
             { $set: { discordMessageIds: messageIds } }
           );
         } else if (firstMessageId) {
@@ -276,7 +266,7 @@ export async function POST(request: NextRequest) {
           const db = await getGFWLDatabase();
           const applicationsCollection = db.collection("reviewerApplications");
           await applicationsCollection.updateOne(
-            { _id: new ObjectId(application.id) },
+            { _id: mustObjectId(application.id) },
             { $set: { discordMessageId: firstMessageId } }
           );
         }
@@ -300,15 +290,9 @@ export async function POST(request: NextRequest) {
 // GET - Get user's reviewer application
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await getUserByEmail(session.user.email!);
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
+    const auth = await requireSession();
+    if (!auth.ok) return auth.response;
+    const { user } = auth;
 
     const application = await getUserReviewerApplication(user.id);
     return NextResponse.json({ application });

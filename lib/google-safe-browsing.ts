@@ -26,6 +26,8 @@ export interface SafeBrowsingError {
   };
 }
 
+const GSB_PUBLIC_ERROR = "Failed to check URL. Please try again later.";
+
 /**
  * Check if a URL is safe using Google Safe Browsing API
  * @param url The URL to check
@@ -70,19 +72,16 @@ export async function checkUrlSafety(
     );
 
     if (!response.ok) {
-      let errorMessage = `HTTP ${response.status}: Failed to check URL`;
       try {
         const errorData = (await response.json()) as SafeBrowsingError;
-        errorMessage = errorData.error?.message || errorMessage;
         safeLog.error("Google Safe Browsing API error:", errorData);
       } catch {
         const text = await response.text();
         safeLog.error("Google Safe Browsing API error (non-JSON):", text);
-        errorMessage = text || errorMessage;
       }
       return {
         success: false,
-        error: errorMessage,
+        error: GSB_PUBLIC_ERROR,
       };
     }
 
@@ -103,9 +102,10 @@ export async function checkUrlSafety(
       isSafe: true,
     };
   } catch (error) {
+    safeLog.error("Google Safe Browsing unexpected error:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: GSB_PUBLIC_ERROR,
     };
   }
 }
@@ -122,4 +122,3 @@ export function getThreatTypeName(threatType: string): string {
   };
   return threatNames[threatType] || threatType;
 }
-

@@ -1,30 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
 import { getGameBySlug } from "@/lib/games-service";
 import { notifyGameSubmissionSubmitted } from "@/lib/discord-webhook";
+import { canReviewCorrections, canSubmitCorrections } from "@/lib/crowdsource-service-mongodb";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 import { revalidatePath } from "next/cache";
 import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
+import { validateCSRFToken } from "@/lib/csrf";
+import { requireSession } from "@/lib/api-auth";
+import { isGameUpdateField, toObjectId } from "@/lib/mongo-sanitize";
 
 // GET - Fetch all game submissions (for reviewers/admins)
 export async function GET(request: NextRequest) {
   try {
-    // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireSession();
+    if (!auth.ok) return auth.response;
+    const { session, user } = auth;
+
+    const identifier = getClientIdentifier(request, user.id);
     if (!rateLimiters.api.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
       );
-    }
-
-    // Check if user is authenticated
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const db = await getGFWLDatabase();
@@ -42,9 +40,8 @@ export async function GET(request: NextRequest) {
     const query: Record<string, unknown> = {};
 
     // Regular users can only see their own submissions
-    if (session.user.role === "user") {
-      if (userId && userId !== session.user.id) {
-        // Viewing another user's profile: don't expose their submissions
+    if (!canReviewCorrections(user)) {
+      if (userId && userId !== user.id) {
         return NextResponse.json(
           [],
           {
@@ -54,9 +51,8 @@ export async function GET(request: NextRequest) {
           }
         );
       }
-      query.submittedBy = session.user.id;
+      query.submittedBy = user.id;
     } else if (userId) {
-      // Reviewers/admins can filter by specific userId
       query.submittedBy = userId;
     }
 
@@ -66,7 +62,7 @@ export async function GET(request: NextRequest) {
     } else {
       // Filter by status if provided (but only if readyToPublish is not enabled)
       // If status is empty or "all", don't filter by status (show all statuses)
-      if (status && status !== "all") {
+      if (status && ["pending", "approved", "rejected", "superseded"].includes(status)) {
         query.status = status;
       }
     }
@@ -84,7 +80,7 @@ export async function GET(request: NextRequest) {
 
     // If readyToPublish filter is enabled, filter to show only approved submissions
     // where the game hasn't been published yet (featureEnabled is false or not set)
-    if (readyToPublish && (session.user.role === "reviewer" || session.user.role === "admin")) {
+    if (readyToPublish && canReviewCorrections(user)) {
       // First, ensure we only have approved submissions (should already be filtered by query.status = "approved")
       submissions = submissions.filter((submission) => submission.status === "approved");
       
@@ -113,9 +109,10 @@ export async function GET(request: NextRequest) {
         
         // Get published by user name if game is published
         let publishedByName = null;
-        if (currentGame?.publishedBy && ObjectId.isValid(currentGame.publishedBy)) {
+        const publisherId = toObjectId(currentGame?.publishedBy);
+        if (publisherId) {
           const publisher = await usersCollection.findOne({
-            _id: new ObjectId(currentGame.publishedBy),
+            _id: publisherId,
           });
           publishedByName = publisher?.name || null;
         }
@@ -164,9 +161,11 @@ export async function GET(request: NextRequest) {
 // POST - Create a new game submission
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireSession();
+    if (!auth.ok) return auth.response;
+    const { session, user } = auth;
+
+    const identifier = getClientIdentifier(request, user.id);
     if (!rateLimiters.api.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
@@ -174,16 +173,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Check if user is allowed to submit
-    if (
-      session.user.status === "suspended" ||
-      session.user.status === "blocked" ||
-      session.user.status === "restricted"
-    ) {
+    if (!canSubmitCorrections(user)) {
       return NextResponse.json(
         { error: "Your account is not permitted to submit content" },
         { status: 403 }
@@ -191,24 +181,32 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    const csrfToken = request.headers.get("X-CSRF-Token") || body._csrf;
+    if (!(await validateCSRFToken(csrfToken))) {
+      return NextResponse.json(
+        { error: "Invalid CSRF token" },
+        { status: 403 }
+      );
+    }
+    delete body._csrf;
+
     const {
       gameSlug,
       gameTitle,
-      submittedBy,
-      submittedByName,
       proposedData,
       submitterNotes,
     } = body;
 
-    // Sanitize and validate inputs
     const sanitizedGameSlug = sanitizeString(String(gameSlug || ""), 200);
     const sanitizedGameTitle = sanitizeString(String(gameTitle || ""), 500);
-    const sanitizedSubmittedBy = sanitizeString(String(submittedBy || ""), 50);
-    const sanitizedSubmittedByName = sanitizeString(String(submittedByName || ""), 200);
+    const sanitizedSubmittedBy = user.id;
+    const sanitizedSubmittedByName = sanitizeString(
+      String(user.name || session.user.name || "User"),
+      200
+    );
     const sanitizedSubmitterNotes = submitterNotes ? sanitizeString(String(submitterNotes), 2000) : undefined;
 
-    // Validate required fields
-    if (!sanitizedGameSlug || !sanitizedGameTitle || !sanitizedSubmittedBy || !sanitizedSubmittedByName) {
+    if (!sanitizedGameSlug || !sanitizedGameTitle) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -227,7 +225,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate submittedBy is a valid ObjectId
-    if (!sanitizedSubmittedBy || !ObjectId.isValid(sanitizedSubmittedBy)) {
+    if (!toObjectId(sanitizedSubmittedBy)) {
       return NextResponse.json(
         { error: "Invalid user ID" },
         { status: 400 }
@@ -240,8 +238,11 @@ export async function POST(request: NextRequest) {
       const { isNsfwDomainBlocked, isDirectDownloadLink } = await import("@/lib/nsfw-blacklist");
       
       for (const [key, value] of Object.entries(proposedData)) {
+        const sanitizedKey = sanitizeString(key, 100);
+        if (!isGameUpdateField(sanitizedKey)) {
+          continue;
+        }
         if (typeof value === "string") {
-          const sanitizedKey = sanitizeString(key, 100);
           const sanitizedValue = sanitizeString(value, 5000);
           
           // Validate URL fields for NSFW domains and direct download links
@@ -280,11 +281,11 @@ export async function POST(request: NextRequest) {
           
           sanitizedProposedData[sanitizedKey] = sanitizedValue;
         } else if (Array.isArray(value)) {
-          sanitizedProposedData[sanitizeString(key, 100)] = value.map((item) => 
-            typeof item === "string" ? sanitizeString(item, 500) : item
-          );
-        } else {
-          sanitizedProposedData[sanitizeString(key, 100)] = value;
+          sanitizedProposedData[sanitizedKey] = value
+            .filter((item): item is string => typeof item === "string")
+            .map((item) => sanitizeString(item, 500));
+        } else if (typeof value === "boolean" && sanitizedKey === "isUnplayable") {
+          sanitizedProposedData[sanitizedKey] = value;
         }
       }
     }
@@ -319,6 +320,7 @@ export async function POST(request: NextRequest) {
       virusTotalUrl: originalGame.virusTotalUrl,
       knownIssues: originalGame.knownIssues,
       communityTips: originalGame.communityTips,
+      activationNotes: originalGame.activationNotes,
       additionalDRM: originalGame.additionalDRM,
       playabilityStatus: originalGame.playabilityStatus,
       isUnplayable: originalGame.isUnplayable,
@@ -420,10 +422,13 @@ export async function POST(request: NextRequest) {
       submissionId = result.insertedId.toString();
 
       // Update user's submission count only for new submissions
-      await usersCollection.updateOne(
-        { _id: new ObjectId(sanitizedSubmittedBy) },
-        { $inc: { submissionsCount: 1 } }
-      );
+      const submittedById = toObjectId(sanitizedSubmittedBy);
+      if (submittedById) {
+        await usersCollection.updateOne(
+          { _id: submittedById },
+          { $inc: { submissionsCount: 1 } }
+        );
+      }
     }
 
     // Send or update Discord notification (non-blocking)
@@ -518,16 +523,20 @@ export async function POST(request: NextRequest) {
             const validMessageIds = messageIds.filter((id): id is string => id !== null);
             if (validMessageIds.length > 0) {
               // Store array of message IDs (one per webhook)
-              await submissionsCollection.updateOne(
-                { _id: new ObjectId(submissionId) },
-                { $set: { discordMessageIds: messageIds } }
-              );
+              const discordSubmissionId = toObjectId(submissionId);
+              if (discordSubmissionId) {
+                await submissionsCollection.updateOne(
+                  { _id: discordSubmissionId },
+                  { $set: { discordMessageIds: messageIds } }
+                );
+              }
             } else {
               // Fallback: if we got message IDs but all are null, try to store the first one as single value (backward compatibility)
               const firstMessageId = messageIds[0];
-              if (firstMessageId) {
+              const discordSubmissionId = toObjectId(submissionId);
+              if (firstMessageId && discordSubmissionId) {
                 await submissionsCollection.updateOne(
-                  { _id: new ObjectId(submissionId) },
+                  { _id: discordSubmissionId },
                   { $set: { discordMessageId: firstMessageId } }
                 );
               }

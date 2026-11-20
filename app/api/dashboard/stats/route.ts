@@ -1,29 +1,19 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
 import { safeLog, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { requireReviewer } from "@/lib/api-auth";
 
 export async function GET(request: Request) {
   try {
-    // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireReviewer();
+    if (!auth.ok) return auth.response;
+
+    const identifier = getClientIdentifier(request, auth.user.id);
     if (!rateLimiters.admin.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
       );
-    }
-
-    // Check authentication - only reviewers and admins can access
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const userRole = session.user.role;
-    if (userRole !== "reviewer" && userRole !== "admin") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const db = await getGFWLDatabase();
@@ -34,8 +24,12 @@ export async function GET(request: Request) {
     // Fetch corrections (submissions)
     const corrections = await db.collection("corrections").find({}).toArray();
     
-    // Count audit logs
-    const totalChanges = await db.collection("auditLogs").countDocuments();
+    const [totalChanges, pendingGameSubmissions, pendingFaqSubmissions] =
+      await Promise.all([
+        db.collection("auditLogs").countDocuments(),
+        db.collection("gameSubmissions").countDocuments({ status: "pending" }),
+        db.collection("faqSubmissions").countDocuments({ status: "pending" }),
+      ]);
 
     // Calculate stats
     const stats = {
@@ -53,6 +47,8 @@ export async function GET(request: Request) {
       approvedSubmissions: corrections.filter((c: any) => (c.status || "pending") === "approved").length,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       rejectedSubmissions: corrections.filter((c: any) => (c.status || "pending") === "rejected").length,
+      pendingGameSubmissions,
+      pendingFaqSubmissions,
       totalChanges: totalChanges,
     };
 

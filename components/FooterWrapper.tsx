@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import Footer from "@/components/Footer";
 
 /**
- * Wraps Footer and adds left margin on xl screens when on dashboard or
+ * Wraps Footer and adds left margin on lg screens when on dashboard or
  * leaderboard routes (they use DashboardLayout with fixed sidebar) so the
  * footer is not hidden behind the sidebar and aligns with main content.
  */
@@ -14,7 +14,7 @@ export default function FooterWrapper() {
     pathname?.startsWith("/dashboard") || pathname === "/leaderboard";
 
   return (
-    <div className={hasSidebar ? "xl:ml-72" : undefined}>
+    <div className={hasSidebar ? "lg:ml-72" : undefined}>
       <Footer />
     </div>
   );

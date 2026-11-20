@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { requireAdmin } from "@/lib/api-auth";
 import { revalidatePath } from "next/cache";
 import { revalidateGameDerivedPaths } from "@/lib/revalidate-game-derived-paths";
 import { validateCSRFToken } from "@/lib/csrf";
@@ -14,19 +13,16 @@ export async function POST(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireAdmin();
+    if (!auth.ok) return auth.response;
+    const { session } = auth;
+
+    const identifier = getClientIdentifier(request, session.user.id);
     if (!rateLimiters.admin.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
       );
-    }
-
-    // Only admins can publish games
-    if (!session || session.user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // CSRF protection

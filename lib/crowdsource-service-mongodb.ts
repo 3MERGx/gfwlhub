@@ -17,10 +17,13 @@ import {
   ReviewerApplicationStatus,
   ReviewerActionLog,
   ReviewerAction,
+  OAuthProvider,
 } from "@/types/crowdsource";
 import { REVIEWER_APPLICATION_CONFIG } from "./reviewer-application-config";
 import clientPromise from "./mongodb";
-import { ObjectId } from "mongodb";
+import { toObjectId } from "@/lib/mongo-sanitize";
+import { sanitizeString } from "@/lib/security";
+import { parseClampedLimit } from "@/lib/request-validation";
 
 // Helper to convert MongoDB document to User
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -57,18 +60,24 @@ function toAuditLog(doc: any): AuditLog {
 
 // User Management
 export async function getUserById(userId: string): Promise<User | null> {
+  const objectId = toObjectId(userId);
+  if (!objectId) return null;
   const client = await clientPromise;
   const db = client.db("GFWL");
   const user = await db
     .collection("users")
-    .findOne({ _id: new ObjectId(userId) });
+    .findOne({ _id: objectId });
   return user ? toUser(user) : null;
 }
 
 export async function getUserByEmail(email: string): Promise<User | null> {
+  const sanitizedEmail = sanitizeString(email, 320);
+  if (!sanitizedEmail) {
+    return null;
+  }
   const client = await clientPromise;
   const db = client.db("GFWL");
-  const user = await db.collection("users").findOne({ email });
+  const user = await db.collection("users").findOne({ email: sanitizedEmail });
   return user ? toUser(user) : null;
 }
 
@@ -100,12 +109,14 @@ export async function createUser(
 }
 
 export async function updateUserLastLogin(userId: string): Promise<void> {
+  const objectId = toObjectId(userId);
+  if (!objectId) return;
   const client = await clientPromise;
   const db = client.db("GFWL");
   await db
     .collection("users")
     .updateOne(
-      { _id: new ObjectId(userId) },
+      { _id: objectId },
       { $set: { lastLoginAt: new Date() } }
     );
 }
@@ -114,22 +125,26 @@ export async function updateUserRole(
   userId: string,
   role: UserRole
 ): Promise<void> {
+  const objectId = toObjectId(userId);
+  if (!objectId) return;
   const client = await clientPromise;
   const db = client.db("GFWL");
   await db
     .collection("users")
-    .updateOne({ _id: new ObjectId(userId) }, { $set: { role } });
+    .updateOne({ _id: objectId }, { $set: { role } });
 }
 
 export async function updateUserStatus(
   userId: string,
   status: UserStatus
 ): Promise<void> {
+  const objectId = toObjectId(userId);
+  if (!objectId) return;
   const client = await clientPromise;
   const db = client.db("GFWL");
   await db
     .collection("users")
-    .updateOne({ _id: new ObjectId(userId) }, { $set: { status } });
+    .updateOne({ _id: objectId }, { $set: { status } });
 }
 
 export async function getAllUsers(): Promise<User[]> {
@@ -161,13 +176,15 @@ export async function createCorrection(
 
   const result = await db.collection("corrections").insertOne(newCorrection);
 
-  // Update user submission count
-  await db
-    .collection("users")
-    .updateOne(
-      { _id: new ObjectId(correctionData.submittedBy) },
-      { $inc: { submissionsCount: 1 } }
-    );
+  const submittedById = toObjectId(correctionData.submittedBy);
+  if (submittedById) {
+    await db
+      .collection("users")
+      .updateOne(
+        { _id: submittedById },
+        { $inc: { submissionsCount: 1 } }
+      );
+  }
 
   return toCorrection({ ...newCorrection, _id: result.insertedId });
 }
@@ -175,22 +192,102 @@ export async function createCorrection(
 export async function getCorrectionById(
   correctionId: string
 ): Promise<Correction | null> {
+  const objectId = toObjectId(correctionId);
+  if (!objectId) return null;
   const client = await clientPromise;
   const db = client.db("GFWL");
   const correction = await db
     .collection("corrections")
-    .findOne({ _id: new ObjectId(correctionId) });
+    .findOne({ _id: objectId });
   return correction ? toCorrection(correction) : null;
+}
+
+const DOWNLOAD_LINK_CORRECTION_FIELDS = new Set([
+  "downloadLink",
+  "communityAlternativeDownloadLink",
+]);
+
+/**
+ * Persist a VirusTotal URL-scan summary on a correction so other reviewers
+ * see prior results instead of an empty Scan button.
+ */
+export async function saveCorrectionVirusTotalScan(
+  correctionId: string,
+  expectedUrl: string,
+  scan: NonNullable<Correction["virusTotalScan"]>,
+  options?: { setAutoVirusTotalUrl?: boolean }
+): Promise<{ ok: true; correction: Correction } | { ok: false; error: string }> {
+  const objectId = toObjectId(correctionId);
+  if (!objectId) {
+    return { ok: false, error: "Invalid correction id" };
+  }
+
+  const client = await clientPromise;
+  const db = client.db("GFWL");
+  const correction = await db.collection("corrections").findOne({
+    _id: objectId,
+  });
+  if (!correction) {
+    return { ok: false, error: "Correction not found" };
+  }
+
+  const field = String(correction.field || "");
+  if (!DOWNLOAD_LINK_CORRECTION_FIELDS.has(field)) {
+    return {
+      ok: false,
+      error: "VirusTotal scans only apply to download link corrections",
+    };
+  }
+
+  const newValue =
+    typeof correction.newValue === "string" ? correction.newValue.trim() : "";
+  if (!newValue || newValue !== expectedUrl.trim()) {
+    return {
+      ok: false,
+      error: "Scan URL does not match this correction's download link",
+    };
+  }
+
+  const virusTotalScan = {
+    reportUrl: sanitizeString(scan.reportUrl, 500),
+    malicious: Math.max(0, Math.floor(Number(scan.malicious) || 0)),
+    suspicious: Math.max(0, Math.floor(Number(scan.suspicious) || 0)),
+    harmless: Math.max(0, Math.floor(Number(scan.harmless) || 0)),
+    total: Math.max(0, Math.floor(Number(scan.total) || 0)),
+    scannedAt: scan.scannedAt ? new Date(scan.scannedAt) : new Date(),
+    source: scan.source === "submit" ? ("submit" as const) : ("review" as const),
+  };
+
+  const $set: Record<string, unknown> = { virusTotalScan };
+  if (
+    options?.setAutoVirusTotalUrl !== false &&
+    DOWNLOAD_LINK_CORRECTION_FIELDS.has(field) &&
+    virusTotalScan.reportUrl
+  ) {
+    $set.autoVirusTotalUrl = virusTotalScan.reportUrl;
+  }
+
+  await db.collection("corrections").updateOne({ _id: objectId }, { $set });
+
+  const updated = await db.collection("corrections").findOne({ _id: objectId });
+  if (!updated) {
+    return { ok: false, error: "Correction not found after update" };
+  }
+  return { ok: true, correction: toCorrection(updated) };
 }
 
 export async function getCorrectionsByGame(
   gameSlug: string
 ): Promise<Correction[]> {
+  const sanitizedSlug = sanitizeString(gameSlug, 200);
+  if (!sanitizedSlug) {
+    return [];
+  }
   const client = await clientPromise;
   const db = client.db("GFWL");
   const corrections = await db
     .collection("corrections")
-    .find({ gameSlug })
+    .find({ gameSlug: sanitizedSlug })
     .sort({ submittedAt: -1 })
     .toArray();
   return corrections.map(toCorrection);
@@ -210,11 +307,15 @@ export async function getPendingCorrections(): Promise<Correction[]> {
 export async function getCorrectionsByUser(
   userId: string
 ): Promise<Correction[]> {
+  const sanitizedUserId = sanitizeString(userId, 50);
+  if (!sanitizedUserId) {
+    return [];
+  }
   const client = await clientPromise;
   const db = client.db("GFWL");
   const corrections = await db
     .collection("corrections")
-    .find({ submittedBy: userId })
+    .find({ submittedBy: sanitizedUserId })
     .sort({ submittedAt: -1 })
     .toArray();
   return corrections.map(toCorrection);
@@ -250,6 +351,12 @@ export async function findRecentPendingCorrection(
   submittedBy: string,
   timeframeMinutes: number = 5
 ): Promise<Correction | null> {
+  const sanitizedSlug = sanitizeString(gameSlug, 200);
+  const sanitizedSubmittedBy = sanitizeString(submittedBy, 50);
+  if (!sanitizedSlug || !sanitizedSubmittedBy) {
+    return null;
+  }
+
   const client = await clientPromise;
   const db = client.db("GFWL");
   
@@ -258,8 +365,8 @@ export async function findRecentPendingCorrection(
   const recentCorrection = await db
     .collection("corrections")
     .findOne({
-      gameSlug,
-      submittedBy,
+      gameSlug: sanitizedSlug,
+      submittedBy: sanitizedSubmittedBy,
       status: "pending",
       submittedAt: { $gte: cutoffTime },
     }, {
@@ -277,17 +384,19 @@ export async function reviewCorrection(
   reviewNotes?: string,
   finalValue?: string | number | boolean | string[] | null
 ): Promise<void> {
+  const objectId = toObjectId(correctionId);
+  if (!objectId) return;
   const client = await clientPromise;
   const db = client.db("GFWL");
 
   const correction = await db
     .collection("corrections")
-    .findOne({ _id: new ObjectId(correctionId) });
+    .findOne({ _id: objectId });
   if (!correction) return;
 
   // Update correction
   await db.collection("corrections").updateOne(
-    { _id: new ObjectId(correctionId) },
+    { _id: objectId },
     {
       $set: {
         status,
@@ -300,19 +409,22 @@ export async function reviewCorrection(
     }
   );
 
+  const submittedById = toObjectId(correction.submittedBy);
+  if (!submittedById) return;
+
   // Update user stats
   if (status === "approved") {
     await db
       .collection("users")
       .updateOne(
-        { _id: new ObjectId(correction.submittedBy) },
+        { _id: submittedById },
         { $inc: { approvedCount: 1 } }
       );
   } else if (status === "rejected") {
     await db
       .collection("users")
       .updateOne(
-        { _id: new ObjectId(correction.submittedBy) },
+        { _id: submittedById },
         { $inc: { rejectedCount: 1 } }
       );
   }
@@ -337,11 +449,15 @@ export async function createAuditLog(
 export async function getAuditLogsByGame(
   gameSlug: string
 ): Promise<AuditLog[]> {
+  const sanitizedSlug = sanitizeString(gameSlug, 200);
+  if (!sanitizedSlug) {
+    return [];
+  }
   const client = await clientPromise;
   const db = client.db("GFWL");
   const logs = await db
     .collection("auditLogs")
-    .find({ gameSlug })
+    .find({ gameSlug: sanitizedSlug })
     .sort({ changedAt: -1 })
     .toArray();
   return logs.map(toAuditLog);
@@ -359,8 +475,16 @@ export async function getAllAuditLogs(
     .find({})
     .sort({ changedAt: -1 });
 
-  const effectiveLimit = limit || 1000;
-  const safeSkip = Math.max(0, skip);
+  const effectiveLimit = parseClampedLimit(limit, {
+    defaultLimit: 1000,
+    min: 1,
+    max: 5000,
+  });
+  const safeSkip = parseClampedLimit(skip, {
+    defaultLimit: 0,
+    min: 0,
+    max: 10_000,
+  });
   query.skip(safeSkip).limit(effectiveLimit);
 
   const logs = await query.toArray();
@@ -395,12 +519,14 @@ export async function getCrowdsourceStats(): Promise<CrowdsourceStats> {
 }
 
 export async function getUserStats(userId: string): Promise<UserStats | null> {
+  const objectId = toObjectId(userId);
+  if (!objectId) return null;
   const client = await clientPromise;
   const db = client.db("GFWL");
 
   const user = await db
     .collection("users")
-    .findOne({ _id: new ObjectId(userId) });
+    .findOne({ _id: objectId });
   if (!user) return null;
 
   const corrections = await db
@@ -450,6 +576,8 @@ export function canSubmitCorrections(user: User): boolean {
 export async function deleteUserAndAnonymizeContent(
   userId: string
 ): Promise<void> {
+  const objectId = toObjectId(userId);
+  if (!objectId) return;
   const client = await clientPromise;
   const db = client.db("GFWL");
 
@@ -488,12 +616,12 @@ export async function deleteUserAndAnonymizeContent(
 
   // 4. Soft delete the user account (mark as deleted, keep provider info for tracking)
   // Archive the original name and image for admin tracking purposes
-  const userDoc = await db.collection("users").findOne({ _id: new ObjectId(userId) });
+  const userDoc = await db.collection("users").findOne({ _id: objectId });
   const originalName = userDoc?.name || "Unknown User";
   const originalImage = userDoc?.image || null;
   
   await db.collection("users").updateOne(
-    { _id: new ObjectId(userId) },
+    { _id: objectId },
     {
       $set: {
         status: "deleted",
@@ -504,17 +632,20 @@ export async function deleteUserAndAnonymizeContent(
         image: null,
         deletedAt: new Date(),
       },
+      $inc: { sessionVersion: 1 },
     }
   );
 }
 
 // Restore a deleted user account (admin-only, within grace period)
 export async function restoreDeletedUser(userId: string, adminOverride: boolean = false): Promise<boolean> {
+  const objectId = toObjectId(userId);
+  if (!objectId) return false;
   const client = await clientPromise;
   const db = client.db("GFWL");
   const usersCollection = db.collection("users");
 
-  const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
+  const user = await usersCollection.findOne({ _id: objectId });
 
   if (!user || user.status !== "deleted" || !user.deletedAt) {
     return false; // Not a deleted user or already restored
@@ -536,7 +667,7 @@ export async function restoreDeletedUser(userId: string, adminOverride: boolean 
 
   // 1. Restore the user account
   await usersCollection.updateOne(
-    { _id: new ObjectId(userId) },
+    { _id: objectId },
     {
       $set: {
         status: "active",
@@ -614,7 +745,7 @@ export async function checkUserForFraudPattern(userId: string): Promise<{
 
 // Add a banned provider
 export async function addBannedProvider(data: {
-  provider: string;
+  provider: OAuthProvider;
   providerAccountId: string;
   userId?: string;
   reason: string;
@@ -902,12 +1033,16 @@ export async function canReapplyForReviewer(
 export async function getUserReviewerApplicationHistory(
   userId: string
 ): Promise<ReviewerApplication[]> {
+  const sanitizedUserId = sanitizeString(userId, 50);
+  if (!sanitizedUserId) {
+    return [];
+  }
   const client = await clientPromise;
   const db = client.db("GFWL");
 
   const applications = await db
     .collection("reviewerApplications")
-    .find({ userId })
+    .find({ userId: sanitizedUserId })
     .sort({ createdAt: -1 })
     .toArray();
 
@@ -975,12 +1110,14 @@ export async function getReviewerApplications(
 export async function getReviewerApplicationById(
   id: string
 ): Promise<ReviewerApplication | null> {
+  const objectId = toObjectId(id);
+  if (!objectId) return null;
   const client = await clientPromise;
   const db = client.db("GFWL");
 
   const application = await db
     .collection("reviewerApplications")
-    .findOne({ _id: new ObjectId(id) });
+    .findOne({ _id: objectId });
 
   if (!application) {
     return null;
@@ -1026,8 +1163,13 @@ export async function approveReviewerApplication(
 
   // Get user before updating to get previous role
   const usersCollection = db.collection("users");
+  const userObjectId = toObjectId(application.userId);
+  if (!userObjectId) {
+    throw new Error("User not found");
+  }
+
   const user = await usersCollection.findOne({
-    _id: new ObjectId(application.userId),
+    _id: userObjectId,
   });
 
   if (!user) {
@@ -1037,8 +1179,13 @@ export async function approveReviewerApplication(
   const previousRole = user.role || "user";
 
   // Update application
+  const applicationObjectId = toObjectId(applicationId);
+  if (!applicationObjectId) {
+    throw new Error("Application not found");
+  }
+
   await db.collection("reviewerApplications").updateOne(
-    { _id: new ObjectId(applicationId) },
+    { _id: applicationObjectId },
     {
       $set: {
         status: "approved" as ReviewerApplicationStatus,
@@ -1073,7 +1220,7 @@ export async function approveReviewerApplication(
 
   // Add moderation action to user's moderationHistory array
   await usersCollection.updateOne(
-    { _id: new ObjectId(application.userId) },
+    { _id: userObjectId },
     {
       $push: {
         moderationHistory: {
@@ -1098,8 +1245,13 @@ export async function rejectReviewerApplication(
   const client = await clientPromise;
   const db = client.db("GFWL");
 
+  const objectId = toObjectId(applicationId);
+  if (!objectId) {
+    throw new Error("Application not found");
+  }
+
   await db.collection("reviewerApplications").updateOne(
-    { _id: new ObjectId(applicationId) },
+    { _id: objectId },
     {
       $set: {
         status: "rejected" as ReviewerApplicationStatus,
@@ -1143,12 +1295,20 @@ export async function getReviewerActionLogs(
   const client = await clientPromise;
   const db = client.db("GFWL");
 
-  const query = reviewerId ? { reviewerId } : {};
+  const sanitizedReviewerId = reviewerId
+    ? sanitizeString(reviewerId, 50)
+    : "";
+  const query = sanitizedReviewerId ? { reviewerId: sanitizedReviewerId } : {};
+  const clampedLimit = parseClampedLimit(limit, {
+    defaultLimit: 100,
+    min: 1,
+    max: 1000,
+  });
   const logs = await db
     .collection("reviewerActionsLog")
     .find(query)
     .sort({ createdAt: -1 })
-    .limit(limit)
+    .limit(clampedLimit)
     .toArray();
 
   return logs.map((log) => ({

@@ -4,6 +4,7 @@ import { FaCheckCircle, FaTimesCircle, FaSpinner } from "react-icons/fa";
 import { useEffect, useState } from "react";
 import { isTrustedUrl } from "@/lib/url-whitelist";
 import { safeLog } from "@/lib/security";
+import { useCSRF } from "@/hooks/useCSRF";
 
 interface UrlSafetyIndicatorProps {
   url: string;
@@ -14,6 +15,7 @@ export default function UrlSafetyIndicator({
   url,
   className = "",
 }: UrlSafetyIndicatorProps) {
+  const { csrfToken, loading: csrfLoading } = useCSRF();
   const [isChecking, setIsChecking] = useState(false);
   const [isSafe, setIsSafe] = useState<boolean | null>(null);
   const [threatType, setThreatType] = useState<string | null>(null);
@@ -44,6 +46,10 @@ export default function UrlSafetyIndicator({
       return;
     }
 
+    if (csrfLoading || !csrfToken) {
+      return;
+    }
+
     // Debounce the check for non-trusted URLs
     const timeoutId = setTimeout(async () => {
       setIsChecking(true);
@@ -52,14 +58,19 @@ export default function UrlSafetyIndicator({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "X-CSRF-Token": csrfToken,
           },
           body: JSON.stringify({ url }),
         });
 
         if (!response.ok) {
-          const data = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+          const data = await response.json().catch(() => ({}));
           safeLog.error("Safe Browsing API error:", data);
-          setError(data.error || `Failed to check URL (${response.status})`);
+          setError(
+            typeof data.error === "string"
+              ? data.error
+              : "Failed to check URL. Please try again later."
+          );
           setIsSafe(null);
         } else {
           const data = await response.json();
@@ -68,7 +79,7 @@ export default function UrlSafetyIndicator({
         }
       } catch (err) {
         safeLog.error("Safe Browsing check error:", err);
-        setError(err instanceof Error ? err.message : "Failed to check URL");
+        setError("Failed to check URL. Please try again later.");
         setIsSafe(null);
       } finally {
         setIsChecking(false);
@@ -76,7 +87,7 @@ export default function UrlSafetyIndicator({
     }, 1000); // Wait 1 second after user stops typing
 
     return () => clearTimeout(timeoutId);
-  }, [url]);
+  }, [url, csrfToken, csrfLoading]);
 
   if (!url || url.trim() === "") {
     return null;

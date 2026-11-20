@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
 import { safeLog, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { requireAdmin } from "@/lib/api-auth";
 
 // Helper to convert MongoDB user to our User format
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -37,19 +36,15 @@ function toUser(doc: any) {
 
 export async function GET(request: Request) {
   try {
-    // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireAdmin();
+    if (!auth.ok) return auth.response;
+
+    const identifier = getClientIdentifier(request, auth.user.id);
     if (!rateLimiters.admin.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
       );
-    }
-
-    // Check authentication
-    if (!session || session.user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const db = await getGFWLDatabase();

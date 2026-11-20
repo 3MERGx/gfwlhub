@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { toObjectId } from "@/lib/mongo-sanitize";
+import { requireAdmin } from "@/lib/api-auth";
 import { revalidatePath } from "next/cache";
 import { validateCSRFToken } from "@/lib/csrf";
 import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
@@ -49,17 +48,16 @@ export async function GET(request: Request) {
 export async function POST(request: NextRequest) {
   try {
     // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireAdmin();
+    if (!auth.ok) return auth.response;
+    const { session } = auth;
+
+    const identifier = getClientIdentifier(request, session.user.id);
     if (!rateLimiters.admin.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
       );
-    }
-
-    if (!session || session.user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // CSRF protection
@@ -134,17 +132,16 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireAdmin();
+    if (!auth.ok) return auth.response;
+    const { session } = auth;
+
+    const identifier = getClientIdentifier(request, session.user.id);
     if (!rateLimiters.admin.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
       );
-    }
-
-    if (!session || session.user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // CSRF protection
@@ -167,7 +164,8 @@ export async function PUT(request: NextRequest) {
     const sanitizedAnswer = sanitizeString(String(answer || ""), 5000);
     const sanitizedOrder = order !== undefined ? Number(order) : undefined;
 
-    if (!sanitizedId || !ObjectId.isValid(sanitizedId)) {
+    const objectId = toObjectId(sanitizedId);
+    if (!objectId) {
       return NextResponse.json({ error: "Invalid FAQ ID" }, { status: 400 });
     }
 
@@ -208,7 +206,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const result = await faqsCollection.updateOne(
-      { _id: new ObjectId(sanitizedId) },
+      { _id: objectId },
       { $set: updateData }
     );
 
@@ -236,17 +234,16 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireAdmin();
+    if (!auth.ok) return auth.response;
+    const { session } = auth;
+
+    const identifier = getClientIdentifier(request, session.user.id);
     if (!rateLimiters.admin.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
       );
-    }
-
-    if (!session || session.user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // CSRF protection
@@ -264,14 +261,15 @@ export async function DELETE(request: NextRequest) {
     // Sanitize and validate
     const sanitizedId = id ? sanitizeString(String(id), 50) : "";
 
-    if (!sanitizedId || !ObjectId.isValid(sanitizedId)) {
+    const objectId = toObjectId(sanitizedId);
+    if (!objectId) {
       return NextResponse.json({ error: "Invalid FAQ ID" }, { status: 400 });
     }
 
     const db = await getGFWLDatabase();
     const faqsCollection = db.collection("faqs");
 
-    const result = await faqsCollection.deleteOne({ _id: new ObjectId(sanitizedId) });
+    const result = await faqsCollection.deleteOne({ _id: objectId });
 
     if (result.deletedCount === 0) {
       return NextResponse.json({ error: "FAQ not found" }, { status: 404 });

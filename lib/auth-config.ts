@@ -4,8 +4,12 @@ import DiscordProvider from "next-auth/providers/discord";
 import GoogleProvider from "next-auth/providers/google";
 import { MongoDBAdapter } from "@/lib/mongodb-adapter";
 import clientPromise from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
 import { safeLog } from "@/lib/security";
+import { toObjectId } from "@/lib/mongo-sanitize";
+import {
+  getSessionVersion,
+  incrementSessionVersion,
+} from "@/lib/session-version";
 
 const adminEmails =
   process.env.DEVELOPER_EMAILS?.split(",").map((email) => email.trim()) || [];
@@ -27,6 +31,7 @@ export const authOptions: NextAuthOptions = {
           GithubProvider({
             clientId: process.env.GITHUB_CLIENT_ID,
             clientSecret: process.env.GITHUB_CLIENT_SECRET,
+            issuer: "https://github.com/login/oauth",
             authorization: {
               params: {
                 scope: "read:user user:email",
@@ -44,6 +49,8 @@ export const authOptions: NextAuthOptions = {
           DiscordProvider({
             clientId: process.env.DISCORD_CLIENT_ID,
             clientSecret: process.env.DISCORD_CLIENT_SECRET,
+            // Discord now sends RFC 9207 `iss=https://discord.com` on the callback.
+            issuer: "https://discord.com",
             httpOptions: {
               timeout: 10000, // Increase timeout to 10 seconds for OAuth requests
             },
@@ -69,8 +76,9 @@ export const authOptions: NextAuthOptions = {
           const queryConditions: Record<string, unknown>[] = [];
           
           // First, try to find by ID (most reliable)
-        if (user.id && ObjectId.isValid(user.id)) {
-            queryConditions.push({ _id: new ObjectId(user.id) });
+        const userObjectId = toObjectId(user.id);
+        if (userObjectId) {
+            queryConditions.push({ _id: userObjectId });
         }
         
           // Also try by email if available
@@ -104,6 +112,7 @@ export const authOptions: NextAuthOptions = {
           token.submissionsCount = dbUser.submissionsCount || 0;
           token.approvedCount = dbUser.approvedCount || 0;
           token.rejectedCount = dbUser.rejectedCount || 0;
+          token.sessionVersion = getSessionVersion(dbUser.sessionVersion);
           token.lastActivity = Math.floor(Date.now() / 1000); // Set initial activity time
 
           // Always use fresh name and image from database (updated on sign-in from OAuth)
@@ -128,6 +137,7 @@ export const authOptions: NextAuthOptions = {
           token.submissionsCount = 0;
           token.approvedCount = 0;
           token.rejectedCount = 0;
+          token.sessionVersion = 0;
           token.lastActivity = Math.floor(Date.now() / 1000); // Set initial activity time
 
           // Set name and image from OAuth provider
@@ -147,9 +157,10 @@ export const authOptions: NextAuthOptions = {
         let dbUser = null;
         try {
           // Check if token.id is a valid ObjectId format
-          if (ObjectId.isValid(token.id as string)) {
+          const tokenObjectId = toObjectId(token.id as string);
+          if (tokenObjectId) {
             dbUser = await usersCollection.findOne({
-              _id: new ObjectId(token.id as string),
+              _id: tokenObjectId,
             });
           } else {
             safeLog.warn(`JWT callback: Invalid ObjectId format for token.id=${token.id}`);
@@ -163,6 +174,18 @@ export const authOptions: NextAuthOptions = {
         }
 
         if (dbUser) {
+          const currentVersion = getSessionVersion(dbUser.sessionVersion);
+          const tokenVersion = getSessionVersion(token.sessionVersion);
+          if (tokenVersion !== currentVersion) {
+            safeLog.warn(
+              `Session invalidated: session version mismatch for user ${token.id}`
+            );
+            return {
+              ...token,
+              error: "SessionInvalidated",
+            };
+          }
+
           // Session rotation on privilege escalation
           // If role changed, invalidate session to force re-authentication
           // Only check if we have a previous role (skip on first request after sign-in)
@@ -294,6 +317,9 @@ export const authOptions: NextAuthOptions = {
       // Add custom user data to session from JWT token
       if (session?.user) {
         session.user.id = token.id as string;
+        if (typeof token.email === "string" && token.email.length > 0) {
+          session.user.email = token.email;
+        }
         session.user.role =
           (token.role as "user" | "reviewer" | "admin") || "user";
         session.user.status =
@@ -460,6 +486,8 @@ export const authOptions: NextAuthOptions = {
       const client = await clientPromise;
       const db = client.db("GFWL");
       const usersCollection = db.collection("users");
+      const objectId = toObjectId(user.id);
+      if (!objectId) return;
 
       // Handle GitHub users with private emails - use provider account ID as fallback
       // GitHub may return null email if user has private email settings
@@ -467,7 +495,7 @@ export const authOptions: NextAuthOptions = {
       if (!userEmail) {
         // Get the user document to find provider info
         const dbUser = await usersCollection.findOne({
-          _id: new ObjectId(user.id),
+          _id: objectId,
         });
         const providerInfo = dbUser?.providerInfo || {};
 
@@ -483,7 +511,7 @@ export const authOptions: NextAuthOptions = {
 
         // Update the user document with the email
         await usersCollection.updateOne(
-          { _id: new ObjectId(user.id) },
+          { _id: objectId },
           { $set: { email: userEmail } }
         );
       }
@@ -494,7 +522,7 @@ export const authOptions: NextAuthOptions = {
       // Update with our custom fields (adapter already created the user)
       // This ensures ALL new users start with active status
       await usersCollection.updateOne(
-        { _id: new ObjectId(user.id) }, // Convert string ID to ObjectId
+        { _id: objectId },
         {
           $set: {
             role,
@@ -503,6 +531,7 @@ export const authOptions: NextAuthOptions = {
             approvedCount: 0,
             rejectedCount: 0,
             lastLoginAt: new Date(),
+            sessionVersion: 0,
           },
         }
       );
@@ -512,9 +541,11 @@ export const authOptions: NextAuthOptions = {
       const client = await clientPromise;
       const db = client.db("GFWL");
       const usersCollection = db.collection("users");
+      const objectId = toObjectId(user.id);
+      if (!objectId) return;
 
       const existingUser = await usersCollection.findOne({
-        _id: new ObjectId(user.id),
+        _id: objectId,
       });
 
       // Check if this is a deleted account attempting to sign back in
@@ -533,7 +564,7 @@ export const authOptions: NextAuthOptions = {
 
           // 1. Restore the account with current OAuth profile information
           await usersCollection.updateOne(
-            { _id: new ObjectId(user.id) },
+            { _id: objectId },
             {
               $set: {
                 status: "active",
@@ -600,6 +631,7 @@ export const authOptions: NextAuthOptions = {
         approvedCount?: number;
         rejectedCount?: number;
         role?: string;
+        sessionVersion?: number;
       } = {
         lastLoginAt: new Date(),
       };
@@ -664,9 +696,12 @@ export const authOptions: NextAuthOptions = {
       if (existingUser?.rejectedCount === undefined) {
         updates.rejectedCount = 0;
       }
+      if (existingUser?.sessionVersion === undefined) {
+        updates.sessionVersion = 0;
+      }
 
       await usersCollection.updateOne(
-        { _id: new ObjectId(user.id) },
+        { _id: objectId },
         {
           $set: updates,
         }
@@ -676,6 +711,20 @@ export const authOptions: NextAuthOptions = {
       // Provider info is already stored in user document by our adapter
       // This event is called after linkAccount, so we can add any additional logic here
     },
+    async signOut(message) {
+      const token = "token" in message ? message.token : undefined;
+      const userId =
+        token && typeof token.id === "string" ? token.id : undefined;
+      if (!userId) {
+        return;
+      }
+
+      try {
+        await incrementSessionVersion(userId);
+      } catch (error) {
+        safeLog.error("Failed to revoke session on sign-out:", error);
+      }
+    },
   },
   pages: {
     signIn: "/auth/signin",
@@ -683,8 +732,8 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt", // JWT strategy doesn't require sessions collection
-    maxAge: 30 * 24 * 60 * 60, // 30 days absolute timeout
-    updateAge: 24 * 60 * 60, // Update session if older than 24 hours
+    maxAge: 24 * 60 * 60, // 24 hours absolute timeout
+    updateAge: 60 * 60, // Refresh rolling session hourly
   },
   cookies: {
     sessionToken: {
@@ -700,7 +749,7 @@ export const authOptions: NextAuthOptions = {
     },
   },
   jwt: {
-    maxAge: 30 * 24 * 60 * 60, // 30 days - match session maxAge
+    maxAge: 24 * 60 * 60, // 24 hours — must match session.maxAge
   },
   secret: process.env.NEXTAUTH_SECRET,
 };

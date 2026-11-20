@@ -1,31 +1,18 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
 import clientPromise from "@/lib/mongodb";
 import { safeLog, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { requireReviewer } from "@/lib/api-auth";
 
 export async function GET(request: Request) {
   try {
-    // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireReviewer();
+    if (!auth.ok) return auth.response;
+
+    const identifier = getClientIdentifier(request, auth.user.id);
     if (!rateLimiters.api.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
-      );
-    }
-
-    // Check authentication
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Check if user is reviewer or admin (feature flag)
-    if (session.user.role !== "admin" && session.user.role !== "reviewer") {
-      return NextResponse.json(
-        { error: "Access denied. Reviewers and admins only." },
-        { status: 403 }
       );
     }
 

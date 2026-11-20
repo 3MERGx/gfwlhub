@@ -18,6 +18,9 @@ import {
 } from "react-icons/fa";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
+import DashboardPageHeader from "@/components/dashboard/DashboardPageHeader";
+import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import { formatReviewDateTime } from "@/lib/format-review-date";
 import {
   Select,
   SelectContent,
@@ -281,16 +284,7 @@ export default function ModerationPage() {
   const endIndex = startIndex + itemsPerPage;
   const paginatedLogs = filteredLogs.slice(startIndex, endIndex);
 
-  const formatDateFull = (date: Date | string) => {
-    const d = new Date(date);
-    return d.toLocaleString(undefined, {
-      month: "2-digit",
-      day: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  const formatDateFull = (date: Date | string) => formatReviewDateTime(date);
 
   const formatDate = (date: Date | string) => {
     const d = new Date(date);
@@ -346,20 +340,10 @@ export default function ModerationPage() {
     <DashboardLayout requireRole="admin">
       <div className="min-h-screen bg-[rgb(var(--bg-dashboard))] text-[rgb(var(--text-primary))] p-4 sm:p-6 md:p-8">
         <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="mb-6 md:mb-8">
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-4 transition-colors text-sm"
-            >
-              <FaChevronLeft size={12} />
-              Back to Dashboard
-            </Link>
-            <h1 className="text-3xl md:text-4xl font-bold mb-2">Moderation Log</h1>
-            <p className="text-gray-400">
-              Complete history of all moderation actions taken on users
-            </p>
-          </div>
+          <DashboardPageHeader
+            title="Moderation Log"
+            subtitle="Complete history of all moderation actions taken on users"
+          />
 
           {/* Filters Container */}
           <div className="bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] p-4 mb-6">
@@ -662,19 +646,45 @@ export default function ModerationPage() {
                 </table>
               </div>
             ) : paginatedLogs.length === 0 ? (
-              <div className="p-8 text-center">
-                <FaUserShield className="mx-auto text-[rgb(var(--text-muted))] mb-4" size={48} />
-                <p className="text-[rgb(var(--text-secondary))]">
-                  {logs.length > 0 &&
+              <DashboardEmptyState
+                icon={<FaUserShield className="mx-auto" size={48} />}
+                title={
+                  logs.length > 0 &&
                   (debouncedSearchQuery ||
                     actionFilter !== "all" ||
                     userFilter !== "all" ||
                     moderatorFilter !== "all" ||
                     dateRangeFilter !== "all")
-                    ? "No logs match the current filters. Try clearing filters or changing search."
-                    : "No moderation logs found"}
-                </p>
-              </div>
+                    ? "No logs match the current filters."
+                    : "No moderation logs found"
+                }
+                description={
+                  logs.length > 0 &&
+                  (debouncedSearchQuery ||
+                    actionFilter !== "all" ||
+                    userFilter !== "all" ||
+                    moderatorFilter !== "all" ||
+                    dateRangeFilter !== "all")
+                    ? "Try clearing filters or changing search."
+                    : undefined
+                }
+                onClearFilters={
+                  logs.length > 0 &&
+                  (debouncedSearchQuery ||
+                    actionFilter !== "all" ||
+                    userFilter !== "all" ||
+                    moderatorFilter !== "all" ||
+                    dateRangeFilter !== "all")
+                    ? () => {
+                        setSearchQuery("");
+                        setActionFilter("all");
+                        setUserFilter("all");
+                        setModeratorFilter("all");
+                        setDateRangeFilter("all");
+                      }
+                    : undefined
+                }
+              />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -936,19 +946,45 @@ export default function ModerationPage() {
                 ))}
               </div>
             ) : paginatedLogs.length === 0 ? (
-              <div className="bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] p-8 text-center">
-                <FaUserShield className="mx-auto text-[rgb(var(--text-muted))] mb-4" size={48} />
-                <p className="text-[rgb(var(--text-secondary))]">
-                  {logs.length > 0 &&
+              <DashboardEmptyState
+                icon={<FaUserShield className="mx-auto" size={48} />}
+                title={
+                  logs.length > 0 &&
                   (debouncedSearchQuery ||
                     actionFilter !== "all" ||
                     userFilter !== "all" ||
                     moderatorFilter !== "all" ||
                     dateRangeFilter !== "all")
-                    ? "No logs match the current filters. Try clearing filters or changing search."
-                    : "No moderation logs found"}
-                </p>
-              </div>
+                    ? "No logs match the current filters."
+                    : "No moderation logs found"
+                }
+                description={
+                  logs.length > 0 &&
+                  (debouncedSearchQuery ||
+                    actionFilter !== "all" ||
+                    userFilter !== "all" ||
+                    moderatorFilter !== "all" ||
+                    dateRangeFilter !== "all")
+                    ? "Try clearing filters or changing search."
+                    : undefined
+                }
+                onClearFilters={
+                  logs.length > 0 &&
+                  (debouncedSearchQuery ||
+                    actionFilter !== "all" ||
+                    userFilter !== "all" ||
+                    moderatorFilter !== "all" ||
+                    dateRangeFilter !== "all")
+                    ? () => {
+                        setSearchQuery("");
+                        setActionFilter("all");
+                        setUserFilter("all");
+                        setModeratorFilter("all");
+                        setDateRangeFilter("all");
+                      }
+                    : undefined
+                }
+              />
             ) : (
               paginatedLogs.map((log) => (
                 <div

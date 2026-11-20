@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
 import { notifyGameSubmissionReviewed } from "@/lib/discord-webhook";
-import {
-  createAuditLog,
-  getUserByEmail,
-} from "@/lib/crowdsource-service-mongodb";
+import { createAuditLog } from "@/lib/crowdsource-service-mongodb";
+import { requireReviewer } from "@/lib/api-auth";
 import {
   safeLog,
   sanitizeString,
@@ -19,6 +14,7 @@ import { revalidateGameDerivedPaths } from "@/lib/revalidate-game-derived-paths"
 import { validateCSRFToken } from "@/lib/csrf";
 import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 import type { UserRole } from "@/types/crowdsource";
+import { pickAllowedGameFields, toObjectId } from "@/lib/mongo-sanitize";
 import { validateDownloadLinkMatchesVirusTotalGui } from "@/lib/virustotal-download-consistency";
 
 // PATCH - Review a game submission (approve/reject)
@@ -27,22 +23,16 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireReviewer();
+    if (!auth.ok) return auth.response;
+    const { session, user } = auth;
+
+    const identifier = getClientIdentifier(request, user.id);
     if (!rateLimiters.admin.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
       );
-    }
-
-    // Only reviewers and admins can review submissions
-    if (
-      !session ||
-      (session.user.role !== "reviewer" && session.user.role !== "admin")
-    ) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // CSRF protection
@@ -76,8 +66,8 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
 
-    // Validate ID is a valid ObjectId
-    if (!sanitizedId || !ObjectId.isValid(sanitizedId)) {
+    const objectId = toObjectId(sanitizedId);
+    if (!objectId) {
       return NextResponse.json(
         { error: "Invalid submission ID" },
         { status: 400 }
@@ -91,7 +81,7 @@ export async function PATCH(
 
     // Get submission
     const submission = await submissionsCollection.findOne({
-      _id: new ObjectId(sanitizedId),
+      _id: objectId,
     });
 
     if (!submission) {
@@ -109,7 +99,7 @@ export async function PATCH(
     const isDeveloper =
       session.user.email && adminEmails.includes(session.user.email);
 
-    if (submission.submittedBy === session.user.id && !isDeveloper) {
+    if (submission.submittedBy === user.id && !isDeveloper) {
       return NextResponse.json(
         {
           error:
@@ -121,7 +111,7 @@ export async function PATCH(
 
     // Update submission
     await submissionsCollection.updateOne(
-      { _id: new ObjectId(sanitizedId) },
+      { _id: objectId },
       {
         $set: {
           status: sanitizedStatus,
@@ -134,9 +124,7 @@ export async function PATCH(
     );
 
     // Audit log: game submission reviewed (approved or rejected)
-    const reviewerUser = await getUserByEmail(session.user.email!);
-    const reviewerRole: UserRole =
-      reviewerUser?.role ?? (session.user.role as UserRole) ?? "reviewer";
+    const reviewerRole: UserRole = user.role;
     const existingGame = await gamesCollection.findOne({
       slug: submission.gameSlug,
     });
@@ -169,7 +157,7 @@ export async function PATCH(
         .find({
           gameSlug: submission.gameSlug,
           status: "pending",
-          _id: { $ne: new ObjectId(sanitizedId) },
+          _id: { $ne: objectId },
         })
         .toArray();
 
@@ -196,27 +184,25 @@ export async function PATCH(
     // If approved, update user's approved count
     if (sanitizedStatus === "approved") {
       // Validate submittedBy is a valid ObjectId before using it
-      if (submission.submittedBy && ObjectId.isValid(submission.submittedBy)) {
+      const submittedById = toObjectId(submission.submittedBy);
+      if (submittedById) {
         await usersCollection.updateOne(
-          { _id: new ObjectId(submission.submittedBy) },
+          { _id: submittedById },
           { $inc: { approvedCount: 1 } }
         );
       } else {
-        console.warn(
-          `Invalid submittedBy for submission ${id}: ${submission.submittedBy}`
+        safeLog.warn(
+          `Invalid submittedBy for submission ${sanitizedId}: ${submission.submittedBy}`
         );
       }
 
-      // Update game data in MongoDB if approved
-      const proposedData = submission.proposedData;
-      const updateData: Record<string, unknown> = {};
-
-      // Map proposed data to game fields
-      Object.keys(proposedData).forEach((key) => {
-        if (proposedData[key]) {
-          updateData[key] = proposedData[key];
-        }
-      });
+      const proposedData =
+        submission.proposedData && typeof submission.proposedData === "object"
+          ? (submission.proposedData as Record<string, unknown>)
+          : {};
+      const updateData: Record<string, unknown> = {
+        ...pickAllowedGameFields(proposedData),
+      };
 
       // Check if game has minimum required fields to be published
       // Get existing game data
@@ -238,6 +224,17 @@ export async function PATCH(
       if ("warning" in vtConsistency && vtConsistency.warning) {
         safeLog.warn(
           `[VT consistency] game submission ${submission.gameSlug}: ${vtConsistency.warning}`
+        );
+      }
+
+      const communityVtConsistency = validateDownloadLinkMatchesVirusTotalGui(
+        mergedData.communityAlternativeDownloadLink as string | undefined,
+        mergedData.communityAlternativeVirusTotalUrl as string | undefined
+      );
+      if (!communityVtConsistency.ok) {
+        return NextResponse.json(
+          { error: communityVtConsistency.message },
+          { status: 400 }
         );
       }
 
@@ -263,12 +260,9 @@ export async function PATCH(
 
         // Get submitter info
         let submitterName = "Unknown";
-        if (
-          submission.submittedBy &&
-          ObjectId.isValid(submission.submittedBy)
-        ) {
+        if (submittedById) {
           const submitter = await usersCollection.findOne({
-            _id: new ObjectId(submission.submittedBy),
+            _id: submittedById,
           });
           submitterName =
             submitter?.name || submission.submittedByName || "Unknown";
@@ -311,9 +305,10 @@ export async function PATCH(
     // If rejected, update user's rejected count
     if (sanitizedStatus === "rejected") {
       // Validate submittedBy is a valid ObjectId before using it
-      if (submission.submittedBy && ObjectId.isValid(submission.submittedBy)) {
+      const rejectedById = toObjectId(submission.submittedBy);
+      if (rejectedById) {
         await usersCollection.updateOne(
-          { _id: new ObjectId(submission.submittedBy) },
+          { _id: rejectedById },
           { $inc: { rejectedCount: 1 } }
         );
       } else {

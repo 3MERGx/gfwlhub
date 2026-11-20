@@ -1,19 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter, usePathname } from "next/navigation";
-import Link from "next/link";
 import {
-  FaArrowLeft,
   FaCheck,
   FaTimes,
   FaEye,
-  FaClock,
   FaRocket,
+  FaChevronLeft,
+  FaChevronRight,
 } from "react-icons/fa";
 import { GameSubmission } from "@/types/crowdsource";
 import DashboardLayout from "@/components/DashboardLayout";
+import DashboardPageHeader from "@/components/dashboard/DashboardPageHeader";
+import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import DashboardErrorBanner from "@/components/dashboard/DashboardErrorBanner";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import {
   Select,
   SelectContent,
@@ -25,10 +28,12 @@ import ConfirmPublishModal from "@/components/ConfirmPublishModal";
 import { useToast } from "@/components/ui/toast-context";
 import { safeLog } from "@/lib/security";
 import { useCSRF } from "@/hooks/useCSRF";
+import { useDebounce } from "@/hooks/useDebounce";
 import { usePusherChannel } from "@/hooks/usePusherChannel";
 import { PUSHER_EVENTS } from "@/lib/pusher-client";
 import { ListSkeleton } from "@/components/ui/loading-skeleton";
 import { valuesAreEffectivelySame } from "@/lib/normalize-value";
+import { formatReviewDateTime } from "@/lib/format-review-date";
 
 function GameSubmissionsPage() {
   const { data: session, status } = useSession();
@@ -36,13 +41,11 @@ function GameSubmissionsPage() {
   const pathname = usePathname();
   const { showToast } = useToast();
   const { csrfToken } = useCSRF();
-  const [submissions, setSubmissions] = useState<GameSubmission[]>([]);
-  const [allSubmissions, setAllSubmissions] = useState<GameSubmission[]>([]); // For stats calculation
+  const [allSubmissions, setAllSubmissions] = useState<GameSubmission[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isFiltering, setIsFiltering] = useState(false); // Track when filters are changing
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("pending");
-  const [gameFilter, setGameFilter] = useState<string>("");
-  const [gameFilterDebounce, setGameFilterDebounce] = useState<NodeJS.Timeout | null>(null);
+  const [gameFilter, setGameFilter] = useState("");
   const [selectedSubmission, setSelectedSubmission] =
     useState<GameSubmission | null>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -51,6 +54,12 @@ function GameSubmissionsPage() {
   const [showConfirmPublish, setShowConfirmPublish] = useState(false);
   const [publishingSubmission, setPublishingSubmission] =
     useState<GameSubmission | null>(null);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const debouncedGameFilter = useDebounce(gameFilter, 300);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -59,83 +68,102 @@ function GameSubmissionsPage() {
   }, [status, router]);
 
   useEffect(() => {
+    const game = new URLSearchParams(window.location.search).get("game");
+    if (game) setGameFilter(game);
+  }, []);
+
+  const fetchSubmissions = useCallback(
+    async (background = false) => {
+      if (!background) setLoading(true);
+      try {
+        const response = await fetch(`/api/game-submissions?_t=${Date.now()}`, {
+          cache: "no-store",
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setAllSubmissions(Array.isArray(data) ? data : []);
+          setFetchError(null);
+        } else if (!background) {
+          setFetchError("Failed to fetch game submissions. Please try again.");
+          showToast("Failed to fetch game submissions", 3000, "error");
+        }
+      } catch (error) {
+        safeLog.error("Error fetching game submissions:", error);
+        if (!background) {
+          setFetchError("Failed to fetch game submissions. Please try again.");
+          showToast("Failed to fetch game submissions", 3000, "error");
+        }
+      } finally {
+        if (!background) setLoading(false);
+      }
+    },
+    [showToast]
+  );
+
+  useEffect(() => {
     if (session) {
-      fetchSubmissions();
+      void fetchSubmissions();
     }
+    // Initial load only; silent refreshes are handled by Pusher and focus.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session]); // Only fetch on initial load, filters will trigger their own updates
+  }, [session?.user?.id]);
 
   usePusherChannel(PUSHER_EVENTS.GAME_SUBMISSIONS_UPDATED, () => {
-    fetchSubmissions();
+    void fetchSubmissions(true);
   });
 
   useEffect(() => {
-    const onFocus = () => fetchSubmissions();
+    const onFocus = () => void fetchSubmissions(true);
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchSubmissions = async (showFilteringState = false, overrideStatus?: string) => {
-    try {
-      if (showFilteringState) {
-        setIsFiltering(true);
-      }
-
-      // Fetch all submissions for stats (only once, not on every filter change)
-      if (allSubmissions.length === 0) {
-        const allResponse = await fetch(`/api/game-submissions?_t=${Date.now()}`, {
-          cache: "no-store",
-        });
-        if (allResponse.ok) {
-          const allData = await allResponse.json();
-          setAllSubmissions(allData);
-        }
-      }
-
-      // Fetch filtered submissions for display
-      // Use overrideStatus if provided (for immediate state updates), otherwise use current state
-      const currentStatus = overrideStatus !== undefined ? overrideStatus : statusFilter;
-      const params = new URLSearchParams();
-      
-      // Only add status parameter if it's not "all" (empty string means show all)
-      if (currentStatus && currentStatus !== "all") {
-        params.append("status", currentStatus);
-      }
-      
-      if (gameFilter) {
-        params.append("gameSlug", gameFilter);
-      }
-
-      // Build URL - if no params, just use base URL (will show all submissions)
-      const url = params.toString() 
-        ? `/api/game-submissions?${params.toString()}`
-        : `/api/game-submissions`;
-      
-      // Add cache-busting timestamp to ensure fresh data
-      const cacheBuster = `&_t=${Date.now()}`;
-      const finalUrl = url.includes('?') ? `${url}${cacheBuster}` : `${url}?${cacheBuster.substring(1)}`;
-      
-      const response = await fetch(finalUrl, {
-        cache: 'no-store', // Ensure we don't get cached responses
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setSubmissions(data);
-      }
-    } catch (error) {
-      safeLog.error("Error fetching game submissions:", error);
-    } finally {
-      setLoading(false);
-      if (showFilteringState) {
-        setIsFiltering(false);
-      }
-    }
-  };
-
   const handleReview = (submission: GameSubmission) => {
+    previousFocusRef.current = document.activeElement as HTMLElement;
     setSelectedSubmission(submission);
+    setReviewNotes("");
     setShowReviewModal(true);
   };
+
+  const closeReviewModal = useCallback(() => {
+    setShowReviewModal(false);
+    setSelectedSubmission(null);
+    setReviewNotes("");
+    setShowDiscardConfirm(false);
+    previousFocusRef.current?.focus();
+  }, []);
+
+  const requestCloseReviewModal = useCallback(() => {
+    if (reviewNotes.trim()) {
+      setShowDiscardConfirm(true);
+      return;
+    }
+    closeReviewModal();
+  }, [reviewNotes, closeReviewModal]);
+
+  useEffect(() => {
+    if (!showReviewModal) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (showDiscardConfirm) {
+          setShowDiscardConfirm(false);
+          return;
+        }
+        requestCloseReviewModal();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [showReviewModal, showDiscardConfirm, requestCloseReviewModal]);
+
+  useEffect(() => {
+    if (!showReviewModal || !modalRef.current) return;
+    const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    focusable[0]?.focus();
+  }, [showReviewModal, selectedSubmission]);
 
   const submitReview = async (action: "approved" | "rejected") => {
     if (!selectedSubmission) return;
@@ -161,7 +189,7 @@ function GameSubmissionsPage() {
         const approvedSubmission = action === "approved" ? selectedSubmission : null;
 
         // Refetch first so list updates before closing modal
-        await fetchSubmissions();
+        await fetchSubmissions(true);
 
         setShowReviewModal(false);
         setReviewNotes("");
@@ -279,15 +307,7 @@ function GameSubmissionsPage() {
     }
   };
 
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  const formatDate = (date: Date) => formatReviewDateTime(date);
 
   const isReviewer =
     session?.user?.role === "reviewer" || session?.user?.role === "admin";
@@ -349,7 +369,7 @@ function GameSubmissionsPage() {
         );
         
         // Refresh submissions list to update UI
-        await fetchSubmissions();
+        await fetchSubmissions(true);
         
         // Refresh router to get updated game data
         router.refresh();
@@ -384,6 +404,54 @@ function GameSubmissionsPage() {
     setPublishingSubmission(null);
   };
 
+  const filteredSubmissions = useMemo(() => {
+    let list = allSubmissions;
+    if (statusFilter && statusFilter !== "all") {
+      list = list.filter((submission) => submission.status === statusFilter);
+    }
+    if (debouncedGameFilter) {
+      const query = debouncedGameFilter.toLowerCase();
+      list = list.filter(
+        (submission) =>
+          submission.gameTitle.toLowerCase().includes(query) ||
+          submission.gameSlug.toLowerCase().includes(query)
+      );
+    }
+    return list;
+  }, [allSubmissions, statusFilter, debouncedGameFilter]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredSubmissions.length / itemsPerPage)
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, debouncedGameFilter]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const paginatedSubmissions = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredSubmissions.slice(start, start + itemsPerPage);
+  }, [filteredSubmissions, currentPage, itemsPerPage]);
+
+  const hasActiveFilters = Boolean(
+    gameFilter || statusFilter !== "pending"
+  );
+
+  const clearGameFilters = () => {
+    setGameFilter("");
+    setStatusFilter("pending");
+    if (typeof window !== "undefined" && window.location.search) {
+      window.history.replaceState({}, "", "/dashboard/game-submissions");
+    }
+  };
+
   if (loading || status === "loading") {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -413,24 +481,19 @@ function GameSubmissionsPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-7xl mx-auto">
         <div className="bg-[rgb(var(--bg-card))] rounded-lg shadow-xl p-6 md:p-8">
-          {/* Header */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
-            <div>
-              <h1 className="text-3xl font-bold text-[rgb(var(--text-primary))] mb-2">
-                Game Submissions
-              </h1>
-              <p className="text-[rgb(var(--text-secondary))]">
-                Complete game information submitted by the community
-              </p>
-            </div>
-            <Link
-              href="/dashboard"
-              className="mt-4 md:mt-0 inline-flex items-center text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] transition-colors"
-            >
-              <FaArrowLeft className="mr-2" />
-              Back to Dashboard
-            </Link>
-          </div>
+          <DashboardPageHeader
+            title="Game submissions"
+            subtitle="Review community-submitted game details. Publishing is admin-only after a submission is approved."
+          />
+
+          {fetchError && (
+            <DashboardErrorBanner
+              message={fetchError}
+              onRetry={() => {
+                void fetchSubmissions();
+              }}
+            />
+          )}
 
           {/* Stats - Total = Pending + Approved + Rejected + Superseded. On mobile: Total 2x1, then 2x2. */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
@@ -487,10 +550,7 @@ function GameSubmissionsPage() {
               </label>
               <Select
                 value={statusFilter}
-                onValueChange={async (value) => {
-                  setStatusFilter(value);
-                  await fetchSubmissions(true, value);
-                }}
+                onValueChange={setStatusFilter}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Status" />
@@ -511,41 +571,35 @@ function GameSubmissionsPage() {
               <input
                 type="text"
                 value={gameFilter}
-                onChange={(e) => {
-                  setGameFilter(e.target.value);
-                  // Clear existing timeout
-                  if (gameFilterDebounce) {
-                    clearTimeout(gameFilterDebounce);
-                  }
-                  // Debounce the filter update
-                  const timeoutId = setTimeout(async () => {
-                    await fetchSubmissions(true);
-                  }, 300);
-                  setGameFilterDebounce(timeoutId);
-                }}
-                placeholder="Filter by game title..."
+                onChange={(e) => setGameFilter(e.target.value)}
+                placeholder="Filter by game title or slug..."
                 className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10]"
               />
             </div>
           </div>
 
-          {/* Loading indicator for filtering */}
-          {isFiltering && (
-            <div className="mb-4 text-center text-[rgb(var(--text-secondary))] text-sm py-2">
-              <span className="inline-block animate-spin mr-2">⏳</span>
-              Updating filters...
-            </div>
-          )}
-
           {/* Submissions List */}
-          {isFiltering ? null : submissions.length === 0 ? (
-            <div className="text-center py-12 text-[rgb(var(--text-secondary))]">
-              <FaClock size={48} className="mx-auto mb-4 opacity-50" />
-              <p>No game submissions found</p>
-            </div>
+          {filteredSubmissions.length === 0 ? (
+            <DashboardEmptyState
+              title={
+                gameFilter
+                  ? "No game submissions found matching your search."
+                  : statusFilter === "all"
+                    ? "No game submissions found."
+                    : `No ${statusFilter} game submissions.`
+              }
+              description={
+                gameFilter
+                  ? "Try a different title or slug, or clear the search."
+                  : statusFilter !== "all"
+                    ? 'Try "All Status" to see other submissions.'
+                    : undefined
+              }
+              onClearFilters={hasActiveFilters ? clearGameFilters : undefined}
+            />
           ) : (
             <div className="space-y-4">
-              {submissions.map((submission) => (
+              {paginatedSubmissions.map((submission) => (
                 <div
                   key={submission.id}
                   className="bg-[rgb(var(--bg-card))] rounded-lg p-4 md:p-6 border border-[rgb(var(--border-color))]"
@@ -589,33 +643,16 @@ function GameSubmissionsPage() {
                     </div>
                     <div className="flex gap-2 mt-4 md:mt-0">
                       <button
-                        onClick={() => {
-                          setSelectedSubmission(submission);
-                          setShowReviewModal(true);
-                        }}
-                        className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors text-sm"
+                        onClick={() => handleReview(submission)}
+                        className="inline-flex items-center gap-2 bg-[#107c10] hover:bg-[#0d6b0d] text-white px-4 py-2 rounded-lg transition-colors text-sm"
                       >
-                        <FaEye />
-                        View Details
+                        {submission.status === "pending" ? (
+                          <FaCheck />
+                        ) : (
+                          <FaEye />
+                        )}
+                        {submission.status === "pending" ? "Review" : "View"}
                       </button>
-                      {isReviewer && submission.status === "pending" && (
-                        <>
-                          <button
-                            onClick={() => handleReview(submission)}
-                            className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors text-sm"
-                          >
-                            <FaCheck />
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => handleReview(submission)}
-                            className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors text-sm"
-                          >
-                            <FaTimes />
-                            Reject
-                          </button>
-                        </>
-                      )}
                       {isAdmin &&
                         submission.status === "approved" &&
                         hasRequiredFields(submission) &&
@@ -727,6 +764,36 @@ function GameSubmissionsPage() {
               ))}
             </div>
           )}
+
+          {filteredSubmissions.length > 0 && totalPages > 1 && (
+            <div className="mt-6 flex items-center justify-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={currentPage === 1}
+                className="px-4 py-2 rounded-lg border border-[rgb(var(--border-color))] bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium"
+                aria-label="Previous page"
+              >
+                <FaChevronLeft size={14} aria-hidden />
+                Previous
+              </button>
+              <span className="px-4 py-2 text-sm text-[rgb(var(--text-secondary))]">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setCurrentPage((page) => Math.min(totalPages, page + 1))
+                }
+                disabled={currentPage === totalPages}
+                className="px-4 py-2 rounded-lg border border-[rgb(var(--border-color))] bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium"
+                aria-label="Next page"
+              >
+                Next
+                <FaChevronRight size={14} aria-hidden />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -734,9 +801,14 @@ function GameSubmissionsPage() {
       {showReviewModal && selectedSubmission && (
         <div
           className="fixed inset-0 bg-black/40 dark:bg-black/70 flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto"
-          onClick={() => setShowReviewModal(false)}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) requestCloseReviewModal();
+          }}
         >
           <div
+            ref={modalRef}
+            role="dialog"
+            aria-modal="true"
             className="bg-[rgb(var(--bg-card))] rounded-lg max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto border border-[rgb(var(--border-color))] my-2"
             onClick={(e) => e.stopPropagation()}
           >
@@ -750,7 +822,7 @@ function GameSubmissionsPage() {
                 </p>
               </div>
               <button
-                onClick={() => setShowReviewModal(false)}
+                onClick={requestCloseReviewModal}
                 className="text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] transition-colors flex-shrink-0 self-start sm:self-auto"
                 aria-label="Close modal"
               >
@@ -954,6 +1026,17 @@ function GameSubmissionsPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={showDiscardConfirm}
+        title="Discard review?"
+        message="You have unsaved review notes. Close anyway?"
+        confirmText="Discard"
+        cancelText="Keep editing"
+        variant="warning"
+        onConfirm={closeReviewModal}
+        onCancel={() => setShowDiscardConfirm(false)}
+      />
 
       {/* Confirm Publish Modal */}
       {showConfirmPublish && publishingSubmission && (

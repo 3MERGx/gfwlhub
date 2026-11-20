@@ -52,7 +52,10 @@ export default function DisabledGamePrompt({
   } | null>(null);
 
   useEffect(() => {
-    // Fetch game status
+    if (status !== "authenticated" || !session) {
+      return;
+    }
+
     const fetchGameStatus = async () => {
       try {
         const response = await fetch(`/api/games/${gameSlug}/status`);
@@ -65,7 +68,6 @@ export default function DisabledGamePrompt({
       }
     };
 
-    // Fetch pending submission status
     const fetchPendingSubmission = async () => {
       try {
         const response = await fetch(`/api/games/${gameSlug}/pending-submission`);
@@ -80,7 +82,7 @@ export default function DisabledGamePrompt({
 
     fetchGameStatus();
     fetchPendingSubmission();
-  }, [gameSlug]);
+  }, [gameSlug, session, status]);
 
   const handleClose = () => {
     setShowModal(false);

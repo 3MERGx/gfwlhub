@@ -1,55 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
-import {
-  getReviewerApplications,
-  getUserByEmail,
-  canManageUsers,
-} from "@/lib/crowdsource-service-mongodb";
-import { safeLog, sanitizeString } from "@/lib/security";
+import { getReviewerApplications } from "@/lib/crowdsource-service-mongodb";
+import { rateLimiters, getClientIdentifier } from "@/lib/security";
 import { ReviewerApplicationStatus } from "@/types/crowdsource";
+import { requireAdmin } from "@/lib/api-auth";
+import { internalError, jsonError } from "@/lib/api-error";
+import { parseEnum } from "@/lib/request-validation";
+
+const APPLICATION_STATUSES = [
+  "pending",
+  "approved",
+  "rejected",
+] as const satisfies readonly ReviewerApplicationStatus[];
 
 // GET - List all reviewer applications (admin only)
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireAdmin();
+    if (!auth.ok) return auth.response;
+
+    const identifier = getClientIdentifier(request, auth.user.id);
+    if (!rateLimiters.admin.isAllowed(identifier)) {
+      return jsonError("Too many requests. Please try again later.", 429);
     }
 
-    const user = await getUserByEmail(session.user.email!);
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    // Check admin permissions
-    if (!canManageUsers(user)) {
-      return NextResponse.json(
-        { error: "Forbidden - Admin access required" },
-        { status: 403 }
-      );
-    }
-
-    // Get status filter from query params
     const { searchParams } = new URL(request.url);
     const statusParam = searchParams.get("status");
-    const status = statusParam
-      ? (sanitizeString(statusParam, 20) as ReviewerApplicationStatus)
-      : undefined;
-
-    // Validate status if provided
-    if (status && !["pending", "approved", "rejected"].includes(status)) {
-      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+    let status: ReviewerApplicationStatus | undefined;
+    if (statusParam) {
+      const parsed = parseEnum(statusParam, APPLICATION_STATUSES, 20);
+      if (!parsed) {
+        return jsonError("Invalid status", 400);
+      }
+      status = parsed;
     }
 
     const applications = await getReviewerApplications(status);
     return NextResponse.json({ applications });
   } catch (error) {
-    safeLog.error("Error fetching reviewer applications:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return internalError("Error fetching reviewer applications:", error);
   }
 }
-

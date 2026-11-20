@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { requireAdmin } from "@/lib/api-auth";
 import { revalidatePath } from "next/cache";
 import { revalidateGameDerivedPaths } from "@/lib/revalidate-game-derived-paths";
 import { validateCSRFToken } from "@/lib/csrf";
@@ -12,19 +11,16 @@ import { validateDownloadLinkMatchesVirusTotalGui } from "@/lib/virustotal-downl
 // POST - Add a new game to the database (admin only)
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireAdmin();
+    if (!auth.ok) return auth.response;
+    const { session } = auth;
+
+    const identifier = getClientIdentifier(request, session.user.id);
     if (!rateLimiters.admin.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
         { status: 429 }
       );
-    }
-
-    // Only admins can add games
-    if (!session || session.user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // CSRF protection
@@ -61,12 +57,14 @@ export async function POST(request: NextRequest) {
       virusTotalUrl,
       knownIssues,
       communityTips,
+      activationNotes,
       additionalDRM,
       playabilityStatus,
       isUnplayable,
       communityAlternativeName,
       communityAlternativeUrl,
       communityAlternativeDownloadLink,
+      communityAlternativeVirusTotalUrl,
       remasteredName,
       remasteredPlatform,
     } = body;
@@ -159,6 +157,7 @@ export async function POST(request: NextRequest) {
     if (communityTips && Array.isArray(communityTips)) {
       game.communityTips = communityTips.map((t: unknown) => sanitizeString(String(t || ""), 1000)).filter(Boolean);
     }
+    if (activationNotes) game.activationNotes = sanitizeString(String(activationNotes), 2000);
     if (additionalDRM) game.additionalDRM = sanitizeString(String(additionalDRM), 500);
     if (playabilityStatus) {
       const validPlayabilityStatuses = ["playable", "unplayable", "community_alternative", "remastered_available"];
@@ -170,6 +169,12 @@ export async function POST(request: NextRequest) {
     if (communityAlternativeName) game.communityAlternativeName = sanitizeString(String(communityAlternativeName), 200);
     if (communityAlternativeUrl) game.communityAlternativeUrl = sanitizeString(String(communityAlternativeUrl), 500);
     if (communityAlternativeDownloadLink) game.communityAlternativeDownloadLink = sanitizeString(String(communityAlternativeDownloadLink), 500);
+    if (communityAlternativeVirusTotalUrl) {
+      game.communityAlternativeVirusTotalUrl = sanitizeString(
+        String(communityAlternativeVirusTotalUrl),
+        500
+      );
+    }
     if (remasteredName) game.remasteredName = sanitizeString(String(remasteredName), 200);
     if (remasteredPlatform) game.remasteredPlatform = sanitizeString(String(remasteredPlatform), 100);
 
@@ -183,6 +188,17 @@ export async function POST(request: NextRequest) {
     if ("warning" in vtConsistency && vtConsistency.warning) {
       safeLog.warn(
         `[VT consistency] admin new game ${sanitizedSlug}: ${vtConsistency.warning}`
+      );
+    }
+
+    const communityVtConsistency = validateDownloadLinkMatchesVirusTotalGui(
+      game.communityAlternativeDownloadLink as string | undefined,
+      game.communityAlternativeVirusTotalUrl as string | undefined
+    );
+    if (!communityVtConsistency.ok) {
+      return NextResponse.json(
+        { error: communityVtConsistency.message },
+        { status: 400 }
       );
     }
 

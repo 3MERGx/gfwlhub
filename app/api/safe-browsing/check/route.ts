@@ -1,35 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkUrlSafety } from "@/lib/google-safe-browsing";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { requireSession } from "@/lib/api-auth";
+import { internalError, jsonError } from "@/lib/api-error";
+import { readCsrfToken, validateCSRFToken } from "@/lib/csrf";
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting
-    const identifier = getClientIdentifier(request);
+    const auth = await requireSession();
+    if (!auth.ok) return auth.response;
+
+    const identifier = getClientIdentifier(request, auth.user.id);
     if (!rateLimiters.api.isAllowed(identifier)) {
-      return NextResponse.json(
-        { error: "Too many requests. Please try again later." },
-        { status: 429 }
-      );
+      return jsonError("Too many requests. Please try again later.", 429);
     }
 
-    const { url } = await request.json();
+    const body = await request.json();
+    const csrfToken = readCsrfToken(request, body);
+    if (!(await validateCSRFToken(csrfToken))) {
+      return jsonError("Invalid CSRF token", 403);
+    }
+
+    const { url } = body;
 
     // Sanitize and validate URL
     const sanitizedUrl = sanitizeString(String(url || ""), 2000);
     if (!sanitizedUrl || typeof url !== "string") {
-      return NextResponse.json(
-        { error: "URL is required" },
-        { status: 400 }
-      );
+      return jsonError("URL is required", 400);
     }
 
     const apiKey = process.env.GOOGLE_SAFE_BROWSING_API_KEY;
     if (!apiKey) {
-      safeLog.error("Google Safe Browsing API key not found in environment variables");
-      return NextResponse.json(
-        { error: "Google Safe Browsing API key not configured. Please add GOOGLE_SAFE_BROWSING_API_KEY to your .env.local file." },
-        { status: 500 }
+      safeLog.error(
+        "Google Safe Browsing API key not found in environment variables"
+      );
+      return jsonError(
+        "URL safety check is temporarily unavailable. Please try again later.",
+        503
       );
     }
 
@@ -37,31 +44,16 @@ export async function POST(request: NextRequest) {
     try {
       new URL(sanitizedUrl);
     } catch {
-      return NextResponse.json(
-        { error: "Invalid URL format" },
-        { status: 400 }
-      );
+      return jsonError("Invalid URL format", 400);
     }
 
     const result = await checkUrlSafety(sanitizedUrl, apiKey);
 
     if (!result.success) {
       safeLog.error("Google Safe Browsing check failed:", result.error);
-      
-      // Check if it's a permission/restriction error
-      if (result.error?.includes("403") || result.error?.includes("PERMISSION_DENIED") || result.error?.includes("referer")) {
-        return NextResponse.json(
-          { 
-            error: "API key restrictions are blocking server-side requests. Please remove HTTP referrer restrictions from your Google Cloud API key, or create a new key without referrer restrictions for server-side use.",
-            details: result.error
-          },
-          { status: 403 }
-        );
-      }
-      
-      return NextResponse.json(
-        { error: result.error || "Failed to check URL" },
-        { status: 500 }
+      return jsonError(
+        "Failed to check URL. Please try again later.",
+        503
       );
     }
 
@@ -70,11 +62,6 @@ export async function POST(request: NextRequest) {
       threatType: result.threatType,
     });
   } catch (error) {
-    safeLog.error("Google Safe Browsing check error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return internalError("Google Safe Browsing check error:", error);
   }
 }
-

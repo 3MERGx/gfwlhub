@@ -1,12 +1,21 @@
 import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/api-auth";
+import { internalError } from "@/lib/api-error";
 
 export async function GET() {
-  // Get all environment variables that start with FEATURE_GAME_
-  const featureFlags: Record<string, boolean> = {};
+  try {
+    const auth = await requireAdmin();
+    if (!auth.ok) return auth.response;
 
-  // In a real app, you'd get these from your environment
-  // For this example, we'll hardcode Shadowrun as enabled
-  featureFlags["FEATURE_GAME_SHADOWRUN"] = true;
+    const featureFlags: Record<string, boolean> = {};
+    featureFlags["FEATURE_GAME_SHADOWRUN"] = true;
 
-  return NextResponse.json(featureFlags);
+    return NextResponse.json(featureFlags, {
+      headers: {
+        "Cache-Control": "private, no-cache, must-revalidate",
+      },
+    });
+  } catch (error) {
+    return internalError("Error fetching feature flags:", error);
+  }
 }

@@ -5,6 +5,22 @@ import { useSearchParams } from "next/navigation";
 import { FaExclamationTriangle } from "react-icons/fa";
 import { Suspense } from "react";
 
+const KNOWN_AUTH_ERROR_CODES = new Set([
+  "Configuration",
+  "AccessDenied",
+  "Verification",
+  "OAuthCallback",
+  "OAuthSignin",
+  "OAuthCreateAccount",
+  "EmailCreateAccount",
+  "Callback",
+  "OAuthAccountNotLinked",
+  "EmailSignin",
+  "CredentialsSignin",
+  "SessionRequired",
+  "Default",
+]);
+
 function AuthErrorContent() {
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
@@ -15,10 +31,20 @@ function AuthErrorContent() {
     AccessDenied: "You do not have permission to sign in.",
     Verification: "The verification link has expired or has already been used.",
     OAuthCallback: "The authentication request timed out. Please try again.",
+    OAuthSignin: "Could not start the sign-in process. Please try again.",
+    OAuthCreateAccount: "Could not create your account. Please try again.",
+    Callback: "An error occurred during the authentication callback.",
+    OAuthAccountNotLinked:
+      "This account is already linked to a different sign-in method.",
+    SessionRequired: "Please sign in to continue.",
     Default: "An error occurred during authentication.",
   };
 
-  const errorMessage = error ? errorMessages[error] || errorMessages.Default : errorMessages.Default;
+  const knownCode =
+    error && KNOWN_AUTH_ERROR_CODES.has(error) ? error : null;
+  const errorMessage = knownCode
+    ? errorMessages[knownCode] || errorMessages.Default
+    : errorMessages.Default;
 
   return (
     <div className="container mx-auto px-4 py-16">
@@ -31,11 +57,11 @@ function AuthErrorContent() {
             <p className="text-gray-400">{errorMessage}</p>
           </div>
 
-          {/* Error Details */}
-          {error && (
+          {/* Known error code only — never echo arbitrary query text */}
+          {knownCode && knownCode !== "Default" && (
             <div className="mb-6 p-4 bg-red-900/20 border border-red-500/30 rounded-lg">
               <p className="text-red-400 text-sm">
-                <strong>Error Code:</strong> {error}
+                <strong>Error Code:</strong> {knownCode}
               </p>
             </div>
           )}

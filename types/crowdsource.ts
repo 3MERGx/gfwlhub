@@ -1,6 +1,8 @@
 // User roles and permissions
 export type UserRole = "user" | "reviewer" | "admin";
 
+export type OAuthProvider = "github" | "discord" | "google";
+
 export type UserStatus =
   | "active"
   | "suspended"
@@ -16,48 +18,68 @@ export interface User {
   avatar?: string;
   role: UserRole;
   status: UserStatus;
-  provider: "github" | "discord" | "google";
+  provider: OAuthProvider;
   providerId: string;
   createdAt: Date;
   lastLoginAt: Date;
   submissionsCount: number;
   approvedCount: number;
   rejectedCount: number;
+  sessionVersion?: number;
 }
 
 // Correction submission
 export type CorrectionStatus = "pending" | "approved" | "rejected" | "modified" | "superseded";
 
-export type CorrectionField =
-  | "title"
-  | "description"
-  | "releaseDate"
-  | "developer"
-  | "publisher"
-  | "genres"
-  | "platforms"
-  | "activationType"
-  | "status"
-  | "imageUrl"
-  | "instructions"
-  | "knownIssues"
-  | "communityTips"
-  | "discordLink"
-  | "redditLink"
-  | "wikiLink"
-  | "steamDBLink"
-  | "purchaseLink"
-  | "gogDreamlistLink"
-  | "downloadLink"
-  | "virusTotalUrl"
-  | "additionalDRM"
-  | "playabilityStatus"
-  | "isUnplayable"
-  | "communityAlternativeName"
-  | "communityAlternativeUrl"
-  | "communityAlternativeDownloadLink"
-  | "remasteredName"
-  | "remasteredPlatform";
+export const CORRECTION_FIELDS = [
+  "title",
+  "description",
+  "releaseDate",
+  "developer",
+  "publisher",
+  "genres",
+  "platforms",
+  "activationType",
+  "status",
+  "imageUrl",
+  "instructions",
+  "knownIssues",
+  "communityTips",
+  "activationNotes",
+  "discordLink",
+  "redditLink",
+  "wikiLink",
+  "steamDBLink",
+  "purchaseLink",
+  "gogDreamlistLink",
+  "downloadLink",
+  "virusTotalUrl",
+  "additionalDRM",
+  "playabilityStatus",
+  "isUnplayable",
+  "communityAlternativeName",
+  "communityAlternativeUrl",
+  "communityAlternativeDownloadLink",
+  "remasteredName",
+  "remasteredPlatform",
+] as const;
+
+export type CorrectionField = (typeof CORRECTION_FIELDS)[number];
+
+/** Fields users may propose on a game submission (corrections plus fileName). */
+export const GAME_UPDATE_FIELDS = [...CORRECTION_FIELDS, "fileName"] as const;
+export type GameUpdateField = (typeof GAME_UPDATE_FIELDS)[number];
+
+/** Persisted VirusTotal URL-scan summary shared across reviewers. */
+export interface CorrectionVirusTotalScan {
+  reportUrl: string;
+  malicious: number;
+  suspicious: number;
+  harmless: number;
+  total: number;
+  scannedAt: Date | string;
+  source?: "submit" | "review";
+}
 
 export interface Correction {
   id: string;
@@ -76,9 +98,11 @@ export interface Correction {
   reviewedByName?: string;
   reviewedAt?: Date;
   reviewNotes?: string; // Reviewer's notes
-  finalValue?: any; // If modified by reviewer
+  finalValue?: string | number | boolean | string[] | null;
   /** Set server-side when submitting a downloadLink correction (VirusTotal URL scan GUI link). */
   autoVirusTotalUrl?: string;
+  /** Last successful VT scan for this correction's download URL (submit or reviewer). */
+  virusTotalScan?: CorrectionVirusTotalScan;
 }
 
 // Audit log for tracking changes
@@ -164,7 +188,7 @@ export interface UserStats {
 // Banned provider tracking (permanent bans)
 export interface BannedProvider {
   id: string;
-  provider: "github" | "discord" | "google";
+  provider: OAuthProvider;
   providerAccountId: string;
   userId?: string; // Original user ID if available
   userName?: string; // For reference
@@ -235,6 +259,7 @@ export interface GameSubmission {
     virusTotalUrl?: string;
     knownIssues?: string[];
     communityTips?: string[];
+    activationNotes?: string;
     additionalDRM?: string;
     playabilityStatus?:
       | "playable"
@@ -245,6 +270,7 @@ export interface GameSubmission {
     communityAlternativeName?: string;
     communityAlternativeUrl?: string;
     communityAlternativeDownloadLink?: string;
+    communityAlternativeVirusTotalUrl?: string;
     remasteredName?: string;
     remasteredPlatform?: string;
   };

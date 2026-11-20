@@ -10,14 +10,16 @@ import { usePusherChannel } from "@/hooks/usePusherChannel";
 import { PUSHER_EVENTS } from "@/lib/pusher-client";
 import Link from "next/link";
 import {
-  FaArrowLeft,
   FaToggleOn,
   FaToggleOff,
   FaSearch,
+  FaFilter,
   FaChevronLeft,
   FaChevronRight,
 } from "react-icons/fa";
 import DashboardLayout from "@/components/DashboardLayout";
+import DashboardPageHeader from "@/components/dashboard/DashboardPageHeader";
+import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
 import DisabledGamePrompt from "@/app/games/[slug]/DisabledGamePrompt";
 import AddGameDetailsModal from "@/components/AddGameDetailsModal";
 import { ListSkeleton } from "@/components/ui/loading-skeleton";
@@ -74,11 +76,12 @@ function GamesManagementPage() {
     null
   );
   const [showAddDetailsModal, setShowAddDetailsModal] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/auth/signin");
-    } else if (session?.user?.role !== "admin") {
+    } else if (status === "authenticated" && session?.user?.role !== "admin") {
       router.push("/dashboard");
     }
   }, [status, session, router]);
@@ -201,24 +204,10 @@ function GamesManagementPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-7xl mx-auto">
         <div className="bg-[rgb(var(--bg-card))] rounded-lg shadow-xl p-6 md:p-8">
-          {/* Header */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
-            <div>
-              <h1 className="text-3xl font-bold text-[rgb(var(--text-primary))] mb-2">
-                Games Management
-              </h1>
-              <p className="text-[rgb(var(--text-secondary))]">
-                Enable or disable games for public visibility
-              </p>
-            </div>
-            <Link
-              href="/dashboard"
-              className="mt-4 md:mt-0 inline-flex items-center text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] transition-colors"
-            >
-              <FaArrowLeft className="mr-2" />
-              Back to Dashboard
-            </Link>
-          </div>
+          <DashboardPageHeader
+            title="Games Management"
+            subtitle="Enable or disable games for public visibility"
+          />
 
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -260,7 +249,15 @@ function GamesManagementPage() {
                 />
               </div>
             </div>
-            <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setShowFilters((open) => !open)}
+              className="md:hidden w-full flex items-center justify-center gap-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] py-2 rounded-lg border border-[rgb(var(--border-color))]"
+            >
+              <FaFilter size={14} />
+              <span>Filters</span>
+            </button>
+            <div className={`${showFilters ? "flex" : "hidden"} md:flex gap-2`}>
               <button
                 onClick={() => {
                   setShowEnabledOnly(!showEnabledOnly);
@@ -292,9 +289,22 @@ function GamesManagementPage() {
 
           {/* Games List */}
           {filteredGames.length === 0 ? (
-            <div className="text-center py-12 text-[rgb(var(--text-secondary))]">
-              <p>No games found</p>
-            </div>
+            <DashboardEmptyState
+              title={
+                searchQuery || showEnabledOnly || showDisabledOnly
+                  ? "No games match the current filters."
+                  : "No games found"
+              }
+              onClearFilters={
+                searchQuery || showEnabledOnly || showDisabledOnly
+                  ? () => {
+                      setSearchQuery("");
+                      setShowEnabledOnly(false);
+                      setShowDisabledOnly(false);
+                    }
+                  : undefined
+              }
+            />
           ) : (
             <>
               <div className="space-y-3">

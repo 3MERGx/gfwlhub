@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "FAQ Submissions - Dashboard",
+  title: "FAQ submissions - Dashboard",
   description: "Review and manage user-submitted FAQs",
 };
 

@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
 import { getGFWLDatabase } from "@/lib/mongodb";
-import { ObjectId } from "mongodb";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
+import { toObjectId } from "@/lib/mongo-sanitize";
+import { requireSession } from "@/lib/api-auth";
 
 // GET - Export user data
 export async function GET(
@@ -11,9 +10,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Rate limiting
-    const session = await getServerSession(authOptions);
-    const identifier = getClientIdentifier(request, session?.user?.id);
+    const auth = await requireSession();
+    if (!auth.ok) return auth.response;
+
+    const identifier = getClientIdentifier(request, auth.user.id);
     if (!rateLimiters.api.isAllowed(identifier)) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
@@ -24,12 +24,12 @@ export async function GET(
     const { id } = await params;
     const sanitizedId = sanitizeString(String(id || ""), 50);
 
-    // Users can only export their own data
-    if (!session || session.user.id !== sanitizedId) {
+    if (auth.user.id !== sanitizedId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!sanitizedId || !ObjectId.isValid(sanitizedId)) {
+    const objectId = toObjectId(sanitizedId);
+    if (!objectId) {
       return NextResponse.json(
         { error: "Invalid user ID" },
         { status: 400 }
@@ -42,7 +42,7 @@ export async function GET(
     const gameSubmissionsCollection = db.collection("gameSubmissions");
     const auditLogsCollection = db.collection("auditLogs");
 
-    const user = await usersCollection.findOne({ _id: new ObjectId(sanitizedId) });
+    const user = await usersCollection.findOne({ _id: objectId });
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
