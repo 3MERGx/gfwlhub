@@ -14,6 +14,8 @@ interface GameSearchProps {
   variant: "header" | "hero";
   id: string;
   className?: string;
+  /** Stretch results to the input width (mobile menu). Desktop header keeps a wider panel. */
+  fullWidth?: boolean;
   onNavigate?: () => void;
   onDisabledGame?: (game: Game) => void;
 }
@@ -22,6 +24,7 @@ export default function GameSearch({
   variant,
   id,
   className = "",
+  fullWidth = false,
   onNavigate,
   onDisabledGame,
 }: GameSearchProps) {
@@ -138,7 +141,7 @@ export default function GameSearch({
   const listId = `${id}-results`;
 
   return (
-    <div ref={containerRef} className={`relative ${className}`}>
+    <div ref={containerRef} className={`relative min-w-0 ${className}`}>
       <form onSubmit={handleSubmit} role="search">
         <label htmlFor={id} className="sr-only">
           Search games
@@ -175,7 +178,7 @@ export default function GameSearch({
           }
           className={
             isHeader
-              ? "w-full rounded-md border border-white/30 bg-white/10 py-1.5 pl-9 pr-3 text-sm text-white placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-white"
+              ? "w-full max-w-full rounded-md border border-white/30 bg-white/10 py-1.5 pl-9 pr-3 text-base xl:text-sm text-white placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-white"
               : "w-full rounded-lg border-0 bg-white py-3.5 pl-12 pr-4 text-neutral-900 caret-neutral-900 placeholder:text-neutral-500 shadow-lg focus:outline-none focus:ring-2 focus:ring-white [color-scheme:light]"
           }
         />
@@ -185,8 +188,10 @@ export default function GameSearch({
         <ul
           id={listId}
           role="listbox"
-          className={`absolute z-[60] mt-1 max-h-80 w-full overflow-auto rounded-lg border border-[rgb(var(--border-color))] bg-[rgb(var(--bg-card))] py-1 shadow-xl ${
-            isHeader ? "min-w-[18rem] right-0" : "text-left"
+          className={`absolute z-[60] mt-1 max-h-80 overflow-x-hidden overflow-y-auto rounded-lg border border-[rgb(var(--border-color))] bg-[rgb(var(--bg-card))] py-1 shadow-xl ${
+            isHeader && !fullWidth
+              ? "right-0 w-[min(18rem,calc(100vw-2rem))]"
+              : "left-0 right-0 w-full min-w-0 max-w-full text-left"
           }`}
         >
           {matches.map((game, index) => {
@@ -198,7 +203,7 @@ export default function GameSearch({
                   id={`${id}-option-${index}`}
                   role="option"
                   aria-selected={highlighted}
-                  className={`flex w-full flex-col gap-1 px-3 py-2 text-left ${
+                  className={`flex w-full min-w-0 max-w-full flex-col gap-1 overflow-hidden px-3 py-2 text-left ${
                     highlighted
                       ? "bg-[#107c10]/15"
                       : "hover:bg-[rgb(var(--bg-card-alt))]"

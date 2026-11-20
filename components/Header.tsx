@@ -227,8 +227,8 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 bg-[#107c10] text-white shadow-md">
-      <div className="container mx-auto px-4">
-        <div className="flex justify-between items-center h-16 gap-3">
+      <div className="container mx-auto px-4 min-w-0">
+        <div className="flex justify-between items-center h-16 gap-3 min-w-0">
           <button
             type="button"
             className="xl:hidden text-white rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#107c10] order-1"
@@ -308,13 +308,14 @@ export default function Header() {
       </div>
 
       {isMenuOpen && (
-        <div className="xl:hidden bg-[#0e6b0e] py-4">
-          <nav className="container mx-auto px-4">
-            <div className="mb-4">
+        <div className="xl:hidden bg-[#0e6b0e] py-4 overflow-x-hidden">
+          <nav className="container mx-auto px-4 min-w-0">
+            <div className="mb-4 min-w-0">
               <GameSearch
                 variant="header"
                 id="mobile-game-search"
                 className="w-full"
+                fullWidth
                 onNavigate={() => setIsMenuOpen(false)}
               />
             </div>
