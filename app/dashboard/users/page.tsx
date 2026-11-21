@@ -85,6 +85,12 @@ export default function UsersPage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [showFilters, setShowFilters] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [pendingRole, setPendingRole] = useState<"user" | "reviewer" | "admin">(
+    "user"
+  );
+  const [revealedProviderIds, setRevealedProviderIds] = useState<Set<string>>(
+    () => new Set()
+  );
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [showSuspendModal, setShowSuspendModal] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -447,9 +453,16 @@ export default function UsersPage() {
 
     // Check if demoting (user < reviewer < admin)
     const roleHierarchy = { user: 0, reviewer: 1, admin: 2 };
-    const currentRoleLevel = roleHierarchy[selectedUser.role as keyof typeof roleHierarchy] ?? 0;
-    const newRoleLevel = roleHierarchy[newRole as keyof typeof roleHierarchy] ?? 0;
+    const currentRoleLevel =
+      roleHierarchy[selectedUser.role as keyof typeof roleHierarchy] ?? 0;
+    const newRoleLevel =
+      roleHierarchy[newRole as keyof typeof roleHierarchy] ?? 0;
     const isDemoting = newRoleLevel < currentRoleLevel;
+
+    if (newRole === selectedUser.role) {
+      showToast("Select a different role before saving.", 3000, "error");
+      return;
+    }
 
     // Require reason if demoting
     if (isDemoting && !roleChangeReason.trim()) {
@@ -458,7 +471,11 @@ export default function UsersPage() {
     }
 
     // Show confirmation for role changes
-    const roleNames: Record<string, string> = { user: "User", reviewer: "Reviewer", admin: "Admin" };
+    const roleNames: Record<string, string> = {
+      user: "User",
+      reviewer: "Reviewer",
+      admin: "Admin",
+    };
     const action = isDemoting ? "demote" : "promote";
     showConfirmation(
       `Confirm Role Change`,
@@ -519,6 +536,7 @@ export default function UsersPage() {
       setShowRoleModal(false);
       setSelectedUser(null);
       setRoleChangeReason("");
+      setPendingRole("user");
     } catch (error) {
       safeLog.error("Error updating user role:", error);
       showToast(
@@ -781,10 +799,27 @@ export default function UsersPage() {
             {/* Filter Toggle (Mobile) */}
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="md:hidden w-full flex items-center justify-center gap-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] py-2.5 rounded-lg border border-[rgb(var(--border-color))] mb-3 text-sm"
+              className={`md:hidden w-full flex items-center justify-center gap-2 py-2.5 min-h-[44px] rounded-lg border mb-3 text-sm touch-manipulation ${
+                roleFilter !== "all" ||
+                statusFilter !== "all" ||
+                showDeletedUsers ||
+                sortBy !== "lastActive" ||
+                sortOrder !== "desc"
+                  ? "bg-[#107c10]/15 border-[#107c10]/40 text-[rgb(var(--text-primary))]"
+                  : "bg-[rgb(var(--bg-card-alt))] border-[rgb(var(--border-color))] text-[rgb(var(--text-primary))]"
+              }`}
             >
               <FaFilter size={14} />
               <span>Filters & Sort</span>
+              {(roleFilter !== "all" ||
+                statusFilter !== "all" ||
+                showDeletedUsers ||
+                sortBy !== "lastActive" ||
+                sortOrder !== "desc") && (
+                <span className="bg-[#107c10] text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">
+                  On
+                </span>
+              )}
             </button>
 
             {/* Filters and Sort */}
@@ -796,7 +831,7 @@ export default function UsersPage() {
               {/* Show Deleted Users Toggle */}
               <button
                 onClick={() => setShowDeletedUsers(!showDeletedUsers)}
-                className={`w-full md:w-auto px-4 py-2 rounded-lg border transition-colors flex items-center justify-center gap-2 ${
+                className={`w-full md:w-auto px-4 py-2 min-h-[44px] md:min-h-0 rounded-lg border transition-colors flex items-center justify-center gap-2 touch-manipulation ${
                   showDeletedUsers
                     ? "bg-red-900/30 border-red-500/50 text-red-300"
                     : "bg-[rgb(var(--bg-card-alt))] border-[rgb(var(--border-color))] text-[rgb(var(--text-primary))] hover:border-[#107c10]"
@@ -832,6 +867,37 @@ export default function UsersPage() {
                   <SelectItem value="blocked">Blocked</SelectItem>
                 </SelectContent>
               </Select>
+
+              {/* Sort — card view has no table headers below xl */}
+              <div className="xl:hidden flex flex-col sm:flex-row gap-2">
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="w-full sm:w-auto min-w-[140px] text-sm sm:text-base">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="lastActive">Last Login</SelectItem>
+                    <SelectItem value="name">Name</SelectItem>
+                    <SelectItem value="role">Role</SelectItem>
+                    <SelectItem value="status">Status</SelectItem>
+                    <SelectItem value="provider">Provider</SelectItem>
+                    <SelectItem value="submissions">Submissions</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={sortOrder}
+                  onValueChange={(value) =>
+                    setSortOrder(value as "asc" | "desc")
+                  }
+                >
+                  <SelectTrigger className="w-full sm:w-auto min-w-[120px] text-sm sm:text-base">
+                    <SelectValue placeholder="Order" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="desc">Descending</SelectItem>
+                    <SelectItem value="asc">Ascending</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
@@ -1019,11 +1085,32 @@ export default function UsersPage() {
                       </div>
 
                       {/* Provider ID */}
-                      <div className="col-span-2 flex items-center text-sm group/provider-id">
+                      <div className="col-span-2 flex items-center text-sm">
                         <div className="flex items-center gap-2">
-                          <span className="truncate font-mono text-xs text-[rgb(var(--text-secondary))] transition-all duration-200 blur-[3px] group-hover/provider-id:blur-none cursor-default" title={user.providerInfo?.providerAccountId || user.id}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setRevealedProviderIds((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(user.id)) next.delete(user.id);
+                                else next.add(user.id);
+                                return next;
+                              })
+                            }
+                            className={`truncate font-mono text-xs text-[rgb(var(--text-secondary))] transition-all duration-200 cursor-pointer text-left ${
+                              revealedProviderIds.has(user.id)
+                                ? "blur-none"
+                                : "blur-[3px] hover:blur-none"
+                            }`}
+                            title={
+                              revealedProviderIds.has(user.id)
+                                ? "Hide provider ID"
+                                : "Reveal provider ID"
+                            }
+                            aria-pressed={revealedProviderIds.has(user.id)}
+                          >
                             {user.providerInfo?.providerAccountId || user.id}
-                          </span>
+                          </button>
                           <button
                             onClick={() =>
                               copyToClipboard(
@@ -1189,6 +1276,7 @@ export default function UsersPage() {
                                         <button
                                           onClick={() => {
                                             setSelectedUser(user);
+                                            setPendingRole(user.role);
                                             setShowRoleModal(true);
                                             setOpenMenuId(null);
                                           }}
@@ -1341,10 +1429,31 @@ export default function UsersPage() {
                               </div>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 text-sm group/provider-id">
-                            <span className="truncate font-mono text-xs text-[rgb(var(--text-secondary))] transition-all duration-200 blur-[3px] group-hover/provider-id:blur-none cursor-default" title={user.providerInfo?.providerAccountId || user.id}>
+                          <div className="flex items-center gap-2 text-sm">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setRevealedProviderIds((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(user.id)) next.delete(user.id);
+                                  else next.add(user.id);
+                                  return next;
+                                })
+                              }
+                              className={`truncate font-mono text-xs text-[rgb(var(--text-secondary))] transition-all duration-200 cursor-pointer text-left touch-manipulation ${
+                                revealedProviderIds.has(user.id)
+                                  ? "blur-none"
+                                  : "blur-[3px]"
+                              }`}
+                              title={
+                                revealedProviderIds.has(user.id)
+                                  ? "Hide provider ID"
+                                  : "Tap to reveal provider ID"
+                              }
+                              aria-pressed={revealedProviderIds.has(user.id)}
+                            >
                               {user.providerInfo?.providerAccountId || user.id}
-                            </span>
+                            </button>
                             <button
                               onClick={() =>
                                 copyToClipboard(
@@ -1417,6 +1526,7 @@ export default function UsersPage() {
                                         <button
                                           onClick={() => {
                                             setSelectedUser(user);
+                                            setPendingRole(user.role);
                                             setShowRoleModal(true);
                                             setOpenMenuId(null);
                                           }}
@@ -1603,8 +1713,9 @@ export default function UsersPage() {
                   setShowRoleModal(false);
                   setSelectedUser(null);
                   setRoleChangeReason("");
+                  setPendingRole("user");
                 }}
-                className="text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] p-1 touch-manipulation"
+                className="text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] p-1 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation"
                 aria-label="Close"
               >
                 <FaTimes size={20} />
@@ -1613,6 +1724,9 @@ export default function UsersPage() {
             <p className="text-[rgb(var(--text-secondary))] mb-4 sm:mb-6 text-sm sm:text-base">
               Change role for{" "}
               <strong className="text-[rgb(var(--text-primary))]">{selectedUser.name}</strong>
+              <span className="block text-xs mt-1 text-[rgb(var(--text-muted))]">
+                Current: <span className="capitalize">{selectedUser.role}</span>
+              </span>
             </p>
             <div className="space-y-2 mb-4 sm:mb-6">
               {(["user", "reviewer", "admin"] as const).map((role) => {
@@ -1623,7 +1737,7 @@ export default function UsersPage() {
                 return (
                   <label
                     key={role}
-                    className={`flex items-center gap-3 p-3 bg-[rgb(var(--bg-card-alt))] rounded-lg transition-colors touch-manipulation ${
+                    className={`flex items-center gap-3 p-3 min-h-[44px] bg-[rgb(var(--bg-card-alt))] rounded-lg transition-colors touch-manipulation ${
                       isDisabled
                         ? "opacity-50 cursor-not-allowed"
                         : "cursor-pointer hover:bg-[rgb(var(--bg-card))]"
@@ -1633,11 +1747,11 @@ export default function UsersPage() {
                       type="radio"
                       name="role"
                       value={role}
-                      checked={selectedUser.role === role}
+                      checked={pendingRole === role}
                       disabled={isDisabled}
                       onChange={() => {
                         if (!isDisabled) {
-                          setSelectedUser({ ...selectedUser, role });
+                          setPendingRole(role);
                         }
                       }}
                       className="text-[#107c10]"
@@ -1647,6 +1761,11 @@ export default function UsersPage() {
                       <span className="text-[rgb(var(--text-primary))] capitalize text-sm sm:text-base">
                         {role}
                       </span>
+                      {role === selectedUser.role && (
+                        <span className="text-xs text-[rgb(var(--text-muted))] ml-auto">
+                          Current
+                        </span>
+                      )}
                       {isAdminRole && !canSelectAdmin && (
                         <span className="text-xs text-yellow-500 ml-auto">
                           Owner Only
@@ -1661,8 +1780,12 @@ export default function UsersPage() {
             {/* Reason Field - Only required when demoting */}
             {(() => {
               const roleHierarchy = { user: 0, reviewer: 1, admin: 2 };
-              const currentRoleLevel = roleHierarchy[selectedUser.role as keyof typeof roleHierarchy] ?? 0;
-              const selectedRoleLevel = roleHierarchy[selectedUser.role as keyof typeof roleHierarchy] ?? 0;
+              const currentRoleLevel =
+                roleHierarchy[
+                  selectedUser.role as keyof typeof roleHierarchy
+                ] ?? 0;
+              const selectedRoleLevel =
+                roleHierarchy[pendingRole as keyof typeof roleHierarchy] ?? 0;
               const isDemoting = selectedRoleLevel < currentRoleLevel;
               
               return (
@@ -1693,14 +1816,15 @@ export default function UsersPage() {
                   setShowRoleModal(false);
                   setSelectedUser(null);
                   setRoleChangeReason("");
+                  setPendingRole("user");
                 }}
-                className="flex-1 px-4 py-2.5 sm:py-2 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] rounded-lg transition-colors text-sm sm:text-base touch-manipulation border border-[rgb(var(--border-color))]"
+                className="flex-1 min-h-[44px] px-4 py-2.5 sm:py-2 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] rounded-lg transition-colors text-sm sm:text-base touch-manipulation border border-[rgb(var(--border-color))]"
               >
                 Cancel
               </button>
               <button
-                onClick={() => handleRoleChange(selectedUser.role)}
-                className="flex-1 px-4 py-2.5 sm:py-2 bg-[#107c10] hover:bg-[#0d6b0d] text-white rounded-lg transition-colors text-sm sm:text-base touch-manipulation"
+                onClick={() => handleRoleChange(pendingRole)}
+                className="flex-1 min-h-[44px] px-4 py-2.5 sm:py-2 bg-[#107c10] hover:bg-[#0d6b0d] text-white rounded-lg transition-colors text-sm sm:text-base touch-manipulation"
               >
                 Save Changes
               </button>
@@ -1712,16 +1836,16 @@ export default function UsersPage() {
       {/* Suspend/Block Modal */}
       {showSuspendModal && selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/75 p-4">
-          <div className="bg-[rgb(var(--bg-card))] rounded-lg max-w-lg w-full border border-[rgb(var(--border-color))]">
+          <div className="bg-[rgb(var(--bg-card))] rounded-lg max-w-lg w-full border border-[rgb(var(--border-color))] max-h-[90vh] flex flex-col overflow-hidden">
             {/* Header */}
-            <div className="p-6 border-b border-[rgb(var(--border-color))]">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-yellow-500/20 dark:bg-yellow-900/30 rounded-lg">
+            <div className="shrink-0 p-4 sm:p-6 border-b border-[rgb(var(--border-color))]">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="p-2 bg-yellow-500/20 dark:bg-yellow-900/30 rounded-lg shrink-0">
                     <FaUserShield className="text-yellow-600 dark:text-yellow-400" size={24} />
                   </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-[rgb(var(--text-primary))]">
+                  <div className="min-w-0">
+                    <h3 className="text-lg sm:text-xl font-bold text-[rgb(var(--text-primary))]">
                       Suspend or Block User
                     </h3>
                     <p className="text-sm text-[rgb(var(--text-secondary))] mt-0.5">
@@ -1739,7 +1863,8 @@ export default function UsersPage() {
                     setSuspendDays(7);
                     setSuspendReason("");
                   }}
-                  className="text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] transition-colors"
+                  className="text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0 touch-manipulation"
+                  aria-label="Close"
                 >
                   <FaTimes size={20} />
                 </button>
@@ -1747,7 +1872,7 @@ export default function UsersPage() {
             </div>
 
             {/* Body */}
-            <div className="p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
               {/* Duration Options */}
               <div className="space-y-2">
                 <label className="text-sm text-[rgb(var(--text-secondary))] block mb-3">
@@ -1911,7 +2036,7 @@ export default function UsersPage() {
             </div>
 
             {/* Footer */}
-            <div className="p-6 border-t border-[rgb(var(--border-color))] flex gap-3">
+            <div className="shrink-0 p-4 sm:p-6 border-t border-[rgb(var(--border-color))] flex flex-col-reverse sm:flex-row gap-3">
               <button
                 onClick={() => {
                   setShowSuspendModal(false);
@@ -1919,7 +2044,7 @@ export default function UsersPage() {
                   setSuspendDays(7);
                   setSuspendReason("");
                 }}
-                className="flex-1 px-4 py-2.5 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] rounded-lg transition-colors font-medium border border-[rgb(var(--border-color))]"
+                className="flex-1 min-h-[44px] px-4 py-2.5 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] rounded-lg transition-colors font-medium border border-[rgb(var(--border-color))] touch-manipulation"
               >
                 Cancel
               </button>

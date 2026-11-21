@@ -78,6 +78,15 @@ export default function DashboardLayout({
   }, [pathname]);
 
   useEffect(() => {
+    if (!mobileNavOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileNavOpen]);
+
+  useEffect(() => {
     if (status !== "authenticated" || !session?.user?.id) return;
     const userRole = session.user.role;
     if (userRole !== "reviewer" && userRole !== "admin") return;
@@ -455,13 +464,13 @@ export default function DashboardLayout({
         {sidebarContent}
       </aside>
 
-      {/* Mobile dashboard nav toggle */}
-      <div className="lg:hidden fixed top-16 left-0 right-0 z-20 border-b border-[rgb(var(--border-color))] bg-[rgb(var(--bg-sidebar))]">
-        <div className="flex items-center justify-between px-4 py-2">
+      {/* Mobile dashboard nav */}
+      <div className="lg:hidden fixed top-16 left-0 right-0 z-30 border-b border-[rgb(var(--border-color))] bg-[rgb(var(--bg-sidebar))]">
+        <div className="flex items-center justify-between gap-2 px-3 py-2">
           <button
             type="button"
             onClick={() => setMobileNavOpen((open) => !open)}
-            className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--bg-card))] focus:outline-none focus:ring-2 focus:ring-[#107c10]/40"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--bg-card))] focus:outline-none focus:ring-2 focus:ring-[#107c10]/40 touch-manipulation"
             aria-expanded={mobileNavOpen}
             aria-label={
               mobileNavOpen ? "Close dashboard menu" : "Open dashboard menu"
@@ -474,24 +483,55 @@ export default function DashboardLayout({
             pendingGameSubmissionsCount +
             pendingFaqSubmissionsCount) >
             0 && (
-            <span className="bg-orange-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
-              {pendingCount +
-                pendingGameSubmissionsCount +
-                pendingFaqSubmissionsCount >
-              99
-                ? "99+"
-                : pendingCount +
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen(true)}
+              className="flex max-w-[55%] flex-col items-end gap-0.5 rounded-md px-2 py-1 text-right touch-manipulation"
+              aria-label="Open dashboard menu to view pending queues"
+            >
+              <span className="bg-orange-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 inline-flex items-center justify-center px-1.5">
+                {pendingCount +
                   pendingGameSubmissionsCount +
-                  pendingFaqSubmissionsCount}
-            </span>
+                  pendingFaqSubmissionsCount >
+                99
+                  ? "99+"
+                  : pendingCount +
+                    pendingGameSubmissionsCount +
+                    pendingFaqSubmissionsCount}
+              </span>
+              <span className="text-[10px] leading-tight text-[rgb(var(--text-muted))]">
+                {[
+                  pendingCount > 0
+                    ? `${pendingCount} correction${pendingCount === 1 ? "" : "s"}`
+                    : null,
+                  pendingGameSubmissionsCount > 0
+                    ? `${pendingGameSubmissionsCount} game${pendingGameSubmissionsCount === 1 ? "" : "s"}`
+                    : null,
+                  pendingFaqSubmissionsCount > 0
+                    ? `${pendingFaqSubmissionsCount} FAQ`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            </button>
           )}
         </div>
-        {mobileNavOpen && (
-          <div className="max-h-[70vh] overflow-y-auto border-t border-[rgb(var(--border-color))] bg-[rgb(var(--bg-sidebar))]">
+      </div>
+
+      {mobileNavOpen && (
+        <div className="lg:hidden fixed inset-0 z-40">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/50"
+            aria-label="Close dashboard menu"
+            onClick={() => setMobileNavOpen(false)}
+          />
+          <div className="absolute top-16 left-0 bottom-0 w-[min(20rem,88vw)] bg-[rgb(var(--bg-sidebar))] border-r border-[rgb(var(--border-color))] shadow-xl overflow-hidden">
             {sidebarContent}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="flex-1 flex flex-col min-w-0 lg:ml-72">
         <div className="lg:hidden h-12 flex-shrink-0" aria-hidden />

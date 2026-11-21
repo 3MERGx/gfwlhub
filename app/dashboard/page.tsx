@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import {
   FaUsers,
   FaCheckCircle,
@@ -43,12 +43,86 @@ function StatValue({
   if (!loaded) {
     return (
       <span
-        className="inline-block h-9 w-16 rounded bg-[rgb(var(--bg-card-alt))] animate-pulse"
+        className="inline-block h-6 w-10 sm:h-7 sm:w-12 md:h-9 md:w-16 rounded bg-[rgb(var(--bg-card-alt))] animate-pulse"
         aria-hidden
       />
     );
   }
   return <>{value ?? 0}</>;
+}
+
+function StatCard({
+  href,
+  title,
+  value,
+  loaded,
+  subtitle,
+  icon,
+  tone,
+}: {
+  href?: string;
+  title: string;
+  value?: number;
+  loaded: boolean;
+  subtitle: string;
+  icon: ReactNode;
+  tone: "blue" | "yellow" | "purple" | "green" | "red";
+}) {
+  const tones = {
+    blue: {
+      card: "from-blue-500/10 to-blue-600/5 border-blue-500/20 focus:ring-blue-500/40",
+      icon: "bg-blue-500/20 text-blue-400",
+    },
+    yellow: {
+      card: "from-yellow-500/10 to-yellow-600/5 border-yellow-500/20 focus:ring-yellow-500/40",
+      icon: "bg-yellow-500/20 text-yellow-400",
+    },
+    purple: {
+      card: "from-purple-500/10 to-purple-600/5 border-purple-500/20 focus:ring-purple-500/40",
+      icon: "bg-purple-500/20 text-purple-400",
+    },
+    green: {
+      card: "from-green-500/10 to-green-600/5 border-green-500/20",
+      icon: "bg-green-500/20 text-green-400",
+    },
+    red: {
+      card: "from-red-500/10 to-red-600/5 border-red-500/20",
+      icon: "bg-red-500/20 text-red-400",
+    },
+  }[tone];
+
+  const className = `bg-gradient-to-br ${tones.card} p-3 sm:p-4 md:p-5 lg:p-6 rounded-lg md:rounded-xl border shadow-md md:shadow-lg ${
+    href ? "block focus:outline-none focus:ring-2" : ""
+  }`;
+
+  const content = (
+    <>
+      <div className="flex items-center justify-between mb-1.5 sm:mb-2 md:mb-3 gap-2">
+        <h3 className="text-[rgb(var(--text-secondary))] text-[11px] sm:text-xs md:text-sm font-medium leading-tight">
+          {title}
+        </h3>
+        <div className={`p-1 sm:p-1.5 md:p-2 rounded-md md:rounded-lg shrink-0 ${tones.icon}`}>
+          {icon}
+        </div>
+      </div>
+      <p className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-[rgb(var(--text-primary))] mb-0.5 sm:mb-1 md:mb-2">
+        <StatValue value={value} loaded={loaded} />
+      </p>
+      <p className="text-[10px] sm:text-xs text-[rgb(var(--text-secondary))] leading-snug line-clamp-2">
+        {subtitle}
+      </p>
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className={className}>
+        {content}
+      </Link>
+    );
+  }
+
+  return <div className={className}>{content}</div>;
 }
 
 export default function AdminPanel() {
@@ -116,118 +190,77 @@ export default function AdminPanel() {
           />
 
           {/* Statistics Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 md:gap-6 mb-6 sm:mb-8 md:mb-10">
-            {/* Total Users - Admin Only */}
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 md:gap-4 lg:gap-6 mb-5 sm:mb-6 md:mb-8 lg:mb-10">
             {isAdmin && (
-              <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 p-5 sm:p-6 rounded-xl border border-blue-500/20 shadow-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-[rgb(var(--text-secondary))] text-sm font-medium">
-                    Total Users
-                  </h3>
-                  <div className="p-2 bg-blue-500/20 rounded-lg">
-                    <FaUsers className="text-blue-400" size={20} />
-                  </div>
-                </div>
-                <p className="text-3xl sm:text-4xl font-bold text-[rgb(var(--text-primary))] mb-2">
-                  <StatValue value={stats?.totalUsers} loaded={stats !== null} />
-                </p>
-                <p className="text-xs text-[rgb(var(--text-secondary))]">
-                  {stats ? `${stats.activeUsers} active, ${stats.suspendedUsers} suspended` : "Loading user counts"}
-                </p>
-              </div>
+              <StatCard
+                tone="blue"
+                title="Total Users"
+                value={stats?.totalUsers}
+                loaded={stats !== null}
+                subtitle={
+                  stats
+                    ? `${stats.activeUsers} active, ${stats.suspendedUsers} suspended`
+                    : "Loading user counts"
+                }
+                icon={<FaUsers className="text-sm sm:text-base md:text-xl" />}
+              />
             )}
 
-            <Link
+            <StatCard
               href="/dashboard/submissions"
-              className="bg-gradient-to-br from-yellow-500/10 to-yellow-600/5 p-5 sm:p-6 rounded-xl border border-yellow-500/20 shadow-lg block focus:outline-none focus:ring-2 focus:ring-yellow-500/40"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-[rgb(var(--text-secondary))] text-sm font-medium">
-                  Pending Corrections
-                </h3>
-                <div className="p-2 bg-yellow-500/20 rounded-lg">
-                  <FaClock className="text-yellow-400" size={20} />
-                </div>
-              </div>
-              <p className="text-3xl sm:text-4xl font-bold text-[rgb(var(--text-primary))] mb-2">
-                <StatValue value={stats?.pendingSubmissions} loaded={stats !== null} />
-              </p>
-              <p className="text-xs text-[rgb(var(--text-secondary))]">
-                {stats ? `${stats.totalSubmissions} total · Open corrections queue` : "Loading corrections"}
-              </p>
-            </Link>
+              tone="yellow"
+              title="Pending Corrections"
+              value={stats?.pendingSubmissions}
+              loaded={stats !== null}
+              subtitle={
+                stats
+                  ? `${stats.totalSubmissions} total · Open corrections queue`
+                  : "Loading corrections"
+              }
+              icon={<FaClock className="text-sm sm:text-base md:text-xl" />}
+            />
 
-            <Link
+            <StatCard
               href="/dashboard/game-submissions"
-              className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 p-5 sm:p-6 rounded-xl border border-blue-500/20 shadow-lg block focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-[rgb(var(--text-secondary))] text-sm font-medium">
-                  Pending Game submissions
-                </h3>
-                <div className="p-2 bg-blue-500/20 rounded-lg">
-                  <FaGamepad className="text-blue-400" size={20} />
-                </div>
-              </div>
-              <p className="text-3xl sm:text-4xl font-bold text-[rgb(var(--text-primary))] mb-2">
-                <StatValue value={stats?.pendingGameSubmissions} loaded={stats !== null} />
-              </p>
-              <p className="text-xs text-[rgb(var(--text-secondary))]">
-                Open game submissions queue
-              </p>
-            </Link>
+              tone="blue"
+              title="Pending Game submissions"
+              value={stats?.pendingGameSubmissions}
+              loaded={stats !== null}
+              subtitle="Open game submissions queue"
+              icon={<FaGamepad className="text-sm sm:text-base md:text-xl" />}
+            />
 
-            <Link
+            <StatCard
               href="/dashboard/faq-submissions"
-              className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 p-5 sm:p-6 rounded-xl border border-purple-500/20 shadow-lg block focus:outline-none focus:ring-2 focus:ring-purple-500/40"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-[rgb(var(--text-secondary))] text-sm font-medium">
-                  Pending FAQ submissions
-                </h3>
-                <div className="p-2 bg-purple-500/20 rounded-lg">
-                  <FaQuestionCircle className="text-purple-400" size={20} />
-                </div>
-              </div>
-              <p className="text-3xl sm:text-4xl font-bold text-[rgb(var(--text-primary))] mb-2">
-                <StatValue value={stats?.pendingFaqSubmissions} loaded={stats !== null} />
-              </p>
-              <p className="text-xs text-[rgb(var(--text-secondary))]">
-                Open FAQ submissions queue
-              </p>
-            </Link>
+              tone="purple"
+              title="Pending FAQ submissions"
+              value={stats?.pendingFaqSubmissions}
+              loaded={stats !== null}
+              subtitle="Open FAQ submissions queue"
+              icon={<FaQuestionCircle className="text-sm sm:text-base md:text-xl" />}
+            />
 
-            {/* Approved Submissions */}
-            <div className="bg-gradient-to-br from-green-500/10 to-green-600/5 p-5 sm:p-6 rounded-xl border border-green-500/20 shadow-lg">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-[rgb(var(--text-secondary))] text-sm font-medium">Approved</h3>
-                <div className="p-2 bg-green-500/20 rounded-lg">
-                  <FaCheckCircle className="text-green-400" size={20} />
-                </div>
-              </div>
-              <p className="text-3xl sm:text-4xl font-bold text-[rgb(var(--text-primary))] mb-2">
-                <StatValue value={stats?.approvedSubmissions} loaded={stats !== null} />
-              </p>
-              <p className="text-xs text-[rgb(var(--text-secondary))]">
-                {stats ? `${stats.totalChanges} total changes made` : "Loading approved count"}
-              </p>
-            </div>
+            <StatCard
+              tone="green"
+              title="Approved"
+              value={stats?.approvedSubmissions}
+              loaded={stats !== null}
+              subtitle={
+                stats
+                  ? `${stats.totalChanges} total changes made`
+                  : "Loading approved count"
+              }
+              icon={<FaCheckCircle className="text-sm sm:text-base md:text-xl" />}
+            />
 
-            {/* Rejected Submissions */}
-            <div className="bg-gradient-to-br from-red-500/10 to-red-600/5 p-5 sm:p-6 rounded-xl border border-red-500/20 shadow-lg">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-[rgb(var(--text-secondary))] text-sm font-medium">Rejected</h3>
-                <div className="p-2 bg-red-500/20 rounded-lg">
-                  <FaTimesCircle className="text-red-400" size={20} />
-                </div>
-              </div>
-              <p className="text-3xl sm:text-4xl font-bold text-[rgb(var(--text-primary))] mb-2">
-                <StatValue value={stats?.rejectedSubmissions} loaded={stats !== null} />
-              </p>
-              <p className="text-xs text-[rgb(var(--text-secondary))]">
-                Quality control maintained
-              </p>
-            </div>
+            <StatCard
+              tone="red"
+              title="Rejected"
+              value={stats?.rejectedSubmissions}
+              loaded={stats !== null}
+              subtitle="Quality control maintained"
+              icon={<FaTimesCircle className="text-sm sm:text-base md:text-xl" />}
+            />
           </div>
 
           {/* Quick Actions */}

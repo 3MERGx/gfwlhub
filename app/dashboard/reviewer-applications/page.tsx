@@ -664,28 +664,6 @@ export default function ReviewerApplicationsPage() {
                     )}
                   </div>
 
-                  {/* Actions - Above collapsible section so buttons don't move */}
-                  {application.status === "pending" && (
-                    <div className="px-4 sm:px-6 mb-4">
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() => handleApprove(application)}
-                          className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                        >
-                          <FaCheck />
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => handleReject(application)}
-                          className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                        >
-                          <FaTimes />
-                          Reject
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
                   {/* Expand/Collapse Button */}
                   <div className="px-4 sm:px-6 mb-4">
                     <button
@@ -694,7 +672,7 @@ export default function ReviewerApplicationsPage() {
                           isExpanded ? null : application.id
                         )
                       }
-                      className="w-full p-2 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] rounded-lg transition-colors flex items-center justify-between text-sm text-[rgb(var(--text-primary))]"
+                      className="w-full min-h-[44px] p-2 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] rounded-lg transition-colors flex items-center justify-between text-sm text-[rgb(var(--text-primary))] touch-manipulation"
                     >
                     <span>{isExpanded ? "Hide Details" : "Show Details"}</span>
                       {isExpanded ? (
@@ -707,7 +685,7 @@ export default function ReviewerApplicationsPage() {
 
                   {/* Application Details - Collapsible */}
                   {isExpanded && (
-                    <div className="mb-4 space-y-4 border-t border-[rgb(var(--border-color))] pt-4">
+                    <div className="mb-4 space-y-4 border-t border-[rgb(var(--border-color))] pt-4 px-4 sm:px-6">
                     <div>
                       <h4 className="text-sm font-semibold text-[rgb(var(--text-primary))] mb-2">
                         Motivation:
@@ -851,6 +829,26 @@ export default function ReviewerApplicationsPage() {
                           </div>
                         )}
                       </div>
+
+                      {/* Actions after details so admins read motivation first */}
+                      {application.status === "pending" && (
+                        <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                          <button
+                            onClick={() => handleApprove(application)}
+                            className="flex-1 min-h-[44px] bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 touch-manipulation"
+                          >
+                            <FaCheck />
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => handleReject(application)}
+                            className="flex-1 min-h-[44px] bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 touch-manipulation"
+                          >
+                            <FaTimes />
+                            Reject
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -891,11 +889,21 @@ export default function ReviewerApplicationsPage() {
                   ? "Approve Reviewer Application"
                   : "Reject Reviewer Application"}
               </h3>
-              <p className="text-sm text-[rgb(var(--text-secondary))] mb-4">
+              <p className="text-sm text-[rgb(var(--text-secondary))] mb-3">
                 {confirmAction === "approve"
                   ? `Are you sure you want to approve ${selectedApplication?.userName}'s application? This will grant them reviewer privileges.`
                   : `Are you sure you want to reject ${selectedApplication?.userName}'s application?`}
               </p>
+              {selectedApplication?.motivationText && (
+                <div className="mb-4 rounded-lg border border-[rgb(var(--border-color))] bg-[rgb(var(--bg-card-alt))] p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[rgb(var(--text-muted))] mb-1">
+                    Motivation
+                  </p>
+                  <p className="text-sm text-[rgb(var(--text-secondary))] line-clamp-4">
+                    {selectedApplication.motivationText}
+                  </p>
+                </div>
+              )}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-[rgb(var(--text-primary))] mb-2">
                   Admin Notes (Optional)

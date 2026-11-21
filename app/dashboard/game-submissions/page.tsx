@@ -605,9 +605,9 @@ function GameSubmissionsPage() {
                   className="bg-[rgb(var(--bg-card))] rounded-lg p-4 md:p-6 border border-[rgb(var(--border-color))]"
                 >
                   <div className="flex flex-col md:flex-row md:items-start md:justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-xl font-bold text-[rgb(var(--text-primary))]">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
+                        <h3 className="text-lg sm:text-xl font-bold text-[rgb(var(--text-primary))] min-w-0 break-words">
                           {submission.gameTitle}
                         </h3>
                         {getStatusBadge(submission.status)}
@@ -641,10 +641,10 @@ function GameSubmissionsPage() {
                           )}
                       </div>
                     </div>
-                    <div className="flex gap-2 mt-4 md:mt-0">
+                    <div className="flex flex-col sm:flex-row gap-2 mt-4 md:mt-0 w-full md:w-auto">
                       <button
                         onClick={() => handleReview(submission)}
-                        className="inline-flex items-center gap-2 bg-[#107c10] hover:bg-[#0d6b0d] text-white px-4 py-2 rounded-lg transition-colors text-sm"
+                        className="inline-flex min-h-[44px] items-center justify-center gap-2 bg-[#107c10] hover:bg-[#0d6b0d] text-white px-4 py-2 rounded-lg transition-colors text-sm touch-manipulation"
                       >
                         {submission.status === "pending" ? (
                           <FaCheck />
@@ -659,7 +659,7 @@ function GameSubmissionsPage() {
                         !submission.currentGameData?.featureEnabled && (
                           <button
                             onClick={() => handlePublishGame(submission)}
-                            className="inline-flex items-center gap-2 bg-[#107c10] hover:bg-[#0e6b0e] text-white px-4 py-2 rounded-lg transition-colors text-sm font-semibold"
+                            className="inline-flex min-h-[44px] items-center justify-center gap-2 border border-[#107c10] text-[#107c10] hover:bg-[#107c10]/10 px-4 py-2 rounded-lg transition-colors text-sm font-semibold touch-manipulation"
                             title="This game has the minimum required fields and can be published"
                           >
                             <FaRocket />

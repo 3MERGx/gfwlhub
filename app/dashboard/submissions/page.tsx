@@ -636,10 +636,25 @@ export default function SubmissionsPage() {
             {/* Filter Toggle (Mobile) */}
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="md:hidden w-full flex items-center justify-center gap-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] py-2 rounded-lg border border-[rgb(var(--border-color))] mb-4"
+              className={`md:hidden w-full flex items-center justify-center gap-2 py-2.5 min-h-[44px] rounded-lg border mb-4 touch-manipulation ${
+                statusFilter !== "pending" ||
+                fieldFilter !== "all" ||
+                sortBy !== "date" ||
+                sortOrder !== "desc"
+                  ? "bg-[#107c10]/15 border-[#107c10]/40 text-[rgb(var(--text-primary))]"
+                  : "bg-[rgb(var(--bg-card-alt))] border-[rgb(var(--border-color))] text-[rgb(var(--text-primary))]"
+              }`}
             >
               <FaFilter size={14} />
               <span>Filters & Sort</span>
+              {(statusFilter !== "pending" ||
+                fieldFilter !== "all" ||
+                sortBy !== "date" ||
+                sortOrder !== "desc") && (
+                <span className="bg-[#107c10] text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">
+                  On
+                </span>
+              )}
             </button>
 
             {/* Filters and Sort */}
@@ -976,7 +991,7 @@ function CorrectionCard({
           <>
             {isOwnSubmission ? (
               <div
-                className="px-3 py-1 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] text-sm rounded-lg whitespace-nowrap ml-2 cursor-not-allowed border border-[rgb(var(--border-color))]"
+                className="px-3 py-2 sm:py-1 min-h-[44px] sm:min-h-0 inline-flex items-center bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] text-sm rounded-lg whitespace-nowrap ml-2 cursor-not-allowed border border-[rgb(var(--border-color))]"
                 title="You cannot review your own submissions"
               >
                 Your Submission
@@ -984,7 +999,7 @@ function CorrectionCard({
             ) : (
               <button
                 onClick={onViewDetails}
-                className="px-3 py-1 bg-[#107c10] hover:bg-[#0d6b0d] text-white text-sm rounded-lg transition-colors whitespace-nowrap ml-2"
+                className="px-3 py-2 sm:py-1 min-h-[44px] sm:min-h-0 bg-[#107c10] hover:bg-[#0d6b0d] text-white text-sm rounded-lg transition-colors whitespace-nowrap ml-2 touch-manipulation"
               >
                 Review
               </button>
@@ -994,7 +1009,7 @@ function CorrectionCard({
         {correction.status !== "pending" && (
           <button
             onClick={onViewDetails}
-            className="text-[#107c10] hover:text-[#0d6b0d] text-sm whitespace-nowrap ml-2"
+            className="px-3 py-2 sm:py-1 min-h-[44px] sm:min-h-0 text-[#107c10] hover:text-[#0d6b0d] text-sm whitespace-nowrap ml-2 touch-manipulation"
           >
             View
           </button>
@@ -1113,7 +1128,7 @@ function BatchCorrectionCard({
           <>
             {isOwnSubmission ? (
               <div
-                className="px-3 py-1 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] text-sm rounded-lg whitespace-nowrap ml-2 cursor-not-allowed border border-[rgb(var(--border-color))]"
+                className="px-3 py-2 sm:py-1 min-h-[44px] sm:min-h-0 inline-flex items-center bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] text-sm rounded-lg whitespace-nowrap ml-2 cursor-not-allowed border border-[rgb(var(--border-color))]"
                 title="You cannot review your own submissions"
               >
                 Your Submission
@@ -1121,7 +1136,7 @@ function BatchCorrectionCard({
             ) : (
               <button
                 onClick={onReviewBatch}
-                className="px-3 py-1 bg-[#107c10] hover:bg-[#0d6b0d] text-white text-sm rounded-lg transition-colors whitespace-nowrap ml-2"
+                className="px-3 py-2 sm:py-1 min-h-[44px] sm:min-h-0 bg-[#107c10] hover:bg-[#0d6b0d] text-white text-sm rounded-lg transition-colors whitespace-nowrap ml-2 touch-manipulation"
               >
                 Review Batch
               </button>
@@ -1752,26 +1767,26 @@ function ReviewModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="review-modal-title"
-        className="bg-[rgb(var(--bg-card))] rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-[rgb(var(--bg-card))] rounded-lg max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 z-20 bg-[rgb(var(--bg-card))] border-b border-[rgb(var(--border-color))] p-6">
-          <div className="flex items-start justify-between">
-            <div>
+        <div className="shrink-0 bg-[rgb(var(--bg-card))] border-b border-[rgb(var(--border-color))] p-4 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
               <h2
                 id="review-modal-title"
-                className="text-xl font-bold text-[rgb(var(--text-primary))] mb-1"
+                className="text-lg sm:text-xl font-bold text-[rgb(var(--text-primary))] mb-1"
               >
                 Review Submission
               </h2>
-              <p className="text-[rgb(var(--text-secondary))] text-sm">
+              <p className="text-[rgb(var(--text-secondary))] text-sm truncate">
                 {correction.gameTitle}
               </p>
             </div>
             <button
               onClick={requestClose}
-              className="text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] text-2xl"
+              className="text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] text-2xl min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0"
               aria-label="Close"
             >
               <FaTimes />
@@ -1780,7 +1795,7 @@ function ReviewModal({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6 pb-24">
+        <div className="p-4 sm:p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
           {isSameAsCurrent && (
             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-500/30 rounded-lg p-3">
               <p className="text-amber-800 dark:text-amber-300 text-sm">
@@ -1929,20 +1944,20 @@ function ReviewModal({
 
         {/* Footer - Actions */}
         {correction.status === "pending" && (
-          <div className="sticky bottom-0 z-20 bg-[rgb(var(--bg-card))] border-t border-[rgb(var(--border-color))] p-6 space-y-3">
+          <div className="shrink-0 bg-[rgb(var(--bg-card))] border-t border-[rgb(var(--border-color))] p-4 sm:p-6 space-y-3">
             {!showModify && (
               <button
                 onClick={() => setShowModify(true)}
-                className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                className="w-full min-h-[44px] px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors touch-manipulation"
               >
                 Modify Value
               </button>
             )}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col-reverse sm:grid sm:grid-cols-2 gap-3">
               <button
                 onClick={handleReject}
                 disabled={isSubmitting}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="min-h-[44px] px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
               >
                 <FaTimes />
                 {isSubmitting ? "Processing..." : "Reject"}
@@ -1950,13 +1965,13 @@ function ReviewModal({
               <button
                 onClick={showModify ? handleModify : handleApprove}
                 disabled={isSubmitting}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="min-h-[44px] px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
               >
                 <FaCheck />
                 {isSubmitting
                   ? "Processing..."
                   : showModify
-                  ? "Approve Modified"
+                  ? "Approve Edited"
                   : "Approve"}
               </button>
             </div>
@@ -1965,7 +1980,7 @@ function ReviewModal({
 
         {/* Footer - Reviewed */}
         {correction.status !== "pending" && (
-          <div className="sticky bottom-0 z-20 bg-[rgb(var(--bg-card))] border-t border-[rgb(var(--border-color))] p-6">
+          <div className="shrink-0 bg-[rgb(var(--bg-card))] border-t border-[rgb(var(--border-color))] p-4 sm:p-6">
             <div className="mb-4 p-3 bg-[rgb(var(--bg-card-alt))] rounded-lg">
               <p className="text-sm text-[rgb(var(--text-muted))] mb-1">
                 Reviewed by
@@ -1985,7 +2000,7 @@ function ReviewModal({
             </div>
             <button
               onClick={requestClose}
-              className="w-full px-4 py-2 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] rounded-lg transition-colors border border-[rgb(var(--border-color))]"
+              className="w-full min-h-[44px] px-4 py-2 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] rounded-lg transition-colors border border-[rgb(var(--border-color))] touch-manipulation"
             >
               Close
             </button>
@@ -2351,54 +2366,7 @@ function BatchReviewModal({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6 pb-24">
-          {/* Batch Actions */}
-          <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-4 border border-[rgb(var(--border-color))]">
-            <h3 className="text-sm font-semibold text-[rgb(var(--text-primary))] mb-3">
-              Batch Actions
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setAllActions("approve")}
-                disabled={isSubmitting}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? (
-                  <>
-                    <FaSpinner className="inline mr-2 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <FaCheck className="inline mr-2" />
-                    Approve All
-                  </>
-                )}
-              </button>
-              <button
-                onClick={() => setAllActions("reject")}
-                disabled={isSubmitting}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? (
-                  <>
-                    <FaSpinner className="inline mr-2 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <FaTimes className="inline mr-2" />
-                    Reject All
-                  </>
-                )}
-              </button>
-            </div>
-            <p className="text-xs text-[rgb(var(--text-muted))] mt-2">
-              Approve All / Reject All applies immediately after confirmation.
-              Or set each item below and use Submit all reviews.
-            </p>
-          </div>
-
+        <div className="p-4 sm:p-6 space-y-6 pb-24">
           {/* Batch Notes */}
           <div>
             <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">
@@ -2602,6 +2570,53 @@ function BatchReviewModal({
             })}
           </div>
 
+          {/* Bulk shortcuts — below the list so thumbs hit per-item review first */}
+          <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-4 border border-dashed border-[rgb(var(--border-color))]">
+            <h3 className="text-sm font-semibold text-[rgb(var(--text-primary))] mb-1">
+              Or apply to entire batch
+            </h3>
+            <p className="text-xs text-[rgb(var(--text-muted))] mb-3">
+              These run immediately after confirmation. Prefer reviewing items
+              above when decisions differ.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button
+                onClick={() => setAllActions("approve")}
+                disabled={isSubmitting}
+                className="min-h-[44px] px-4 py-2 border border-green-600/50 text-green-500 hover:bg-green-600/10 rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+              >
+                {isSubmitting ? (
+                  <>
+                    <FaSpinner className="inline mr-2 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <FaCheck className="inline mr-2" />
+                    Approve All
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => setAllActions("reject")}
+                disabled={isSubmitting}
+                className="min-h-[44px] px-4 py-2 border border-red-600/50 text-red-400 hover:bg-red-600/10 rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+              >
+                {isSubmitting ? (
+                  <>
+                    <FaSpinner className="inline mr-2 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <FaTimes className="inline mr-2" />
+                    Reject All
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
           {error && (
             <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 text-red-400">
               {error}
@@ -2620,7 +2635,7 @@ function BatchReviewModal({
             <button
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="flex-1 px-6 py-3 bg-[#107c10] hover:bg-[#0d6b0d] text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex-1 min-h-[44px] px-6 py-3 bg-[#107c10] hover:bg-[#0d6b0d] text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 touch-manipulation"
             >
               {isSubmitting ? (
                 <>

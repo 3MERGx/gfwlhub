@@ -388,10 +388,29 @@ export default function ModerationPage() {
             {/* Filter Toggle (Mobile) */}
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="md:hidden w-full flex items-center justify-center gap-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] py-2 rounded-lg border border-[rgb(var(--border-color))] mb-4"
+              className={`md:hidden w-full flex items-center justify-center gap-2 py-2.5 min-h-[44px] rounded-lg border mb-4 touch-manipulation ${
+                actionFilter !== "all" ||
+                userFilter !== "all" ||
+                moderatorFilter !== "all" ||
+                dateRangeFilter !== "all" ||
+                sortBy !== "date" ||
+                sortOrder !== "desc"
+                  ? "bg-[#107c10]/15 border-[#107c10]/40 text-[rgb(var(--text-primary))]"
+                  : "bg-[rgb(var(--bg-card-alt))] border-[rgb(var(--border-color))] text-[rgb(var(--text-primary))]"
+              }`}
             >
               <FaFilter size={14} />
               <span>Filters & Sort</span>
+              {(actionFilter !== "all" ||
+                userFilter !== "all" ||
+                moderatorFilter !== "all" ||
+                dateRangeFilter !== "all" ||
+                sortBy !== "date" ||
+                sortOrder !== "desc") && (
+                <span className="bg-[#107c10] text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">
+                  On
+                </span>
+              )}
             </button>
 
             {/* Filters and Sort */}

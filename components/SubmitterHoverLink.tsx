@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { FaChartBar } from "react-icons/fa";
 
 interface SubmitterStats {
   name: string;
@@ -33,6 +34,7 @@ export default function SubmitterHoverLink({
   );
   const [error, setError] = useState<string | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rootRef = useRef<HTMLSpanElement>(null);
 
   const clearCloseTimer = () => {
     if (closeTimer.current) {
@@ -49,6 +51,22 @@ export default function SubmitterHoverLink({
   useEffect(() => {
     return () => clearCloseTimer();
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (rootRef.current && target && !rootRef.current.contains(target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open || !userId) return;
@@ -110,7 +128,8 @@ export default function SubmitterHoverLink({
 
   return (
     <span
-      className="relative inline-flex"
+      ref={rootRef}
+      className="relative inline-flex items-center gap-1"
       onMouseEnter={() => {
         clearCloseTimer();
         setOpen(true);
@@ -129,6 +148,20 @@ export default function SubmitterHoverLink({
       >
         {name}
       </Link>
+      <button
+        type="button"
+        className="inline-flex min-h-[28px] min-w-[28px] items-center justify-center rounded text-[rgb(var(--text-muted))] hover:text-[#107c10] hover:bg-[rgb(var(--bg-card-alt))] transition-colors touch-manipulation md:hidden"
+        aria-label={`Show stats for ${name}`}
+        aria-expanded={open}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          clearCloseTimer();
+          setOpen((prev) => !prev);
+        }}
+      >
+        <FaChartBar size={12} />
+      </button>
       {open && (
         <span
           role="tooltip"
@@ -155,6 +188,7 @@ export default function SubmitterHoverLink({
                     height={28}
                     className="rounded-full"
                     loading="lazy"
+                    unoptimized
                   />
                 ) : (
                   <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[rgb(var(--bg-card-alt))] text-xs text-[rgb(var(--text-secondary))]">
@@ -191,6 +225,13 @@ export default function SubmitterHoverLink({
                   </span>
                 </span>
               )}
+              <Link
+                href={`/profile/${userId}`}
+                className="mt-1 block text-xs text-[#107c10] hover:underline md:hidden"
+                onClick={(event) => event.stopPropagation()}
+              >
+                View full profile
+              </Link>
             </span>
           )}
         </span>

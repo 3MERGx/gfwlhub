@@ -252,10 +252,19 @@ function GamesManagementPage() {
             <button
               type="button"
               onClick={() => setShowFilters((open) => !open)}
-              className="md:hidden w-full flex items-center justify-center gap-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] py-2 rounded-lg border border-[rgb(var(--border-color))]"
+              className={`md:hidden w-full flex items-center justify-center gap-2 py-2.5 min-h-[44px] rounded-lg border touch-manipulation ${
+                showEnabledOnly || showDisabledOnly
+                  ? "bg-[#107c10]/15 border-[#107c10]/40 text-[rgb(var(--text-primary))]"
+                  : "bg-[rgb(var(--bg-card-alt))] border-[rgb(var(--border-color))] text-[rgb(var(--text-primary))]"
+              }`}
             >
               <FaFilter size={14} />
               <span>Filters</span>
+              {(showEnabledOnly || showDisabledOnly) && (
+                <span className="bg-[#107c10] text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">
+                  On
+                </span>
+              )}
             </button>
             <div className={`${showFilters ? "flex" : "hidden"} md:flex gap-2`}>
               <button

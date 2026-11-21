@@ -112,6 +112,7 @@ export default function UserMenu() {
               width={40}
               height={40}
               className="w-10 h-10 rounded-full border-2 border-white/20 group-hover:border-white/40 transition-colors object-cover"
+              unoptimized
               onError={(e) => {
                 // Fallback to initials if image fails to load
                 const target = e.target as HTMLImageElement;
