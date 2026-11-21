@@ -1,15 +1,15 @@
 import { Metadata } from "next";
-import { requireStaffPage } from "@/lib/page-auth";
 
 export const metadata: Metadata = {
-  title: "Community Leaderboard - Testing",
+  title: "Community Leaderboard",
+  description:
+    "Top GFWL Hub contributors ranked by approval rate and submission count.",
 };
 
-export default async function LeaderboardLayout({
+export default function LeaderboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  await requireStaffPage("/leaderboard");
   return <>{children}</>;
 }

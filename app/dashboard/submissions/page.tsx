@@ -4,16 +4,12 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import {
   FaSearch,
-  FaFilter,
-  FaClock,
-  FaGamepad,
   FaEdit,
   FaCheck,
   FaTimes,
   FaSortAmountDown,
   FaSortAmountUp,
   FaUser,
-  FaShieldAlt,
   FaSpinner,
   FaExclamationTriangle,
 } from "react-icons/fa";
@@ -37,10 +33,26 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { usePusherChannel } from "@/hooks/usePusherChannel";
 import { PUSHER_EVENTS } from "@/lib/pusher-client";
 import CorrectionValueDiff from "@/components/CorrectionValueDiff";
+import VirusTotalScanPanel, {
+  scanResultFromSaved,
+  type VirusTotalScanResult,
+} from "@/components/VirusTotalScanPanel";
 import SubmitterHoverLink from "@/components/SubmitterHoverLink";
 import DashboardPageHeader from "@/components/dashboard/DashboardPageHeader";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
 import DashboardErrorBanner from "@/components/dashboard/DashboardErrorBanner";
+import DashboardToolbar, {
+  FilterChip,
+} from "@/components/dashboard/DashboardToolbar";
+import QueueCounts from "@/components/dashboard/QueueCounts";
+import StatusPill from "@/components/dashboard/StatusPill";
+import ReviewModal from "@/components/dashboard/ReviewModal";
+import DownloadLinkReview from "@/components/dashboard/DownloadLinkReview";
+import {
+  ReviewApproveButton,
+  ReviewGhostButton,
+  ReviewRejectButton,
+} from "@/components/dashboard/ReviewActions";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { useToast } from "@/components/ui/toast-context";
 import { formatReviewDateTime } from "@/lib/format-review-date";
@@ -562,22 +574,11 @@ export default function SubmissionsPage() {
   const endIndex = startIndex + itemsPerPage;
   const paginatedCorrections = groupedCorrections.slice(startIndex, endIndex);
 
-  const getStatusBadgeColor = (status: string) => {
-    switch (status) {
-      case "pending":
-        return "bg-yellow-500/20 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 border-yellow-500/50 dark:border-yellow-500/30";
-      case "approved":
-        return "bg-green-500/20 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-green-500/50 dark:border-green-500/30";
-      case "rejected":
-        return "bg-red-500/20 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-500/50 dark:border-red-500/30";
-      case "modified":
-        return "bg-blue-500/20 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-500/50 dark:border-blue-500/30";
-      case "superseded":
-        return "bg-gray-500/20 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400 border-gray-500/50 dark:border-gray-500/30";
-      default:
-        return "bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] border-[rgb(var(--border-color))]";
-    }
-  };
+  const filtersActive =
+    statusFilter !== "pending" ||
+    fieldFilter !== "all" ||
+    sortBy !== "date" ||
+    sortOrder !== "desc";
 
   return (
     <DashboardLayout requireRole="reviewer">
@@ -619,146 +620,139 @@ export default function SubmissionsPage() {
             />
           )}
 
-          {/* Search and Controls */}
-          <div className="bg-[rgb(var(--bg-card))] rounded-lg p-4 mb-6">
-            {/* Search Bar */}
-            <div className="relative mb-4">
-              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[rgb(var(--text-muted))]" />
-              <input
-                type="text"
-                placeholder="Search by game, user, or field..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
-              />
-            </div>
+          <DashboardToolbar
+            filtersOpen={showFilters}
+            onToggleFilters={() => setShowFilters(!showFilters)}
+            filtersActive={filtersActive}
+            search={
+              <div className="relative">
+                <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[rgb(var(--text-muted))]" />
+                <input
+                  type="text"
+                  placeholder="Search by game, user, or field..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[rgb(var(--color-primary))] focus:outline-none"
+                />
+              </div>
+            }
+            filters={
+              <>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-full md:w-auto min-w-[140px]">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                    <SelectItem value="modified">Approved with edits</SelectItem>
+                    <SelectItem value="superseded">Superseded</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={fieldFilter} onValueChange={setFieldFilter}>
+                  <SelectTrigger className="w-full md:w-auto min-w-[140px]">
+                    <SelectValue placeholder="All Fields" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Fields</SelectItem>
+                    {CORRECTION_FIELDS.map((fieldKey) => (
+                      <SelectItem key={fieldKey} value={fieldKey}>
+                        {getFieldDisplayName(fieldKey)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="w-full md:w-auto min-w-[160px]">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="date">Submission Date</SelectItem>
+                    <SelectItem value="game">Game Name</SelectItem>
+                    <SelectItem value="submitter">Submitter</SelectItem>
+                  </SelectContent>
+                </Select>
+                <button
+                  onClick={() =>
+                    setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                  }
+                  className="w-full md:w-auto px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[rgb(var(--color-primary))] transition-colors flex items-center justify-center gap-2"
+                >
+                  {sortOrder === "desc" ? (
+                    <FaSortAmountDown size={14} />
+                  ) : (
+                    <FaSortAmountUp size={14} />
+                  )}
+                  <span className="text-sm">
+                    {sortOrder === "desc" ? "Desc" : "Asc"}
+                  </span>
+                </button>
+              </>
+            }
+            chips={
+              filtersActive || searchQuery || userIdFilter ? (
+                <>
+                  {searchQuery && (
+                    <FilterChip
+                      label={`Search: ${searchQuery}`}
+                      onClear={() => setSearchQuery("")}
+                    />
+                  )}
+                  {statusFilter !== "pending" && (
+                    <FilterChip
+                      label={`Status: ${statusFilter}`}
+                      onClear={() => setStatusFilter("pending")}
+                    />
+                  )}
+                  {fieldFilter !== "all" && (
+                    <FilterChip
+                      label={getFieldDisplayName(fieldFilter)}
+                      onClear={() => setFieldFilter("all")}
+                    />
+                  )}
+                  {userIdFilter && (
+                    <FilterChip
+                      label={`User: ${userFilterDisplayName || userNameFilter || "selected"}`}
+                      onClear={() => {
+                        setUserIdFilter(null);
+                        setUserNameFilter(null);
+                      }}
+                    />
+                  )}
+                </>
+              ) : undefined
+            }
+          />
 
-            {/* Filter Toggle (Mobile) */}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`md:hidden w-full flex items-center justify-center gap-2 py-2.5 min-h-[44px] rounded-lg border mb-4 touch-manipulation ${
-                statusFilter !== "pending" ||
-                fieldFilter !== "all" ||
-                sortBy !== "date" ||
-                sortOrder !== "desc"
-                  ? "bg-[#107c10]/15 border-[#107c10]/40 text-[rgb(var(--text-primary))]"
-                  : "bg-[rgb(var(--bg-card-alt))] border-[rgb(var(--border-color))] text-[rgb(var(--text-primary))]"
-              }`}
-            >
-              <FaFilter size={14} />
-              <span>Filters & Sort</span>
-              {(statusFilter !== "pending" ||
-                fieldFilter !== "all" ||
-                sortBy !== "date" ||
-                sortOrder !== "desc") && (
-                <span className="bg-[#107c10] text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">
-                  On
-                </span>
-              )}
-            </button>
-
-            {/* Filters and Sort */}
-            <div
-              className={`${
-                showFilters ? "block" : "hidden"
-              } md:flex space-y-3 md:space-y-0 md:gap-3 md:flex-wrap md:items-center`}
-            >
-              {/* Status Filter */}
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full md:w-auto min-w-[140px]">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                  <SelectItem value="modified">Approved with edits</SelectItem>
-                  <SelectItem value="superseded">Superseded</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {/* Field Filter */}
-              <Select value={fieldFilter} onValueChange={setFieldFilter}>
-                <SelectTrigger className="w-full md:w-auto min-w-[140px]">
-                  <SelectValue placeholder="All Fields" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Fields</SelectItem>
-                  {CORRECTION_FIELDS.map((fieldKey) => (
-                    <SelectItem key={fieldKey} value={fieldKey}>
-                      {getFieldDisplayName(fieldKey)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {/* Sort By */}
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-full md:w-auto min-w-[160px]">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="date">Submission Date</SelectItem>
-                  <SelectItem value="game">Game Name</SelectItem>
-                  <SelectItem value="submitter">Submitter</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {/* Sort Order */}
-              <button
-                onClick={() =>
-                  setSortOrder(sortOrder === "asc" ? "desc" : "asc")
-                }
-                className="w-full md:w-auto px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10] transition-colors flex items-center justify-center gap-2"
-              >
-                {sortOrder === "desc" ? (
-                  <FaSortAmountDown size={14} />
-                ) : (
-                  <FaSortAmountUp size={14} />
-                )}
-                <span className="text-sm">
-                  {sortOrder === "desc" ? "Desc" : "Asc"}
-                </span>
-              </button>
-            </div>
-          </div>
-
-          {/* Stats Row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <div className="bg-[rgb(var(--bg-card))] rounded-lg p-3 border border-[rgb(var(--border-color))]">
-              <p className="text-xs text-[rgb(var(--text-muted))] mb-1">
-                Total
-              </p>
-              <p className="text-xl font-bold text-[rgb(var(--text-primary))]">
-                {corrections.length}
-              </p>
-            </div>
-            <div className="bg-[rgb(var(--bg-card))] rounded-lg p-3 border border-yellow-500/50">
-              <p className="text-xs text-[rgb(var(--text-muted))] mb-1">
-                Pending
-              </p>
-              <p className="text-xl font-bold text-yellow-500">
-                {corrections.filter((c) => c.status === "pending").length}
-              </p>
-            </div>
-            <div className="bg-[rgb(var(--bg-card))] rounded-lg p-3 border border-green-500/50">
-              <p className="text-xs text-[rgb(var(--text-muted))] mb-1">
-                Approved
-              </p>
-              <p className="text-xl font-bold text-green-500">
-                {corrections.filter((c) => c.status === "approved").length}
-              </p>
-            </div>
-            <div className="bg-[rgb(var(--bg-card))] rounded-lg p-3 border border-red-500/50">
-              <p className="text-xs text-[rgb(var(--text-muted))] mb-1">
-                Rejected
-              </p>
-              <p className="text-xl font-bold text-red-500">
-                {corrections.filter((c) => c.status === "rejected").length}
-              </p>
-            </div>
-          </div>
+          <QueueCounts
+            items={[
+              { label: "Total", value: corrections.length },
+              {
+                label: "Pending",
+                value: corrections.filter((c) => c.status === "pending").length,
+                tone: "warning",
+              },
+              {
+                label: "Approved",
+                value: corrections.filter((c) => c.status === "approved").length,
+                tone: "success",
+              },
+              {
+                label: "Rejected",
+                value: corrections.filter((c) => c.status === "rejected").length,
+                tone: "danger",
+              },
+              {
+                label: "Superseded",
+                value: corrections.filter((c) => c.status === "superseded")
+                  .length,
+                description:
+                  "A newer correction for the same field replaced this one before it was reviewed.",
+              },
+            ]}
+          />
 
           {/* Results Count */}
           <div className="text-[rgb(var(--text-secondary))] text-sm mb-4">
@@ -769,10 +763,10 @@ export default function SubmissionsPage() {
           </div>
 
           {/* Submissions List */}
-          <div className="space-y-3 mb-6">
+          <div className="mb-6">
             {loading ? (
-              <div className="bg-[rgb(var(--bg-card))] rounded-lg p-12 text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#107c10] mx-auto mb-4"></div>
+              <div className="dashboard-surface p-12 text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[rgb(var(--color-primary))] mx-auto mb-4"></div>
                 <p className="text-[rgb(var(--text-secondary))]">
                   Loading corrections...
                 </p>
@@ -796,41 +790,39 @@ export default function SubmissionsPage() {
                 onClearFilters={hasActiveFilters ? clearCorrectionFilters : undefined}
               />
             ) : (
-              paginatedCorrections.map((item, index) => {
-                interface SessionUser {
-                  isDeveloper?: boolean;
-                }
-                const isDeveloper =
-                  (session?.user as SessionUser)?.isDeveloper === true;
+              <div className="dashboard-inbox">
+                {paginatedCorrections.map((item, index) => {
+                  interface SessionUser {
+                    isDeveloper?: boolean;
+                  }
+                  const isDeveloper =
+                    (session?.user as SessionUser)?.isDeveloper === true;
 
-                // Check if this is a batch (array) or single correction
-                if (Array.isArray(item)) {
-                  // Render batch
-                  return (
-                    <BatchCorrectionCard
-                      key={`batch-${item[0].id}-${index}`}
-                      corrections={item}
-                      getFieldDisplayName={getFieldDisplayName}
-                      onReviewBatch={() => setSelectedBatch(item)}
-                      currentUserId={session?.user?.id}
-                      isDeveloper={isDeveloper}
-                    />
-                  );
-                } else {
-                  // Render single correction
+                  if (Array.isArray(item)) {
+                    return (
+                      <BatchCorrectionCard
+                        key={`batch-${item[0].id}-${index}`}
+                        corrections={item}
+                        getFieldDisplayName={getFieldDisplayName}
+                        onReviewBatch={() => setSelectedBatch(item)}
+                        currentUserId={session?.user?.id}
+                        isDeveloper={isDeveloper}
+                      />
+                    );
+                  }
+
                   return (
                     <CorrectionCard
                       key={item.id}
                       correction={item}
                       getFieldDisplayName={getFieldDisplayName}
-                      getStatusBadgeColor={getStatusBadgeColor}
                       onViewDetails={() => setSelectedCorrection(item)}
                       currentUserId={session?.user?.id}
                       isDeveloper={isDeveloper}
                     />
                   );
-                }
-              })
+                })}
+              </div>
             )}
           </div>
 
@@ -892,7 +884,7 @@ export default function SubmissionsPage() {
 
           {/* Review Modal */}
           {selectedCorrection && (
-            <ReviewModal
+            <CorrectionReviewModal
               correction={selectedCorrection}
               onClose={() => setSelectedCorrection(null)}
               getFieldDisplayName={getFieldDisplayName}
@@ -937,16 +929,31 @@ export default function SubmissionsPage() {
 interface CorrectionCardProps {
   correction: Correction;
   getFieldDisplayName: (field: string) => string;
-  getStatusBadgeColor: (status: string) => string;
   onViewDetails: () => void;
   currentUserId?: string;
   isDeveloper?: boolean;
 }
 
+function formatCorrectionValue(
+  value: string | number | boolean | string[] | null,
+  isNewValue = false
+) {
+  if (value === null || value === undefined || value === "") {
+    return isNewValue ? "(clearing field)" : "N/A";
+  }
+  if (Array.isArray(value)) {
+    return value.length === 0
+      ? isNewValue
+        ? "(clearing field)"
+        : "N/A"
+      : value.join(", ");
+  }
+  return String(value);
+}
+
 function CorrectionCard({
   correction,
   getFieldDisplayName,
-  getStatusBadgeColor,
   onViewDetails,
   currentUserId,
   isDeveloper = false,
@@ -957,131 +964,86 @@ function CorrectionCard({
     correction.oldValue,
     correction.newValue
   );
-  const formatValue = (
-    value: string | number | boolean | string[] | null,
-    isNewValue = false
-  ) => {
-    if (value === null || value === undefined || value === "") {
-      return isNewValue ? "(clearing field)" : "N/A";
-    }
-    if (Array.isArray(value)) {
-      return value.length === 0
-        ? isNewValue
-          ? "(clearing field)"
-          : "N/A"
-        : value.join(", ");
-    }
-    return String(value);
-  };
 
   return (
-    <div className="bg-[rgb(var(--bg-card))] rounded-lg p-4 border border-[rgb(var(--border-color))] hover:border-[rgb(var(--border-hover))] transition-colors">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <FaGamepad className="text-[#107c10] flex-shrink-0" size={16} />
-          <Link
-            href={`/games/${correction.gameSlug}`}
-            className="text-[rgb(var(--text-primary))] font-medium truncate hover:text-[#107c10] transition-colors"
-          >
-            {correction.gameTitle}
-          </Link>
-        </div>
-        {correction.status === "pending" && (
-          <>
-            {isOwnSubmission ? (
-              <div
-                className="px-3 py-2 sm:py-1 min-h-[44px] sm:min-h-0 inline-flex items-center bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] text-sm rounded-lg whitespace-nowrap ml-2 cursor-not-allowed border border-[rgb(var(--border-color))]"
-                title="You cannot review your own submissions"
+    <div className="dashboard-inbox-row">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <Link
+              href={`/games/${correction.gameSlug}`}
+              className="text-[rgb(var(--text-primary))] font-medium truncate hover:text-[rgb(var(--color-primary))]"
+            >
+              {correction.gameTitle}
+            </Link>
+            <StatusPill status={correction.status}>
+              {getCorrectionStatusLabel(correction.status)}
+            </StatusPill>
+            <span className="status-pill status-pill-neutral inline-flex items-center gap-1">
+              <FaEdit size={10} />
+              {getFieldDisplayName(correction.field)}
+            </span>
+            {isSameAsCurrent && (
+              <span
+                className="status-pill status-pill-pending"
+                title="Proposed value matches current after normalizing spaces/case"
               >
-                Your Submission
-              </div>
-            ) : (
-              <button
-                onClick={onViewDetails}
-                className="px-3 py-2 sm:py-1 min-h-[44px] sm:min-h-0 bg-[#107c10] hover:bg-[#0d6b0d] text-white text-sm rounded-lg transition-colors whitespace-nowrap ml-2 touch-manipulation"
-              >
-                Review
-              </button>
+                No meaningful change
+              </span>
             )}
-          </>
-        )}
-        {correction.status !== "pending" && (
+            {(correction.field === "downloadLink" ||
+              correction.field === "communityAlternativeDownloadLink") && (
+              <DownloadLinkScanBadge scan={correction.virusTotalScan} />
+            )}
+          </div>
+          <p className="text-sm text-[rgb(var(--text-secondary))] line-clamp-1">
+            <span className="text-[rgb(var(--text-muted))]">
+              {formatCorrectionValue(correction.oldValue)}
+            </span>
+            {" → "}
+            <span className="text-[rgb(var(--color-primary))]">
+              {formatCorrectionValue(correction.newValue, true)}
+            </span>
+          </p>
+          {correction.reason && (
+            <p className="text-xs text-[rgb(var(--text-muted))] line-clamp-1 mt-0.5">
+              {correction.reason}
+            </p>
+          )}
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[rgb(var(--text-muted))]">
+            <FaUser size={10} />
+            <SubmitterHoverLink
+              userId={correction.submittedBy}
+              name={correction.submittedByName}
+            />
+            <span>·</span>
+            <span>{formatReviewDateTime(correction.submittedAt)}</span>
+          </div>
+        </div>
+        {correction.status === "pending" ? (
+          isOwnSubmission ? (
+            <div
+              className="px-3 py-2 sm:py-1 min-h-[44px] sm:min-h-0 inline-flex items-center bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] text-sm rounded-lg whitespace-nowrap cursor-not-allowed border border-[rgb(var(--border-color))]"
+              title="You cannot review your own submissions"
+            >
+              Yours
+            </div>
+          ) : (
+            <button
+              onClick={onViewDetails}
+              className="px-3 py-2 sm:py-1 min-h-[44px] sm:min-h-0 bg-[rgb(var(--color-primary))] hover:bg-[rgb(var(--color-primary-hover))] text-white text-sm rounded-lg whitespace-nowrap touch-manipulation"
+            >
+              Review
+            </button>
+          )
+        ) : (
           <button
             onClick={onViewDetails}
-            className="px-3 py-2 sm:py-1 min-h-[44px] sm:min-h-0 text-[#107c10] hover:text-[#0d6b0d] text-sm whitespace-nowrap ml-2 touch-manipulation"
+            className="px-3 py-2 sm:py-1 min-h-[44px] sm:min-h-0 text-[rgb(var(--color-primary))] text-sm whitespace-nowrap touch-manipulation"
           >
             View
           </button>
         )}
-      </div>
-
-      {/* Badges Row */}
-      <div className="flex flex-wrap gap-2 mb-3">
-        <span
-          className={`px-2 py-1 rounded text-xs border ${getStatusBadgeColor(
-            correction.status
-          )}`}
-        >
-          {getCorrectionStatusLabel(correction.status)}
-        </span>
-        <span className="px-2 py-1 rounded text-xs border bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/30 inline-flex items-center gap-1">
-          <FaEdit size={10} />
-          {getFieldDisplayName(correction.field)}
-        </span>
-        {isSameAsCurrent && (
-          <span
-            className="px-2 py-1 rounded text-xs border bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/30"
-            title="Proposed value matches current after normalizing spaces/case"
-          >
-            No meaningful change
-          </span>
-        )}
-        {(correction.field === "downloadLink" ||
-          correction.field === "communityAlternativeDownloadLink") && (
-          <DownloadLinkScanBadge scan={correction.virusTotalScan} />
-        )}
-      </div>
-
-      {/* Changes */}
-      <div className="space-y-2 mb-3">
-        <div>
-          <p className="text-xs text-[rgb(var(--text-muted))] mb-1">Current:</p>
-          <p className="text-[rgb(var(--text-secondary))] text-sm line-clamp-2">
-            {formatValue(correction.oldValue)}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs text-[rgb(var(--text-muted))] mb-1">
-            Proposed:
-          </p>
-          <p className="text-[#107c10] text-sm line-clamp-2">
-            {formatValue(correction.newValue, true)}
-          </p>
-        </div>
-      </div>
-
-      {/* Reason */}
-      {correction.reason && (
-        <div className="mb-3 p-2 bg-[rgb(var(--bg-card-alt))] rounded">
-          <p className="text-xs text-[rgb(var(--text-muted))] mb-1">Reason:</p>
-          <p className="text-[rgb(var(--text-secondary))] text-sm line-clamp-2">
-            {correction.reason}
-          </p>
-        </div>
-      )}
-
-      {/* Footer */}
-      <div className="flex flex-wrap items-center gap-2 text-xs text-[rgb(var(--text-secondary))]">
-        <div className="flex items-center gap-1">
-          <FaUser size={10} />
-          <SubmitterHoverLink
-            userId={correction.submittedBy}
-            name={correction.submittedByName}
-          />
-        </div>
-        <span>•</span>
-        <span>{formatReviewDateTime(correction.submittedAt)}</span>
       </div>
     </div>
   );
@@ -1109,395 +1071,93 @@ function BatchCorrectionCard({
   const uniqueFields = Array.from(new Set(corrections.map((c) => c.field)));
 
   return (
-    <div className="bg-[rgb(var(--bg-card))] rounded-lg p-4 border-2 border-[#107c10] border-dashed hover:border-solid transition-all">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <FaGamepad className="text-[#107c10] flex-shrink-0" size={16} />
-          <Link
-            href={`/games/${firstCorrection.gameSlug}`}
-            className="text-[rgb(var(--text-primary))] font-medium truncate hover:text-[#107c10] transition-colors"
-          >
-            {firstCorrection.gameTitle}
-          </Link>
-          <span className="px-2 py-0.5 bg-[#107c10]/20 text-[#107c10] text-xs font-semibold rounded">
-            Batch ({corrections.length})
-          </span>
-        </div>
-        {firstCorrection.status === "pending" && (
-          <>
-            {isOwnSubmission ? (
-              <div
-                className="px-3 py-2 sm:py-1 min-h-[44px] sm:min-h-0 inline-flex items-center bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] text-sm rounded-lg whitespace-nowrap ml-2 cursor-not-allowed border border-[rgb(var(--border-color))]"
-                title="You cannot review your own submissions"
-              >
-                Your Submission
-              </div>
-            ) : (
-              <button
-                onClick={onReviewBatch}
-                className="px-3 py-2 sm:py-1 min-h-[44px] sm:min-h-0 bg-[#107c10] hover:bg-[#0d6b0d] text-white text-sm rounded-lg transition-colors whitespace-nowrap ml-2 touch-manipulation"
-              >
-                Review Batch
-              </button>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Batch Info */}
-      <div className="mb-3 p-3 bg-[#107c10]/10 rounded-lg border border-[#107c10]/30">
-        <div className="flex items-center gap-2 mb-2">
-          <FaUser size={12} className="text-[rgb(var(--text-secondary))]" />
-          <SubmitterHoverLink
-            userId={firstCorrection.submittedBy}
-            name={firstCorrection.submittedByName}
-            className="text-sm font-medium text-[rgb(var(--text-primary))]"
-          />
-          <span className="text-xs text-[rgb(var(--text-muted))]">
-            • {formatReviewDateTime(firstCorrection.submittedAt)}
-          </span>
-        </div>
-        <div className="text-xs text-[rgb(var(--text-secondary))]">
-          {corrections.length} correction{corrections.length > 1 ? "s" : ""}{" "}
-          submitted within 10 minutes
-        </div>
-      </div>
-
-      {/* Fields Changed */}
-      <div className="flex flex-wrap gap-2 mb-3">
-        <span className="px-2 py-1 rounded text-xs border bg-yellow-500/20 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 border-yellow-500/50 dark:border-yellow-500/30">
-          Pending
-        </span>
-        {uniqueFields.map((field) => (
-          <span
-            key={field}
-            className="px-2 py-1 rounded text-xs border bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/30 inline-flex items-center gap-1"
-          >
-            <FaEdit size={10} />
-            {getFieldDisplayName(field)}
-          </span>
-        ))}
-        {corrections
-          .filter(
-            (c) =>
-              c.field === "downloadLink" ||
-              c.field === "communityAlternativeDownloadLink"
-          )
-          .map((c) => (
-            <DownloadLinkScanBadge key={`vt-${c.id}`} scan={c.virusTotalScan} />
-          ))}
-      </div>
-
-      {/* Preview of Changes */}
-      <div className="space-y-2 mb-3">
-        {corrections.slice(0, 3).map((correction) => {
-          const formatValue = (
-            value: string | number | boolean | string[] | null
-          ) => {
-            if (value === null || value === undefined || value === "") {
-              return "N/A";
-            }
-            if (Array.isArray(value)) {
-              return value.length === 0 ? "N/A" : value.join(", ");
-            }
-            const str = String(value);
-            return str.length > 50 ? str.substring(0, 50) + "..." : str;
-          };
-          return (
-            <div
-              key={correction.id}
-              className="text-xs p-2 bg-[rgb(var(--bg-card-alt))] rounded"
+    <div className="dashboard-inbox-row">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <Link
+              href={`/games/${firstCorrection.gameSlug}`}
+              className="text-[rgb(var(--text-primary))] font-medium truncate hover:text-[rgb(var(--color-primary))]"
             >
-              <span className="font-medium text-[rgb(var(--text-primary))]">
-                {getFieldDisplayName(correction.field)}:
-              </span>{" "}
-              <span className="text-[rgb(var(--text-secondary))]">
-                {formatValue(correction.oldValue)} →{" "}
+              {firstCorrection.gameTitle}
+            </Link>
+            <StatusPill status="pending" />
+            <span className="status-pill status-pill-approved">
+              Batch ({corrections.length})
+            </span>
+            {uniqueFields.map((field) => (
+              <span
+                key={field}
+                className="status-pill status-pill-neutral inline-flex items-center gap-1"
+              >
+                <FaEdit size={10} />
+                {getFieldDisplayName(field)}
               </span>
-              <span className="text-[#107c10]">
-                {formatValue(correction.newValue)}
-              </span>
-            </div>
-          );
-        })}
-        {corrections.length > 3 && (
-          <div className="text-xs text-[rgb(var(--text-muted))] text-center py-1">
-            +{corrections.length - 3} more correction
-            {corrections.length - 3 > 1 ? "s" : ""}
+            ))}
+            {corrections
+              .filter(
+                (c) =>
+                  c.field === "downloadLink" ||
+                  c.field === "communityAlternativeDownloadLink"
+              )
+              .map((c) => (
+                <DownloadLinkScanBadge
+                  key={`vt-${c.id}`}
+                  scan={c.virusTotalScan}
+                />
+              ))}
           </div>
-        )}
+          <p className="text-sm text-[rgb(var(--text-secondary))] line-clamp-2">
+            {corrections
+              .slice(0, 3)
+              .map(
+                (correction) =>
+                  `${getFieldDisplayName(correction.field)}: ${formatCorrectionValue(correction.oldValue)} → ${formatCorrectionValue(correction.newValue, true)}`
+              )
+              .join(" · ")}
+            {corrections.length > 3
+              ? ` · +${corrections.length - 3} more`
+              : ""}
+          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[rgb(var(--text-muted))]">
+            <FaUser size={10} />
+            <SubmitterHoverLink
+              userId={firstCorrection.submittedBy}
+              name={firstCorrection.submittedByName}
+            />
+            <span>·</span>
+            <span>{formatReviewDateTime(firstCorrection.submittedAt)}</span>
+          </div>
+        </div>
+        {firstCorrection.status === "pending" &&
+          (isOwnSubmission ? (
+            <div
+              className="px-3 py-2 sm:py-1 min-h-[44px] sm:min-h-0 inline-flex items-center bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] text-sm rounded-lg whitespace-nowrap cursor-not-allowed border border-[rgb(var(--border-color))]"
+              title="You cannot review your own submissions"
+            >
+              Yours
+            </div>
+          ) : (
+            <button
+              onClick={onReviewBatch}
+              className="px-3 py-2 sm:py-1 min-h-[44px] sm:min-h-0 bg-[rgb(var(--color-primary))] hover:bg-[rgb(var(--color-primary-hover))] text-white text-sm rounded-lg whitespace-nowrap touch-manipulation"
+            >
+              Review
+            </button>
+          ))}
       </div>
     </div>
   );
-}
-
-interface VirusTotalScanResult {
-  url: string;
-  malicious: number;
-  harmless: number;
-  suspicious: number;
-  total: number;
-  reportUrl?: string;
-  scannedAt?: string;
-  source?: "submit" | "review";
 }
 
 function scanResultFromCorrection(
   url: string,
   correction: Pick<Correction, "virusTotalScan" | "autoVirusTotalUrl">
 ): VirusTotalScanResult | null {
-  const saved = correction.virusTotalScan;
-  if (saved?.reportUrl) {
-    return {
-      url,
-      malicious: saved.malicious || 0,
-      harmless: saved.harmless || 0,
-      suspicious: saved.suspicious || 0,
-      total: saved.total || 0,
-      reportUrl: saved.reportUrl,
-      scannedAt: saved.scannedAt
-        ? new Date(saved.scannedAt).toISOString()
-        : undefined,
-      source: saved.source,
-    };
-  }
-  if (correction.autoVirusTotalUrl) {
-    return {
-      url,
-      malicious: 0,
-      harmless: 0,
-      suspicious: 0,
-      total: 0,
-      reportUrl: correction.autoVirusTotalUrl,
-      source: "submit",
-    };
-  }
-  return null;
-}
-
-function VirusTotalScanPanel({
-  url,
-  correctionId,
-  csrfToken,
-  scanningUrl,
-  setScanningUrl,
-  scanResult,
-  setScanResult,
-  setError,
-  onScanPersisted,
-}: {
-  url: string;
-  correctionId?: string;
-  csrfToken: string | null;
-  scanningUrl: string | null;
-  setScanningUrl: (url: string | null) => void;
-  scanResult: VirusTotalScanResult | null;
-  setScanResult: (result: VirusTotalScanResult | null) => void;
-  setError: (error: string) => void;
-  onScanPersisted?: (scan: NonNullable<Correction["virusTotalScan"]>) => void;
-}) {
-  const activeResult =
-    scanResult && scanResult.url === url ? scanResult : null;
-  const flagged = activeResult
-    ? activeResult.malicious + activeResult.suspicious
-    : 0;
-  const isClean = flagged === 0;
-  const hasEngineCounts = Boolean(activeResult && activeResult.total > 0);
-
-  const runScan = async () => {
-    setScanningUrl(url);
-    try {
-      const response = await fetch("/api/virustotal/scan", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken || "",
-        },
-        body: JSON.stringify({
-          url,
-          action: "scan",
-          ...(correctionId ? { correctionId } : {}),
-        }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        setError(data.error || "Failed to scan URL");
-        return;
-      }
-
-      const scanData = await response.json();
-      const persisted = scanData.virusTotalScan as
-        | Correction["virusTotalScan"]
-        | undefined;
-
-      if (persisted?.reportUrl) {
-        const next: VirusTotalScanResult = {
-          url,
-          malicious: persisted.malicious || 0,
-          harmless: persisted.harmless || 0,
-          suspicious: persisted.suspicious || 0,
-          total: persisted.total || 0,
-          reportUrl: persisted.reportUrl,
-          scannedAt: persisted.scannedAt
-            ? new Date(persisted.scannedAt).toISOString()
-            : new Date().toISOString(),
-          source: persisted.source || "review",
-        };
-        setScanResult(next);
-        onScanPersisted?.(persisted);
-        return;
-      }
-
-      if (scanData.report?.data?.attributes) {
-        const attrs = scanData.report.data.attributes;
-        const stats = attrs.last_analysis_stats || attrs.stats;
-
-        if (!stats) {
-          setError(
-            "Scan results are not yet available. Please try again in a moment."
-          );
-          return;
-        }
-
-        const rawId =
-          typeof scanData.report?.data?.id === "string"
-            ? scanData.report.data.id
-            : "";
-        let reportId = /^[a-f0-9]{64}$/i.test(rawId) ? rawId : "";
-        if (!reportId) {
-          const digest = await crypto.subtle.digest(
-            "SHA-256",
-            new TextEncoder().encode(url.trim())
-          );
-          reportId = Array.from(new Uint8Array(digest))
-            .map((byte) => byte.toString(16).padStart(2, "0"))
-            .join("");
-        }
-        setScanResult({
-          url,
-          malicious: stats.malicious || 0,
-          harmless: stats.harmless || 0,
-          suspicious: stats.suspicious || 0,
-          total:
-            (stats.malicious || 0) +
-            (stats.harmless || 0) +
-            (stats.suspicious || 0) +
-            (stats.undetected || 0),
-          reportUrl: `https://www.virustotal.com/gui/url/${reportId}/detection`,
-          scannedAt: new Date().toISOString(),
-          source: "review",
-        });
-      } else if (scanData.analysisId) {
-        setError(
-          "Scan submitted but results not yet available. Please try again in a moment."
-        );
-      } else {
-        setError("Unexpected response format from VirusTotal API");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to scan URL");
-    } finally {
-      setScanningUrl(null);
-    }
-  };
-
-  return (
-    <div className="pt-2 border-t border-[rgb(var(--border-color))]">
-      <div className="flex items-center gap-2 mb-2">
-        <FaShieldAlt className="text-blue-400" size={16} />
-        <span className="text-sm font-medium text-[rgb(var(--text-primary))]">
-          VirusTotal Security Scan
-        </span>
-      </div>
-      {scanningUrl === url ? (
-        <div className="flex items-center gap-2 text-sm text-[rgb(var(--text-secondary))]">
-          <FaSpinner className="animate-spin" size={14} />
-          <span>Scanning URL...</span>
-        </div>
-      ) : activeResult ? (
-        <div
-          className={`p-3 bg-[rgb(var(--bg-card-alt))] rounded-lg border-l-4 space-y-2 ${
-            hasEngineCounts
-              ? isClean
-                ? "border-green-500"
-                : "border-red-500"
-              : "border-blue-500"
-          }`}
-        >
-          <div className="space-y-1 text-sm">
-            {hasEngineCounts ? (
-              <>
-                <p
-                  className={`font-semibold ${
-                    isClean ? "text-green-400" : "text-red-400"
-                  }`}
-                >
-                  {isClean
-                    ? "No threats detected"
-                    : `${flagged} of ${activeResult.total} engines flagged this URL`}
-                </p>
-                <p className="text-xs text-[rgb(var(--text-muted))]">
-                  {activeResult.malicious} malicious ·{" "}
-                  {activeResult.suspicious} suspicious
-                  {activeResult.total > 0
-                    ? ` · ${activeResult.total} engines checked`
-                    : ""}
-                </p>
-              </>
-            ) : (
-              <p className="font-semibold text-blue-300">
-                VirusTotal report already linked
-              </p>
-            )}
-            {activeResult.scannedAt && (
-              <p className="text-xs text-[rgb(var(--text-muted))]">
-                Saved{" "}
-                {formatReviewDateTime(activeResult.scannedAt)}
-                {activeResult.source === "submit"
-                  ? " (at submit)"
-                  : activeResult.source === "review"
-                    ? " (by reviewer)"
-                    : ""}
-              </p>
-            )}
-          </div>
-          <div className="text-xs text-yellow-400 bg-yellow-900/20 border border-yellow-500/30 rounded p-2">
-            VirusTotal results are not a guarantee of safety. Proceed with
-            caution.
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            {activeResult.reportUrl && (
-              <a
-                href={activeResult.reportUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-blue-400 hover:text-blue-300 underline inline-block"
-              >
-                View full report on VirusTotal →
-              </a>
-            )}
-            <button
-              type="button"
-              onClick={runScan}
-              className="text-xs text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] underline"
-            >
-              {hasEngineCounts ? "Rescan" : "Load engine results"}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={runScan}
-          className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md transition-colors"
-        >
-          <FaShieldAlt size={12} />
-          Scan URL with VirusTotal
-        </button>
-      )}
-    </div>
+  return scanResultFromSaved(
+    url,
+    correction.virusTotalScan,
+    correction.autoVirusTotalUrl
   );
 }
 
@@ -1513,7 +1173,7 @@ interface ReviewModalProps {
   onReview: (action: "approve" | "reject" | "modify") => void | Promise<void>;
 }
 
-function ReviewModal({
+function CorrectionReviewModal({
   correction,
   onClose,
   getFieldDisplayName,
@@ -1538,8 +1198,6 @@ function ReviewModal({
   const [staleBase, setStaleBase] = useState(false);
   const [scanningUrl, setScanningUrl] = useState<string | null>(null);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
-  const modalRef = useRef<HTMLDivElement>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
   const initialModifiedValue = useRef(modifiedValue);
   const [scanResult, setScanResult] = useState<VirusTotalScanResult | null>(
     () =>
@@ -1560,48 +1218,6 @@ function ReviewModal({
     }
     onClose();
   }, [isDirty, onClose]);
-
-  useEffect(() => {
-    previousFocusRef.current = document.activeElement as HTMLElement;
-    const focusable = modalRef.current?.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    focusable?.[0]?.focus();
-    return () => {
-      previousFocusRef.current?.focus();
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        if (showDiscardConfirm) {
-          setShowDiscardConfirm(false);
-          return;
-        }
-        requestClose();
-        return;
-      }
-      if (event.key !== "Tab" || !modalRef.current) return;
-      const focusable = Array.from(
-        modalRef.current.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        )
-      ).filter((el) => !el.hasAttribute("disabled"));
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [requestClose, showDiscardConfirm]);
 
   useEffect(() => {
     if (typeof correction.newValue === "string") {
@@ -1755,91 +1371,127 @@ function ReviewModal({
     }
   };
 
+  const isDownloadField =
+    (correction.field === "downloadLink" ||
+      correction.field === "communityAlternativeDownloadLink") &&
+    typeof correction.newValue === "string" &&
+    /^https?:\/\//i.test(correction.newValue);
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/75 p-4"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) requestClose();
-      }}
-    >
-      <div
-        ref={modalRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="review-modal-title"
-        className="bg-[rgb(var(--bg-card))] rounded-lg max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="shrink-0 bg-[rgb(var(--bg-card))] border-b border-[rgb(var(--border-color))] p-4 sm:p-6">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h2
-                id="review-modal-title"
-                className="text-lg sm:text-xl font-bold text-[rgb(var(--text-primary))] mb-1"
+    <>
+      <ReviewModal
+        isOpen
+        onClose={requestClose}
+        closeOnEscape={!showDiscardConfirm}
+        title={correction.gameTitle}
+        titleId="review-modal-title"
+        status={correction.status}
+        submittedBy={
+          <SubmitterHoverLink
+            userId={correction.submittedBy}
+            name={correction.submittedByName}
+            className="text-[rgb(var(--text-secondary))]"
+          />
+        }
+        submittedAt={correction.submittedAt}
+        descriptionId="review-modal-description"
+        notes={
+          correction.status === "pending" ? (
+            <>
+              {error ? (
+                <p className="text-sm text-[rgb(var(--color-danger))]">
+                  {error}
+                </p>
+              ) : null}
+              <label
+                htmlFor="correction-review-notes"
+                className="text-xs font-medium text-[rgb(var(--text-secondary))]"
               >
-                Review Submission
-              </h2>
-              <p className="text-[rgb(var(--text-secondary))] text-sm truncate">
-                {correction.gameTitle}
-              </p>
-            </div>
-            <button
-              onClick={requestClose}
-              className="text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] text-2xl min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0"
-              aria-label="Close"
-            >
-              <FaTimes />
-            </button>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="p-4 sm:p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
-          {isSameAsCurrent && (
-            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-500/30 rounded-lg p-3">
-              <p className="text-amber-800 dark:text-amber-300 text-sm">
-                No meaningful change. Proposed value matches current after
-                normalizing spaces and case.
-              </p>
-            </div>
-          )}
-          {staleBase && (
-            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-500/30 rounded-lg p-3">
-              <p className="text-orange-800 dark:text-orange-300 text-sm">
-                The live page value for this field has changed since this
-                correction was submitted. Review carefully before applying.
-              </p>
-            </div>
-          )}
-          {/* Field */}
-          <div>
-            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">
-              Field
-            </h3>
-            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3">
-              <p className="text-[rgb(var(--text-primary))]">
-                {getFieldDisplayName(correction.field)}
-              </p>
-            </div>
-          </div>
-
-          {/* Submitted By */}
-          <div>
-            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">
-              Submitted By
-            </h3>
-            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3 flex items-center justify-between gap-3">
-              <SubmitterHoverLink
-                userId={correction.submittedBy}
-                name={correction.submittedByName}
-                className="text-[rgb(var(--text-primary))]"
+                Review notes{" "}
+                <span className="text-[rgb(var(--text-muted))]">
+                  (required to reject)
+                </span>
+              </label>
+              <textarea
+                id="correction-review-notes"
+                value={reviewNotes}
+                onChange={(e) => setReviewNotes(e.target.value)}
+                placeholder="Add notes about your decision"
+                className="w-full p-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[rgb(var(--color-primary))] focus:outline-none text-sm"
+                rows={4}
               />
-              <span className="text-[rgb(var(--text-muted))] text-sm shrink-0">
-                {formatReviewDateTime(correction.submittedAt)}
-              </span>
+            </>
+          ) : (
+            <div className="text-sm space-y-1">
+              <p className="text-[rgb(var(--text-muted))]">
+                Reviewed by {correction.reviewedByName}
+              </p>
+              {correction.reviewedAt ? (
+                <p className="text-xs text-[rgb(var(--text-muted))]">
+                  {formatReviewDateTime(correction.reviewedAt)}
+                </p>
+              ) : null}
+              {correction.reviewNotes ? (
+                <p className="text-[rgb(var(--text-secondary))]">
+                  {correction.reviewNotes}
+                </p>
+              ) : null}
             </div>
+          )
+        }
+        actions={
+          correction.status === "pending" ? (
+            <>
+              {!showModify ? (
+                <ReviewGhostButton onClick={() => setShowModify(true)}>
+                  Modify value
+                </ReviewGhostButton>
+              ) : null}
+              <ReviewApproveButton
+                onClick={showModify ? handleModify : handleApprove}
+                disabled={isSubmitting}
+              >
+                {isSubmitting
+                  ? "Processing…"
+                  : showModify
+                    ? "Approve edited"
+                    : "Approve"}
+              </ReviewApproveButton>
+              <ReviewRejectButton
+                onClick={handleReject}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Processing…" : "Reject"}
+              </ReviewRejectButton>
+            </>
+          ) : (
+            <ReviewGhostButton onClick={requestClose}>Close</ReviewGhostButton>
+          )
+        }
+      >
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-medium text-[rgb(var(--text-primary))]">
+              {getFieldDisplayName(correction.field)}
+            </h3>
+            {isSameAsCurrent ? (
+              <StatusPill status="neutral" label="Unchanged" />
+            ) : null}
+            {staleBase ? (
+              <StatusPill status="pending" label="Live value changed" />
+            ) : null}
           </div>
+          {isSameAsCurrent ? (
+            <p className="text-sm text-[rgb(var(--text-secondary))]">
+              Proposed value matches current after normalizing spaces and case.
+            </p>
+          ) : null}
+          {staleBase ? (
+            <p className="text-sm text-[rgb(var(--text-secondary))]">
+              The live page value for this field has changed since this
+              correction was submitted.
+            </p>
+          ) : null}
 
           <CorrectionValueDiff
             oldValue={correction.oldValue}
@@ -1865,14 +1517,10 @@ function ReviewModal({
             </div>
           )}
 
-          {(correction.field === "downloadLink" ||
-            correction.field === "communityAlternativeDownloadLink") &&
-            typeof correction.newValue === "string" &&
-            correction.newValue &&
-            (correction.newValue.startsWith("http://") ||
-              correction.newValue.startsWith("https://")) && (
+          {isDownloadField ? (
+            <DownloadLinkReview url={correction.newValue as string}>
               <VirusTotalScanPanel
-                url={correction.newValue}
+                url={correction.newValue as string}
                 correctionId={correction.id}
                 csrfToken={csrfToken}
                 scanningUrl={scanningUrl}
@@ -1890,123 +1538,39 @@ function ReviewModal({
                   onVirusTotalScanSaved?.(correction.id, scan);
                 }}
               />
-            )}
+            </DownloadLinkReview>
+          ) : null}
 
-          {/* Reason */}
-          <div>
-            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">
-              Reason for Change
-            </h3>
-            <div className="bg-[rgb(var(--bg-card-alt))] rounded-lg p-3">
-              <p className="text-[rgb(var(--text-secondary))] text-sm">
+          {correction.reason ? (
+            <div className="review-field">
+              <h3 className="text-sm font-medium text-[rgb(var(--text-primary))] mb-2">
+                Reason
+              </h3>
+              <p className="text-sm text-[rgb(var(--text-secondary))] whitespace-pre-wrap">
                 {correction.reason}
               </p>
             </div>
-          </div>
+          ) : null}
 
-          {/* Modify Value (Optional) */}
-          {showModify && (
-            <div>
-              <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">
-                Modified Value
-              </h3>
+          {showModify ? (
+            <div className="review-field">
+              <label
+                htmlFor="correction-modified-value"
+                className="text-sm font-medium text-[rgb(var(--text-primary))] mb-2 block"
+              >
+                Modified value
+              </label>
               <textarea
+                id="correction-modified-value"
                 value={modifiedValue}
                 onChange={(e) => setModifiedValue(e.target.value)}
-                className="w-full p-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none font-mono text-sm"
+                className="w-full p-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[rgb(var(--color-primary))] focus:outline-none font-mono text-sm"
                 rows={6}
               />
             </div>
-          )}
-
-          {/* Review Notes */}
-          <div>
-            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">
-              Review notes{" "}
-              <span className="text-red-400">(required to reject)</span>
-            </h3>
-            <textarea
-              value={reviewNotes}
-              onChange={(e) => setReviewNotes(e.target.value)}
-              placeholder="Add notes about your decision. Required when rejecting."
-              className="w-full p-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none"
-              rows={3}
-            />
-          </div>
-
-          {/* Error Message */}
-          {error && (
-            <div className="bg-red-900/30 border border-red-500/30 rounded-lg p-3">
-              <p className="text-red-400 text-sm">{error}</p>
-            </div>
-          )}
+          ) : null}
         </div>
-
-        {/* Footer - Actions */}
-        {correction.status === "pending" && (
-          <div className="shrink-0 bg-[rgb(var(--bg-card))] border-t border-[rgb(var(--border-color))] p-4 sm:p-6 space-y-3">
-            {!showModify && (
-              <button
-                onClick={() => setShowModify(true)}
-                className="w-full min-h-[44px] px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors touch-manipulation"
-              >
-                Modify Value
-              </button>
-            )}
-            <div className="flex flex-col-reverse sm:grid sm:grid-cols-2 gap-3">
-              <button
-                onClick={handleReject}
-                disabled={isSubmitting}
-                className="min-h-[44px] px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
-              >
-                <FaTimes />
-                {isSubmitting ? "Processing..." : "Reject"}
-              </button>
-              <button
-                onClick={showModify ? handleModify : handleApprove}
-                disabled={isSubmitting}
-                className="min-h-[44px] px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
-              >
-                <FaCheck />
-                {isSubmitting
-                  ? "Processing..."
-                  : showModify
-                  ? "Approve Edited"
-                  : "Approve"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Footer - Reviewed */}
-        {correction.status !== "pending" && (
-          <div className="shrink-0 bg-[rgb(var(--bg-card))] border-t border-[rgb(var(--border-color))] p-4 sm:p-6">
-            <div className="mb-4 p-3 bg-[rgb(var(--bg-card-alt))] rounded-lg">
-              <p className="text-sm text-[rgb(var(--text-muted))] mb-1">
-                Reviewed by
-              </p>
-              <p className="text-[rgb(var(--text-primary))]">
-                {correction.reviewedByName}
-              </p>
-              <p className="text-[rgb(var(--text-muted))] text-xs mt-1">
-                {correction.reviewedAt &&
-                  formatReviewDateTime(correction.reviewedAt)}
-              </p>
-              {correction.reviewNotes && (
-                <p className="text-[rgb(var(--text-secondary))] text-sm mt-2">
-                  {correction.reviewNotes}
-                </p>
-              )}
-            </div>
-            <button
-              onClick={requestClose}
-              className="w-full min-h-[44px] px-4 py-2 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] rounded-lg transition-colors border border-[rgb(var(--border-color))] touch-manipulation"
-            >
-              Close
-            </button>
-          </div>
-        )}
-      </div>
+      </ReviewModal>
       <ConfirmDialog
         isOpen={showDiscardConfirm}
         title="Discard review?"
@@ -2017,7 +1581,7 @@ function ReviewModal({
         onConfirm={onClose}
         onCancel={() => setShowDiscardConfirm(false)}
       />
-    </div>
+    </>
   );
 }
 
@@ -2060,7 +1624,6 @@ function BatchReviewModal({
     Map<string, VirusTotalScanResult | null>
   >(new Map());
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
-  const modalRef = useRef<HTMLDivElement>(null);
 
   const isDirty =
     batchNotes.trim() !== "" ||
@@ -2075,20 +1638,6 @@ function BatchReviewModal({
     }
     onClose();
   }, [isDirty, onClose]);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        if (showDiscardConfirm) {
-          setShowDiscardConfirm(false);
-          return;
-        }
-        requestClose();
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [requestClose, showDiscardConfirm]);
 
   useEffect(() => {
     const states = new Map();
@@ -2328,59 +1877,74 @@ function BatchReviewModal({
   );
 
   return (
-    <div
-      className="fixed inset-0 bg-black/40 dark:bg-black/70 flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) requestClose();
-      }}
-    >
-      <div
-        ref={modalRef}
-        role="dialog"
-        aria-modal="true"
-        className="bg-[rgb(var(--bg-card))] rounded-lg max-w-6xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto border border-[rgb(var(--border-color))] my-2"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="sticky top-0 bg-[rgb(var(--bg-card))] border-b border-[rgb(var(--border-color))] p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 z-10">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-xl sm:text-2xl font-bold text-[rgb(var(--text-primary))] break-words">
-              Batch Review: {firstCorrection.gameTitle}
-            </h2>
-            <p className="text-[rgb(var(--text-secondary))] text-xs sm:text-sm mt-1">
-              {corrections.length} correction{corrections.length > 1 ? "s" : ""}{" "}
-              from{" "}
-              <SubmitterHoverLink
-                userId={firstCorrection.submittedBy}
-                name={firstCorrection.submittedByName}
-              />
-            </p>
-          </div>
-          <button
-            onClick={requestClose}
-            className="text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] transition-colors flex-shrink-0 self-start sm:self-auto"
-            aria-label="Close modal"
-          >
-            <FaTimes size={24} />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-4 sm:p-6 space-y-6 pb-24">
-          {/* Batch Notes */}
-          <div>
-            <h3 className="text-sm text-[rgb(var(--text-muted))] mb-2">
-              Batch Review Notes (Optional)
-            </h3>
+    <>
+      <ReviewModal
+        isOpen
+        onClose={requestClose}
+        closeOnEscape={!showDiscardConfirm}
+        title={firstCorrection.gameTitle}
+        submittedBy={
+          <>
+            {corrections.length} correction
+            {corrections.length > 1 ? "s" : ""} from{" "}
+            <SubmitterHoverLink
+              userId={firstCorrection.submittedBy}
+              name={firstCorrection.submittedByName}
+              className="text-[rgb(var(--text-secondary))]"
+            />
+          </>
+        }
+        submittedAt={firstCorrection.submittedAt}
+        maxWidthClass="max-w-6xl"
+        notes={
+          <>
+            {error ? (
+              <p className="text-sm text-[rgb(var(--color-danger))]">{error}</p>
+            ) : null}
+            {partialResultMessage ? (
+              <p className="text-sm text-[rgb(var(--text-secondary))]">
+                {partialResultMessage}
+              </p>
+            ) : null}
+            <label
+              htmlFor="batch-review-notes"
+              className="text-xs font-medium text-[rgb(var(--text-secondary))]"
+            >
+              Batch notes{" "}
+              <span className="text-[rgb(var(--text-muted))]">(optional)</span>
+            </label>
             <textarea
+              id="batch-review-notes"
               value={batchNotes}
               onChange={(e) => setBatchNotes(e.target.value)}
-              placeholder="Add notes that will apply to all corrections in this batch..."
-              className="w-full px-4 py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none resize-none"
-              rows={3}
+              placeholder="Applies to every item unless an item has its own notes"
+              className="w-full px-3 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[rgb(var(--color-primary))] focus:outline-none resize-none text-sm"
+              rows={4}
             />
-          </div>
-
+            {!allReviewed ? (
+              <p className="text-xs text-[rgb(var(--text-muted))]">
+                Choose approve, reject, or modify on each item to submit.
+              </p>
+            ) : null}
+          </>
+        }
+        actions={
+          <>
+            {allReviewed ? (
+              <ReviewApproveButton
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Submitting…" : "Submit all reviews"}
+              </ReviewApproveButton>
+            ) : null}
+            <ReviewGhostButton onClick={requestClose} disabled={isSubmitting}>
+              Close
+            </ReviewGhostButton>
+          </>
+        }
+      >
+        <div className="space-y-6">
           {/* Individual Corrections */}
           <div className="space-y-6">
             <h3 className="text-lg font-semibold text-[rgb(var(--text-primary))]">
@@ -2408,6 +1972,7 @@ function BatchReviewModal({
                     {/* Action Buttons - Moved below header for better mobile layout */}
                     <div className="flex flex-wrap gap-2">
                       <button
+                        type="button"
                         onClick={() =>
                           updateReviewState(correction.id, {
                             action:
@@ -2416,48 +1981,48 @@ function BatchReviewModal({
                                 : "approve",
                           })
                         }
-                        className={`px-4 py-2 rounded text-sm font-medium transition-colors flex-1 min-w-[100px] ${
+                        className={`review-btn flex-1 !w-auto min-w-[6.5rem] ${
                           state.action === "approve"
-                            ? "bg-green-600 text-white"
-                            : "bg-[rgb(var(--bg-card))] text-[rgb(var(--text-secondary))] hover:bg-green-600/20 border border-[rgb(var(--border-color))]"
+                            ? "review-btn-primary"
+                            : "review-btn-ghost"
                         }`}
                       >
                         Approve
                       </button>
                       <button
+                        type="button"
                         onClick={() =>
                           updateReviewState(correction.id, {
                             action:
                               state.action === "reject" ? "pending" : "reject",
                           })
                         }
-                        className={`px-4 py-2 rounded text-sm font-medium transition-colors flex-1 min-w-[100px] ${
+                        className={`review-btn flex-1 !w-auto min-w-[6.5rem] ${
                           state.action === "reject"
-                            ? "bg-red-600 text-white"
-                            : "bg-[rgb(var(--bg-card))] text-[rgb(var(--text-secondary))] hover:bg-red-600/20 border border-[rgb(var(--border-color))]"
+                            ? "review-btn-danger"
+                            : "review-btn-ghost"
                         }`}
                       >
                         Reject
                       </button>
                       <button
+                        type="button"
                         onClick={() => {
                           if (state.action === "modify") {
-                            // Deselecting modify - clear modified value
                             updateReviewState(correction.id, {
                               action: "pending",
                               modifiedValue: undefined,
                             });
                           } else {
-                            // Selecting modify
                             updateReviewState(correction.id, {
                               action: "modify",
                             });
                           }
                         }}
-                        className={`px-4 py-2 rounded text-sm font-medium transition-colors flex-1 min-w-[100px] ${
+                        className={`review-btn flex-1 !w-auto min-w-[6.5rem] ${
                           state.action === "modify"
-                            ? "bg-blue-600 text-white"
-                            : "bg-[rgb(var(--bg-card))] text-[rgb(var(--text-secondary))] hover:bg-blue-600/20 border border-[rgb(var(--border-color))]"
+                            ? "review-btn-primary"
+                            : "review-btn-ghost"
                         }`}
                       >
                         Modify
@@ -2480,39 +2045,42 @@ function BatchReviewModal({
                     (correction.newValue.startsWith("http://") ||
                       correction.newValue.startsWith("https://")) && (
                       <div className="mb-4">
-                        <VirusTotalScanPanel
-                          url={correction.newValue}
-                          correctionId={correction.id}
-                          csrfToken={csrfToken}
-                          scanningUrl={scanningUrl}
-                          setScanningUrl={setScanningUrl}
-                          scanResult={
-                            scanResultsByCorrection.get(correction.id) || null
-                          }
-                          setScanResult={(result) => {
-                            setScanResultsByCorrection((prev) => {
-                              const next = new Map(prev);
-                              next.set(correction.id, result);
-                              return next;
-                            });
-                          }}
-                          setError={setError}
-                          onScanPersisted={(scan) => {
-                            const downloadUrl = String(correction.newValue);
-                            setScanResultsByCorrection((prev) => {
-                              const next = new Map(prev);
-                              next.set(
-                                correction.id,
-                                scanResultFromCorrection(downloadUrl, {
-                                  virusTotalScan: scan,
-                                  autoVirusTotalUrl: scan.reportUrl,
-                                })
-                              );
-                              return next;
-                            });
-                            onVirusTotalScanSaved?.(correction.id, scan);
-                          }}
-                        />
+                        <DownloadLinkReview url={correction.newValue}>
+                          <VirusTotalScanPanel
+                            url={correction.newValue}
+                            correctionId={correction.id}
+                            csrfToken={csrfToken}
+                            scanningUrl={scanningUrl}
+                            setScanningUrl={setScanningUrl}
+                            scanResult={
+                              scanResultsByCorrection.get(correction.id) ||
+                              null
+                            }
+                            setScanResult={(result) => {
+                              setScanResultsByCorrection((prev) => {
+                                const next = new Map(prev);
+                                next.set(correction.id, result);
+                                return next;
+                              });
+                            }}
+                            setError={setError}
+                            onScanPersisted={(scan) => {
+                              const downloadUrl = String(correction.newValue);
+                              setScanResultsByCorrection((prev) => {
+                                const next = new Map(prev);
+                                next.set(
+                                  correction.id,
+                                  scanResultFromCorrection(downloadUrl, {
+                                    virusTotalScan: scan,
+                                    autoVirusTotalUrl: scan.reportUrl,
+                                  })
+                                );
+                                return next;
+                              });
+                              onVirusTotalScanSaved?.(correction.id, scan);
+                            }}
+                          />
+                        </DownloadLinkReview>
                       </div>
                     )}
 
@@ -2580,86 +2148,24 @@ function BatchReviewModal({
               above when decisions differ.
             </p>
             <div className="flex flex-col sm:flex-row gap-2">
-              <button
+              <ReviewApproveButton
                 onClick={() => setAllActions("approve")}
                 disabled={isSubmitting}
-                className="min-h-[44px] px-4 py-2 border border-green-600/50 text-green-500 hover:bg-green-600/10 rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+                className="sm:flex-1"
               >
-                {isSubmitting ? (
-                  <>
-                    <FaSpinner className="inline mr-2 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <FaCheck className="inline mr-2" />
-                    Approve All
-                  </>
-                )}
-              </button>
-              <button
+                {isSubmitting ? "Processing…" : "Approve all"}
+              </ReviewApproveButton>
+              <ReviewRejectButton
                 onClick={() => setAllActions("reject")}
                 disabled={isSubmitting}
-                className="min-h-[44px] px-4 py-2 border border-red-600/50 text-red-400 hover:bg-red-600/10 rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+                className="sm:flex-1"
               >
-                {isSubmitting ? (
-                  <>
-                    <FaSpinner className="inline mr-2 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <FaTimes className="inline mr-2" />
-                    Reject All
-                  </>
-                )}
-              </button>
+                {isSubmitting ? "Processing…" : "Reject all"}
+              </ReviewRejectButton>
             </div>
           </div>
-
-          {error && (
-            <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 text-red-400">
-              {error}
-            </div>
-          )}
-          {partialResultMessage && (
-            <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg p-4 text-amber-300 text-sm">
-              {partialResultMessage}
-            </div>
-          )}
         </div>
-
-        {/* Footer Actions */}
-        <div className="sticky bottom-0 bg-[rgb(var(--bg-card))] border-t border-[rgb(var(--border-color))] p-4 sm:p-6 flex flex-col sm:flex-row gap-3">
-          {allReviewed && (
-            <button
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-              className="flex-1 min-h-[44px] px-6 py-3 bg-[#107c10] hover:bg-[#0d6b0d] text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 touch-manipulation"
-            >
-              {isSubmitting ? (
-                <>
-                  <FaSpinner className="animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                <>
-                  <FaCheck />
-                  Submit all reviews
-                </>
-              )}
-            </button>
-          )}
-          <button
-            onClick={requestClose}
-            className={`px-6 py-3 bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] rounded-lg transition-colors border border-[rgb(var(--border-color))] ${
-              allReviewed ? "flex-1" : "w-full"
-            }`}
-          >
-            {isSubmitting ? "Processing..." : "Close"}
-          </button>
-        </div>
-      </div>
+      </ReviewModal>
       <ConfirmDialog
         isOpen={showDiscardConfirm}
         title="Discard batch review?"
@@ -2670,6 +2176,6 @@ function BatchReviewModal({
         onConfirm={onClose}
         onCancel={() => setShowDiscardConfirm(false)}
       />
-    </div>
+    </>
   );
 }

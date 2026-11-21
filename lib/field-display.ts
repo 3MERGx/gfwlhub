@@ -125,6 +125,35 @@ export function getFieldDisplayName(field: string): string {
   return formatted;
 }
 
+/** Display helper for enum-like crowdsource values (playable, community_alternative). */
+export function formatCrowdsourceValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+  if (Array.isArray(value)) {
+    return value.join(", ");
+  }
+  if (typeof value !== "string") {
+    return String(value);
+  }
+  if (/^https?:\/\//i.test(value)) {
+    return value;
+  }
+  if (value.includes("_")) {
+    return value
+      .split("_")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  }
+  if (/^[a-z]+$/.test(value)) {
+    return value.charAt(0).toUpperCase() + value.slice(1);
+  }
+  return value;
+}
+
 /** Status label for correction/submission review outcomes. */
 export function getCorrectionStatusLabel(status: string): string {
   switch (status) {

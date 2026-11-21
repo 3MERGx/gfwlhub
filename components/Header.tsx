@@ -20,6 +20,11 @@ const NAV_LINKS = [
     title: "View list of supported GFWL games",
   },
   {
+    href: "/leaderboard",
+    label: "Leaderboard",
+    title: "Community contributor leaderboard",
+  },
+  {
     href: "/faq",
     label: "FAQ",
     title: "Frequently asked questions",

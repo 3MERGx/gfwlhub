@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { FaChartBar } from "react-icons/fa";
+import AnchoredPopover from "@/components/AnchoredPopover";
 
 interface SubmitterStats {
   name: string;
@@ -45,7 +46,7 @@ export default function SubmitterHoverLink({
 
   const scheduleClose = () => {
     clearCloseTimer();
-    closeTimer.current = setTimeout(() => setOpen(false), 120);
+    closeTimer.current = setTimeout(() => setOpen(false), 160);
   };
 
   useEffect(() => {
@@ -57,6 +58,10 @@ export default function SubmitterHoverLink({
     const handlePointerDown = (event: MouseEvent | TouchEvent) => {
       const target = event.target as Node | null;
       if (rootRef.current && target && !rootRef.current.contains(target)) {
+        const popover = document.getElementById(
+          `submitter-stats-${userId}`
+        );
+        if (popover && target && popover.contains(target)) return;
         setOpen(false);
       }
     };
@@ -66,7 +71,7 @@ export default function SubmitterHoverLink({
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("touchstart", handlePointerDown);
     };
-  }, [open]);
+  }, [open, userId]);
 
   useEffect(() => {
     if (!open || !userId) return;
@@ -157,29 +162,37 @@ export default function SubmitterHoverLink({
           event.preventDefault();
           event.stopPropagation();
           clearCloseTimer();
-          setOpen((prev) => !prev);
+          const pointerType =
+            "pointerType" in event.nativeEvent
+              ? event.nativeEvent.pointerType
+              : "mouse";
+          if (pointerType === "touch") {
+            setOpen((prev) => !prev);
+            return;
+          }
+          setOpen(true);
         }}
       >
         <FaChartBar size={12} />
       </button>
-      {open && (
-        <span
-          role="tooltip"
-          className="absolute left-0 bottom-full mb-2 z-40 w-56 rounded-lg border border-[rgb(var(--border-color))] bg-[rgb(var(--bg-card))] p-3 shadow-xl"
-          onMouseEnter={clearCloseTimer}
-          onMouseLeave={scheduleClose}
-        >
+      <AnchoredPopover
+        open={open}
+        anchorRef={rootRef}
+        id={`submitter-stats-${userId}`}
+        className="w-56 rounded-lg border border-[rgb(var(--border-color))] bg-[rgb(var(--bg-card))] p-3 shadow-xl"
+        onMouseEnter={clearCloseTimer}
+        onMouseLeave={scheduleClose}
+      >
+        <div>
           {loading && !stats ? (
-            <span className="block text-xs text-[rgb(var(--text-muted))]">
+            <p className="text-xs text-[rgb(var(--text-muted))]">
               Loading stats…
-            </span>
+            </p>
           ) : error ? (
-            <span className="block text-xs text-[rgb(var(--text-muted))]">
-              {error}
-            </span>
+            <p className="text-xs text-[rgb(var(--text-muted))]">{error}</p>
           ) : (
-            <span className="block space-y-2">
-              <span className="flex items-center gap-2">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
                 {stats?.avatar ? (
                   <Image
                     src={stats.avatar}
@@ -198,44 +211,44 @@ export default function SubmitterHoverLink({
                 <span className="text-sm font-medium text-[rgb(var(--text-primary))] truncate">
                   {stats?.name || name}
                 </span>
-              </span>
+              </div>
               {stats?.statsHidden ? (
-                <span className="block text-xs text-[rgb(var(--text-muted))]">
+                <p className="text-xs text-[rgb(var(--text-muted))]">
                   Submission stats are hidden
-                </span>
+                </p>
               ) : (
-                <span className="block space-y-1 text-xs text-[rgb(var(--text-secondary))]">
-                  <span className="flex justify-between gap-2">
+                <div className="space-y-1 text-xs text-[rgb(var(--text-secondary))]">
+                  <div className="flex justify-between gap-2">
                     <span>Submissions</span>
                     <span className="text-[rgb(var(--text-primary))]">
                       {stats?.submissionsCount ?? 0}
                     </span>
-                  </span>
-                  <span className="flex justify-between gap-2">
+                  </div>
+                  <div className="flex justify-between gap-2">
                     <span>Approval rate</span>
                     <span className="text-[rgb(var(--text-primary))]">
                       {approvalRate !== null ? `${approvalRate}%` : "N/A"}
                     </span>
-                  </span>
-                  <span className="flex justify-between gap-2">
+                  </div>
+                  <div className="flex justify-between gap-2">
                     <span>Approved / Rejected</span>
                     <span className="text-[rgb(var(--text-primary))]">
                       {stats?.approvedCount ?? 0} / {stats?.rejectedCount ?? 0}
                     </span>
-                  </span>
-                </span>
+                  </div>
+                </div>
               )}
               <Link
                 href={`/profile/${userId}`}
-                className="mt-1 block text-xs text-[#107c10] hover:underline md:hidden"
+                className="mt-1 block text-xs text-[#107c10] hover:underline"
                 onClick={(event) => event.stopPropagation()}
               >
                 View full profile
               </Link>
-            </span>
+            </div>
           )}
-        </span>
-      )}
+        </div>
+      </AnchoredPopover>
     </span>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
+import { useSessionSigningOut } from "@/hooks/useSessionSigningOut";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -18,10 +19,12 @@ import {
 
 export default function UserMenu() {
   const { data: session, status } = useSession();
+  const signingOut = useSessionSigningOut();
   const pathname = usePathname();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const sessionInvalid = Boolean(session?.error) || signingOut;
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -38,8 +41,12 @@ export default function UserMenu() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Loading state
-  if (status === "loading") {
+  useEffect(() => {
+    if (sessionInvalid) setIsOpen(false);
+  }, [sessionInvalid]);
+
+  // Loading state — don't keep a skeleton up during forced sign-out
+  if (status === "loading" && !sessionInvalid) {
     return (
       <div className="flex items-center gap-2">
         <div className="w-8 h-8 rounded-full bg-gray-700 animate-pulse" />
@@ -47,8 +54,8 @@ export default function UserMenu() {
     );
   }
 
-  // Not signed in
-  if (!session) {
+  // Not signed in (or session already ending due to inactivity / invalidation)
+  if (!session || sessionInvalid) {
     const handleSignInClick = () => {
       // Store current pathname in localStorage BEFORE navigation
       if (typeof window !== "undefined" && pathname) {

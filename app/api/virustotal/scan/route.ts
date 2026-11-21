@@ -15,7 +15,12 @@ import {
 import { requireReviewer } from "@/lib/api-auth";
 import { internalError, jsonError } from "@/lib/api-error";
 import { readCsrfToken, validateCSRFToken } from "@/lib/csrf";
-import { saveCorrectionVirusTotalScan } from "@/lib/crowdsource-service-mongodb";
+import {
+  saveCorrectionVirusTotalScan,
+  saveGameSubmissionVirusTotalScan,
+} from "@/lib/crowdsource-service-mongodb";
+import { GAME_DOWNLOAD_LINK_FIELDS } from "@/types/crowdsource";
+import type { GameDownloadLinkField } from "@/types/crowdsource";
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,7 +45,7 @@ export async function POST(request: NextRequest) {
       return jsonError("Invalid CSRF token", 403);
     }
 
-    const { url, action, correctionId } = body;
+    const { url, action, correctionId, gameSubmissionId, field } = body;
 
     // Sanitize and validate inputs
     const sanitizedUrl = sanitizeString(String(url || ""), 2000);
@@ -49,6 +54,16 @@ export async function POST(request: NextRequest) {
       typeof correctionId === "string"
         ? sanitizeString(correctionId, 64)
         : "";
+    const sanitizedGameSubmissionId =
+      typeof gameSubmissionId === "string"
+        ? sanitizeString(gameSubmissionId, 64)
+        : "";
+    const sanitizedField = field ? sanitizeString(String(field), 80) : "";
+    const downloadField = GAME_DOWNLOAD_LINK_FIELDS.includes(
+      sanitizedField as GameDownloadLinkField
+    )
+      ? (sanitizedField as GameDownloadLinkField)
+      : undefined;
 
     if (!sanitizedUrl || typeof url !== "string") {
       return jsonError("URL is required", 400);
@@ -77,7 +92,6 @@ export async function POST(request: NextRequest) {
     const persistScan = async (report: NonNullable<
       Awaited<ReturnType<typeof getUrlReport>>["report"]
     >) => {
-      if (!sanitizedCorrectionId) return undefined;
       const summary =
         summarizeVirusTotalUrlReport(
           report,
@@ -85,23 +99,46 @@ export async function POST(request: NextRequest) {
         ) || null;
       if (!summary) return undefined;
 
-      const saved = await saveCorrectionVirusTotalScan(
-        sanitizedCorrectionId,
-        sanitizedUrl,
-        {
-          ...summary,
-          scannedAt: new Date(),
-          source: "review",
-        }
-      );
-      if (!saved.ok) {
-        safeLog.error(
-          "[VirusTotal] Failed to persist scan on correction:",
-          saved.error
+      const payload = {
+        ...summary,
+        scannedAt: new Date(),
+        source: "review" as const,
+      };
+
+      if (sanitizedCorrectionId) {
+        const saved = await saveCorrectionVirusTotalScan(
+          sanitizedCorrectionId,
+          sanitizedUrl,
+          payload
         );
-        return undefined;
+        if (!saved.ok) {
+          safeLog.error(
+            "[VirusTotal] Failed to persist scan on correction:",
+            saved.error
+          );
+          return undefined;
+        }
+        return saved.correction.virusTotalScan;
       }
-      return saved.correction.virusTotalScan;
+
+      if (sanitizedGameSubmissionId && downloadField) {
+        const saved = await saveGameSubmissionVirusTotalScan(
+          sanitizedGameSubmissionId,
+          downloadField,
+          sanitizedUrl,
+          payload
+        );
+        if (!saved.ok) {
+          safeLog.error(
+            "[VirusTotal] Failed to persist scan on game submission:",
+            saved.error
+          );
+          return undefined;
+        }
+        return saved.scan;
+      }
+
+      return payload;
     };
 
     if (sanitizedAction === "scan") {

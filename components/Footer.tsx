@@ -3,6 +3,7 @@ import { FaDiscord, FaReddit } from "react-icons/fa";
 
 const FOOTER_LINKS = [
   { href: "/supported-games", label: "Supported Games" },
+  { href: "/leaderboard", label: "Leaderboard" },
   { href: "/faq", label: "FAQ" },
   { href: "/contact", label: "Game Communities" },
   { href: "/download", label: "5x5 Activation Bypass" },

@@ -3,9 +3,9 @@
 import { useSessionExpiration } from "@/hooks/useSessionExpiration";
 import { useApiInterceptor } from "@/hooks/useApiInterceptor";
 import { useSession } from "next-auth/react";
-import { signOut } from "next-auth/react";
 import { useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/toast-context";
+import { signOutDueToSessionEnd } from "@/lib/session-signout";
 
 /**
  * Component that tracks session expiration and shows warnings
@@ -33,13 +33,9 @@ export default function SessionExpirationWarning() {
       }
 
       showToast(message, 5000, "error");
-      
-      // Sign out after a brief delay
-      setTimeout(() => {
-        signOut({ callbackUrl: "/auth/signin?reason=session_invalidated" }).finally(() => {
-          hasHandledErrorRef.current = false;
-        });
-      }, 1000);
+      void signOutDueToSessionEnd("session_invalidated").finally(() => {
+        hasHandledErrorRef.current = false;
+      });
     } else if (!session?.error) {
       // Reset flag when error is cleared
       hasHandledErrorRef.current = false;

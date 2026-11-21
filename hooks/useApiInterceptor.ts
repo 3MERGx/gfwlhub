@@ -1,11 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { signOut } from "next-auth/react";
 import { useToast } from "@/components/ui/toast-context";
-
-// Global flag to prevent multiple simultaneous signOut calls
-let isSigningOut = false;
+import { isSessionSigningOut, signOutDueToSessionEnd } from "@/lib/session-signout";
 
 function isSessionDeadError(data: unknown): boolean {
   if (!data || typeof data !== "object") {
@@ -59,23 +56,16 @@ export function useApiInterceptor() {
             if (!isSessionDeadError(data)) {
               return;
             }
-            if (isSigningOut) {
+            if (isSessionSigningOut()) {
               return;
             }
             hasLoggedOutRef.current = true;
-            isSigningOut = true;
             showToast(
               "Your session has expired. Please sign in again.",
               5000,
               "error"
             );
-            setTimeout(() => {
-              signOut({
-                callbackUrl: "/auth/signin?reason=session_expired",
-              }).finally(() => {
-                isSigningOut = false;
-              });
-            }, 500);
+            void signOutDueToSessionEnd("session_expired");
           })
           .catch(() => {
             // Unparseable 401 is not treated as session death.

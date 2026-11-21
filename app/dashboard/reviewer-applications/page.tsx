@@ -5,6 +5,11 @@ import { useSession } from "next-auth/react";
 import DashboardLayout from "@/components/DashboardLayout";
 import DashboardPageHeader from "@/components/dashboard/DashboardPageHeader";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import DashboardToolbar, {
+  FilterChip,
+} from "@/components/dashboard/DashboardToolbar";
+import QueueCounts from "@/components/dashboard/QueueCounts";
+import StatusPill from "@/components/dashboard/StatusPill";
 import {
   Select,
   SelectContent,
@@ -13,9 +18,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  FaTimesCircle,
-  FaCheckCircle,
-  FaClock,
   FaUser,
   FaCheck,
   FaTimes,
@@ -71,6 +73,7 @@ export default function ReviewerApplicationsPage() {
     "pending" | "approved" | "rejected" | "all"
   >("pending");
   const [searchQuery, setSearchQuery] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedApplication, setSelectedApplication] =
     useState<ReviewerApplication | null>(null);
@@ -403,48 +406,30 @@ export default function ReviewerApplicationsPage() {
           subtitle="Review community applications for reviewer access"
         />
 
-        {/* Stats Dashboard */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-[rgb(var(--bg-card))] border border-[rgb(var(--border-color))] rounded-lg p-4">
-            <div className="text-sm text-[rgb(var(--text-secondary))] mb-1">Total</div>
-            <div className="text-2xl font-bold text-[rgb(var(--text-primary))]">
-              {stats.total}
-            </div>
-          </div>
-          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
-            <div className="text-sm text-[rgb(var(--text-secondary))] mb-1">Pending</div>
-            <div className="text-2xl font-bold text-yellow-500">{stats.pending}</div>
-          </div>
-          <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
-            <div className="text-sm text-[rgb(var(--text-secondary))] mb-1">Approved</div>
-            <div className="text-2xl font-bold text-green-500">{stats.approved}</div>
-          </div>
-          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
-            <div className="text-sm text-[rgb(var(--text-secondary))] mb-1">Rejected</div>
-            <div className="text-2xl font-bold text-red-500">{stats.rejected}</div>
-          </div>
-        </div>
-
-        {/* Filters and Sorting */}
-        <div className="mb-6 space-y-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <input
-                type="text"
-                placeholder="Search by name, email, or motivation..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2 border border-[rgb(var(--border-color))] focus:outline-none focus:ring-2 focus:ring-[#107c10]"
-              />
-            </div>
-            <div className="w-full sm:w-48">
+        <DashboardToolbar
+          filtersOpen={showFilters}
+          onToggleFilters={() => setShowFilters(!showFilters)}
+          filtersActive={statusFilter !== "pending" || sortBy !== "date"}
+          search={
+            <input
+              type="text"
+              placeholder="Search by name, email, or motivation..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg px-4 py-2.5 border border-[rgb(var(--border-color))] focus:outline-none focus:border-[rgb(var(--color-primary))]"
+            />
+          }
+          filters={
+            <>
               <Select
                 value={statusFilter}
                 onValueChange={(value) =>
-                  setStatusFilter(value as "pending" | "approved" | "rejected" | "all")
+                  setStatusFilter(
+                    value as "pending" | "approved" | "rejected" | "all"
+                  )
                 }
               >
-                <SelectTrigger className="w-full" aria-label="Filter by status">
+                <SelectTrigger className="w-full md:w-auto min-w-[140px]" aria-label="Filter by status">
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -454,47 +439,81 @@ export default function ReviewerApplicationsPage() {
                   <SelectItem value="all">All statuses</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <div className="flex gap-2">
               <button
                 onClick={() => {
                   setSortBy("date");
-                  setSortOrder(sortBy === "date" && sortOrder === "desc" ? "asc" : "desc");
+                  setSortOrder(
+                    sortBy === "date" && sortOrder === "desc" ? "asc" : "desc"
+                  );
                 }}
-                className="px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:bg-[rgb(var(--bg-card))] transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] flex items-center justify-center gap-2"
                 title="Sort by date"
               >
                 <FaSort size={14} />
                 Date
-                {sortBy === "date" && (sortOrder === "asc" ? <FaSortUp /> : <FaSortDown />)}
+                {sortBy === "date" &&
+                  (sortOrder === "asc" ? <FaSortUp /> : <FaSortDown />)}
               </button>
               <button
                 onClick={() => {
                   setSortBy("name");
-                  setSortOrder(sortBy === "name" && sortOrder === "asc" ? "desc" : "asc");
+                  setSortOrder(
+                    sortBy === "name" && sortOrder === "asc" ? "desc" : "asc"
+                  );
                 }}
-                className="px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:bg-[rgb(var(--bg-card))] transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] flex items-center justify-center gap-2"
                 title="Sort by name"
               >
                 <FaSort size={14} />
                 Name
-                {sortBy === "name" && (sortOrder === "asc" ? <FaSortUp /> : <FaSortDown />)}
+                {sortBy === "name" &&
+                  (sortOrder === "asc" ? <FaSortUp /> : <FaSortDown />)}
               </button>
               <button
                 onClick={() => {
                   setSortBy("status");
-                  setSortOrder(sortBy === "status" && sortOrder === "asc" ? "desc" : "asc");
+                  setSortOrder(
+                    sortBy === "status" && sortOrder === "asc" ? "desc" : "asc"
+                  );
                 }}
-                className="px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:bg-[rgb(var(--bg-card))] transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] flex items-center justify-center gap-2"
                 title="Sort by status"
               >
                 <FaSort size={14} />
                 Status
-                {sortBy === "status" && (sortOrder === "asc" ? <FaSortUp /> : <FaSortDown />)}
+                {sortBy === "status" &&
+                  (sortOrder === "asc" ? <FaSortUp /> : <FaSortDown />)}
               </button>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+          chips={
+            searchQuery || statusFilter !== "pending" ? (
+              <>
+                {searchQuery && (
+                  <FilterChip
+                    label={`Search: ${searchQuery}`}
+                    onClear={() => setSearchQuery("")}
+                  />
+                )}
+                {statusFilter !== "pending" && (
+                  <FilterChip
+                    label={`Status: ${statusFilter}`}
+                    onClear={() => setStatusFilter("pending")}
+                  />
+                )}
+              </>
+            ) : undefined
+          }
+        />
+
+        <QueueCounts
+          items={[
+            { label: "Total", value: stats.total },
+            { label: "Pending", value: stats.pending, tone: "warning" },
+            { label: "Approved", value: stats.approved, tone: "success" },
+            { label: "Rejected", value: stats.rejected, tone: "danger" },
+          ]}
+        />
 
         {/* Applications List */}
         {isLoading ? (
@@ -535,7 +554,7 @@ export default function ReviewerApplicationsPage() {
               return (
                 <div
                   key={application.id}
-                  className="bg-[rgb(var(--bg-card))] border border-[rgb(var(--border-color))] rounded-lg overflow-hidden"
+                  className="dashboard-surface overflow-hidden"
                 >
                   {/* Header - Always Visible */}
                   <div className="p-4 sm:p-6">
@@ -596,26 +615,7 @@ export default function ReviewerApplicationsPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {application.status === "pending" && (
-                          <span className="px-3 py-1 bg-yellow-500/20 text-yellow-500 rounded-full text-sm font-medium flex items-center gap-2">
-                            <FaClock size={12} />
-                            Pending
-                          </span>
-                        )}
-                        {application.status === "approved" && (
-                          <span className="px-3 py-1 bg-green-500/20 text-green-500 rounded-full text-sm font-medium flex items-center gap-2">
-                            <FaCheckCircle size={12} />
-                            Approved
-                          </span>
-                        )}
-                        {application.status === "rejected" && (
-                          <span className="px-3 py-1 bg-red-500/20 text-red-500 rounded-full text-sm font-medium flex items-center gap-2">
-                            <FaTimesCircle size={12} />
-                            Rejected
-                          </span>
-                        )}
-                      </div>
+                      <StatusPill status={application.status} />
                     </div>
                   </div>
 

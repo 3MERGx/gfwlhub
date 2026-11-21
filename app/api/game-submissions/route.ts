@@ -130,6 +130,7 @@ export async function GET(request: NextRequest) {
           reviewedAt: doc.reviewedAt,
           reviewNotes: doc.reviewNotes,
           proposedData: doc.proposedData,
+          virusTotalScans: doc.virusTotalScans || undefined,
           submitterNotes: doc.submitterNotes,
           originalGameData: doc.originalGameData || null, // Use original game data from submission time
           currentGameData: currentGame || null, // Include current game for reference

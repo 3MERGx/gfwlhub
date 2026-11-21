@@ -371,21 +371,19 @@ export default function DashboardLayout({
         key={item.href}
         href={item.href}
         onClick={() => setMobileNavOpen(false)}
-        className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors relative ${
+        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors relative ${
           isActive
-            ? "bg-[#107c10] text-white"
+            ? "bg-[rgba(var(--color-primary),0.12)] text-[rgb(var(--text-primary))]"
             : "text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--bg-card))] hover:text-[rgb(var(--text-primary))]"
         }`}
       >
-        <Icon size={18} />
-        <span className="font-medium">{item.label}</span>
-        {item.section === "community" && item.href === "/leaderboard" && (
-          <span className="ml-auto bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 text-[10px] font-bold rounded px-1.5 py-0.5 uppercase">
-            Beta
-          </span>
+        {isActive && (
+          <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-[rgb(var(--color-primary))]" />
         )}
+        <Icon size={16} />
+        <span className="text-sm font-medium">{item.label}</span>
         {badgeCount > 0 && (
-          <span className="ml-auto bg-orange-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+          <span className="ml-auto bg-[rgb(var(--color-warning))] text-white text-[11px] font-semibold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
             {badgeCount > 99 ? "99+" : badgeCount}
           </span>
         )}
@@ -489,7 +487,7 @@ export default function DashboardLayout({
               className="flex max-w-[55%] flex-col items-end gap-0.5 rounded-md px-2 py-1 text-right touch-manipulation"
               aria-label="Open dashboard menu to view pending queues"
             >
-              <span className="bg-orange-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 inline-flex items-center justify-center px-1.5">
+              <span className="bg-[rgb(var(--color-warning))] text-white text-xs font-semibold rounded-full min-w-[20px] h-5 inline-flex items-center justify-center px-1.5">
                 {pendingCount +
                   pendingGameSubmissionsCount +
                   pendingFaqSubmissionsCount >

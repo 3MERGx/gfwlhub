@@ -8,7 +8,6 @@ import {
   FaGithub,
   FaDiscord,
   FaSearch,
-  FaFilter,
   FaEllipsisV,
   FaUserShield,
   FaUserCheck,
@@ -26,9 +25,13 @@ import {
   FaCopy,
 } from "react-icons/fa";
 import Link from "next/link";
-import Image from "next/image";
 import DashboardLayout from "@/components/DashboardLayout";
 import DashboardPageHeader from "@/components/dashboard/DashboardPageHeader";
+import DashboardToolbar, {
+  FilterChip,
+} from "@/components/dashboard/DashboardToolbar";
+import StatusPill from "@/components/dashboard/StatusPill";
+import UserAvatar from "@/components/UserAvatar";
 import {
   Select,
   SelectContent,
@@ -36,7 +39,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getAvatarUrl } from "@/lib/image-utils";
 import { useSession } from "next-auth/react";
 import { safeLog } from "@/lib/security";
 import { useToast } from "@/components/ui/toast-context";
@@ -782,124 +784,138 @@ export default function UsersPage() {
             subtitle="Manage user roles, permissions, and access"
           />
 
-          {/* Search and Controls */}
-          <div className="bg-[rgb(var(--bg-card))] rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
-            {/* Search Bar */}
-            <div className="relative mb-3 sm:mb-4">
-              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[rgb(var(--text-muted))]" />
-              <input
-                type="text"
-                placeholder="Search by name or email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 sm:py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none text-sm sm:text-base"
-              />
-            </div>
-
-            {/* Filter Toggle (Mobile) */}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`md:hidden w-full flex items-center justify-center gap-2 py-2.5 min-h-[44px] rounded-lg border mb-3 text-sm touch-manipulation ${
-                roleFilter !== "all" ||
-                statusFilter !== "all" ||
-                showDeletedUsers ||
-                sortBy !== "lastActive" ||
-                sortOrder !== "desc"
-                  ? "bg-[#107c10]/15 border-[#107c10]/40 text-[rgb(var(--text-primary))]"
-                  : "bg-[rgb(var(--bg-card-alt))] border-[rgb(var(--border-color))] text-[rgb(var(--text-primary))]"
-              }`}
-            >
-              <FaFilter size={14} />
-              <span>Filters & Sort</span>
-              {(roleFilter !== "all" ||
-                statusFilter !== "all" ||
-                showDeletedUsers ||
-                sortBy !== "lastActive" ||
-                sortOrder !== "desc") && (
-                <span className="bg-[#107c10] text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">
-                  On
-                </span>
-              )}
-            </button>
-
-            {/* Filters and Sort */}
-            <div
-              className={`${
-                showFilters ? "block" : "hidden"
-              } md:flex md:flex-wrap md:items-center space-y-2 sm:space-y-3 md:space-y-0 md:gap-3`}
-            >
-              {/* Show Deleted Users Toggle */}
-              <button
-                onClick={() => setShowDeletedUsers(!showDeletedUsers)}
-                className={`w-full md:w-auto px-4 py-2 min-h-[44px] md:min-h-0 rounded-lg border transition-colors flex items-center justify-center gap-2 touch-manipulation ${
-                  showDeletedUsers
-                    ? "bg-red-900/30 border-red-500/50 text-red-300"
-                    : "bg-[rgb(var(--bg-card-alt))] border-[rgb(var(--border-color))] text-[rgb(var(--text-primary))] hover:border-[#107c10]"
-                }`}
-              >
-                <FaTrashRestore size={14} />
-                <span className="text-sm">
-                  {showDeletedUsers ? "Hide Deleted" : "Show Deleted"}
-                </span>
-              </button>
-              {/* Role Filter */}
-              <Select value={roleFilter} onValueChange={setRoleFilter} disabled={showDeletedUsers}>
-                <SelectTrigger className="w-full md:w-auto min-w-[130px] text-sm sm:text-base">
-                  <SelectValue placeholder="All Roles" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Roles</SelectItem>
-                  <SelectItem value="user">Users</SelectItem>
-                  <SelectItem value="reviewer">Reviewers</SelectItem>
-                  <SelectItem value="admin">Admins</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {/* Status Filter */}
-              <Select value={statusFilter} onValueChange={setStatusFilter} disabled={showDeletedUsers}>
-                <SelectTrigger className="w-full md:w-auto min-w-[130px] text-sm sm:text-base">
-                  <SelectValue placeholder="All Statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="suspended">Suspended</SelectItem>
-                  <SelectItem value="blocked">Blocked</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {/* Sort — card view has no table headers below xl */}
-              <div className="xl:hidden flex flex-col sm:flex-row gap-2">
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-full sm:w-auto min-w-[140px] text-sm sm:text-base">
-                    <SelectValue placeholder="Sort by" />
+          <DashboardToolbar
+            filtersOpen={showFilters}
+            onToggleFilters={() => setShowFilters(!showFilters)}
+            filtersActive={
+              roleFilter !== "all" ||
+              statusFilter !== "all" ||
+              showDeletedUsers ||
+              sortBy !== "lastActive" ||
+              sortOrder !== "desc"
+            }
+            search={
+              <div className="relative">
+                <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-[rgb(var(--text-muted))]" />
+                <input
+                  type="text"
+                  placeholder="Search by name or email..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[rgb(var(--color-primary))] focus:outline-none text-sm sm:text-base"
+                />
+              </div>
+            }
+            filters={
+              <>
+                <button
+                  onClick={() => setShowDeletedUsers(!showDeletedUsers)}
+                  className={`w-full sm:w-auto shrink-0 px-4 py-2 min-h-[44px] sm:min-h-0 rounded-lg border flex items-center justify-center gap-2 touch-manipulation ${
+                    showDeletedUsers
+                      ? "bg-[rgba(var(--color-danger),0.12)] border-[rgba(var(--color-danger),0.4)] text-danger"
+                      : "bg-[rgb(var(--bg-card-alt))] border-[rgb(var(--border-color))] text-[rgb(var(--text-primary))] hover:border-[rgb(var(--color-primary))]"
+                  }`}
+                >
+                  <FaTrashRestore size={14} />
+                  <span className="text-sm">
+                    {showDeletedUsers ? "Hide Deleted" : "Show Deleted"}
+                  </span>
+                </button>
+                <Select
+                  value={roleFilter}
+                  onValueChange={setRoleFilter}
+                  disabled={showDeletedUsers}
+                >
+                  <SelectTrigger className="w-full sm:w-auto min-w-[10rem] shrink-0 text-sm sm:text-base">
+                    <SelectValue placeholder="All Roles" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="lastActive">Last Login</SelectItem>
-                    <SelectItem value="name">Name</SelectItem>
-                    <SelectItem value="role">Role</SelectItem>
-                    <SelectItem value="status">Status</SelectItem>
-                    <SelectItem value="provider">Provider</SelectItem>
-                    <SelectItem value="submissions">Submissions</SelectItem>
+                    <SelectItem value="all">All Roles</SelectItem>
+                    <SelectItem value="user">Users</SelectItem>
+                    <SelectItem value="reviewer">Reviewers</SelectItem>
+                    <SelectItem value="admin">Admins</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select
-                  value={sortOrder}
-                  onValueChange={(value) =>
-                    setSortOrder(value as "asc" | "desc")
-                  }
+                  value={statusFilter}
+                  onValueChange={setStatusFilter}
+                  disabled={showDeletedUsers}
                 >
-                  <SelectTrigger className="w-full sm:w-auto min-w-[120px] text-sm sm:text-base">
-                    <SelectValue placeholder="Order" />
+                  <SelectTrigger className="w-full sm:w-auto min-w-[10rem] shrink-0 text-sm sm:text-base">
+                    <SelectValue placeholder="All Statuses" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="desc">Descending</SelectItem>
-                    <SelectItem value="asc">Ascending</SelectItem>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="suspended">Suspended</SelectItem>
+                    <SelectItem value="blocked">Blocked</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-            </div>
-          </div>
+                <div className="contents xl:hidden">
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-full sm:w-auto min-w-[10rem] shrink-0 text-sm sm:text-base">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="lastActive">Last Login</SelectItem>
+                      <SelectItem value="name">Name</SelectItem>
+                      <SelectItem value="role">Role</SelectItem>
+                      <SelectItem value="status">Status</SelectItem>
+                      <SelectItem value="provider">Provider</SelectItem>
+                      <SelectItem value="submissions">Submissions</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={sortOrder}
+                    onValueChange={(value) =>
+                      setSortOrder(value as "asc" | "desc")
+                    }
+                  >
+                    <SelectTrigger className="w-full sm:w-auto min-w-[9rem] shrink-0 text-sm sm:text-base">
+                      <SelectValue placeholder="Order" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="desc">Descending</SelectItem>
+                      <SelectItem value="asc">Ascending</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            }
+            chips={
+              searchQuery ||
+              roleFilter !== "all" ||
+              statusFilter !== "all" ||
+              showDeletedUsers ? (
+                <>
+                  {searchQuery && (
+                    <FilterChip
+                      label={`Search: ${searchQuery}`}
+                      onClear={() => setSearchQuery("")}
+                    />
+                  )}
+                  {roleFilter !== "all" && (
+                    <FilterChip
+                      label={`Role: ${roleFilter}`}
+                      onClear={() => setRoleFilter("all")}
+                    />
+                  )}
+                  {statusFilter !== "all" && (
+                    <FilterChip
+                      label={`Status: ${statusFilter}`}
+                      onClear={() => setStatusFilter("all")}
+                    />
+                  )}
+                  {showDeletedUsers && (
+                    <FilterChip
+                      label="Deleted users"
+                      onClear={() => setShowDeletedUsers(false)}
+                    />
+                  )}
+                </>
+              ) : undefined
+            }
+          />
 
           {/* Results Count */}
           <div className="text-[rgb(var(--text-secondary))] text-xs sm:text-sm mb-3 sm:mb-4">
@@ -908,7 +924,7 @@ export default function UsersPage() {
           </div>
 
           {/* Users Table - Desktop (XL screens only) */}
-          <div className="hidden xl:block bg-[rgb(var(--bg-card))] rounded-xl border border-[rgb(var(--border-color))] overflow-hidden shadow-2xl">
+          <div className="hidden xl:block dashboard-surface overflow-hidden">
             {/* Table Header */}
             <div className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-[rgb(var(--border-color))] bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] text-xs font-semibold uppercase tracking-wider">
               <div className="col-span-2 flex items-center">
@@ -997,50 +1013,17 @@ export default function UsersPage() {
                       className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-[rgb(var(--bg-card-alt))] transition-all duration-200 group"
                     >
                       {/* User Info */}
-                      <div className="col-span-2 flex items-center gap-3">
-                        {user.avatar ? (
-                          <div className="relative w-11 h-11 flex-shrink-0">
-                          <Image
-                              src={getAvatarUrl(user.avatar) || user.avatar}
-                            alt={user.name}
-                            width={44}
-                            height={44}
-                            className="w-11 h-11 rounded-full ring-2 ring-gray-700/50 group-hover:ring-[#107c10]/30 transition-all object-cover"
-                            unoptimized
-                              onError={(e) => {
-                                // Fallback to initials if image fails to load
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = "none";
-                                if (target.parentElement) {
-                                  const fallback = target.parentElement.querySelector(".avatar-fallback") as HTMLElement;
-                                  if (fallback) {
-                                    fallback.style.display = "flex";
-                                  }
-                                }
-                              }}
-                            />
-                            <div
-                              className="avatar-fallback w-11 h-11 rounded-full bg-gradient-to-br from-[#107c10] to-[#0d6b0d] flex items-center justify-center text-white font-bold text-base ring-2 ring-[rgb(var(--border-color))] group-hover:ring-[#107c10]/30 transition-all"
-                              style={{ display: "none", position: "absolute", top: 0, left: 0 }}
-                            >
-                              {(user.status === "deleted" && user.archivedName
-                                ? user.archivedName
-                                : user.name
-                              )
-                                .charAt(0)
-                                .toUpperCase()}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#107c10] to-[#0d6b0d] flex items-center justify-center text-white font-bold text-base ring-2 ring-[rgb(var(--border-color))] group-hover:ring-[#107c10]/30 transition-all flex-shrink-0">
-                            {(user.status === "deleted" && user.archivedName
+                      <div className="col-span-2 flex items-center gap-3 min-w-0">
+                        <UserAvatar
+                          name={
+                            user.status === "deleted" && user.archivedName
                               ? user.archivedName
                               : user.name
-                            )
-                              .charAt(0)
-                              .toUpperCase()}
-                          </div>
-                        )}
+                          }
+                          src={user.avatar}
+                          size={44}
+                          className="ring-2 ring-[rgb(var(--border-color))] group-hover:ring-[#107c10]/30 transition-all"
+                        />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <div className="flex-1 min-w-0">
@@ -1149,30 +1132,8 @@ export default function UsersPage() {
                         </span>
                       </div>
 
-                      {/* Status - Only show if not active */}
                       <div className="col-span-1 flex items-center justify-center">
-                        {user.status === "active" ? (
-                          <span className="px-3 py-1.5 rounded-md text-xs font-medium bg-green-500/20 dark:bg-green-900/20 text-green-600 dark:text-green-300 border border-green-500/50 dark:border-green-500/40">
-                            Active
-                          </span>
-                        ) : user.status === "suspended" ? (
-                          <span className="px-3 py-1.5 rounded-md text-xs font-medium bg-yellow-500/20 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-300 border border-yellow-500/50 dark:border-yellow-500/40">
-                            Suspended
-                          </span>
-                        ) : user.status === "restricted" ? (
-                          <span className="px-3 py-1.5 rounded-md text-xs font-medium bg-orange-500/20 dark:bg-orange-900/20 text-orange-600 dark:text-orange-300 border border-orange-500/50 dark:border-orange-500/40">
-                            Restricted
-                          </span>
-                        ) : user.status === "blocked" ? (
-                          <span className="px-3 py-1.5 rounded-md text-xs font-medium bg-red-500/20 dark:bg-red-900/20 text-red-600 dark:text-red-300 border border-red-500/50 dark:border-red-500/40">
-                            Blocked
-                          </span>
-                        ) : (
-                          <span className="px-3 py-1.5 rounded-md text-xs font-medium bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] border border-[rgb(var(--border-color))]">
-                            {user.status.charAt(0).toUpperCase() +
-                              user.status.slice(1)}
-                          </span>
-                        )}
+                        <StatusPill status={user.status} />
                       </div>
 
                       {/* Provider */}
@@ -1361,33 +1322,22 @@ export default function UsersPage() {
                 return (
                   <div
                     key={user.id}
-                    className="bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] p-4 space-y-3"
+                    className="dashboard-surface p-4 space-y-3"
                   >
                     {/* Header Row */}
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         {/* Avatar - Hidden on small screens */}
                         <div className="hidden sm:block flex-shrink-0">
-                          {user.avatar ? (
-                            <Image
-                              src={user.avatar}
-                              alt={user.name}
-                              width={48}
-                              height={48}
-                              className="w-12 h-12 rounded-full"
-                              loading="lazy"
-                              unoptimized
-                            />
-                          ) : (
-                            <div className="w-12 h-12 rounded-full bg-[#107c10] flex items-center justify-center text-white font-bold">
-                              {(user.status === "deleted" && user.archivedName
+                          <UserAvatar
+                            name={
+                              user.status === "deleted" && user.archivedName
                                 ? user.archivedName
                                 : user.name
-                              )
-                                .charAt(0)
-                                .toUpperCase()}
-                            </div>
-                          )}
+                            }
+                            src={user.avatar}
+                            size={48}
+                          />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
@@ -1591,17 +1541,8 @@ export default function UsersPage() {
                           {user.role}
                         </span>
                       </span>
-                      {/* Status - Only show if not active */}
                       {user.status !== "active" && (
-                        <span
-                          className={`px-2.5 py-1.5 rounded-md text-xs ${
-                            user.status === "suspended"
-                              ? "bg-yellow-500/20 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400"
-                              : "bg-red-500/20 dark:bg-red-900/30 text-red-600 dark:text-red-400"
-                          }`}
-                        >
-                          {user.status}
-                        </span>
+                        <StatusPill status={user.status} />
                       )}
                       <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))]">
                         {getProviderIcon(user.provider)}

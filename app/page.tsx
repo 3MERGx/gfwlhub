@@ -23,8 +23,6 @@ const DISCORD_INVITE = "https://discord.gg/PR75T8xMWS";
 function HomeContent() {
   const router = useRouter();
   const { status, data: session } = useSession();
-  const canViewLeaderboard =
-    session?.user?.role === "reviewer" || session?.user?.role === "admin";
   const isStaff =
     session?.user?.role === "reviewer" || session?.user?.role === "admin";
 
@@ -285,16 +283,14 @@ function HomeContent() {
             This is a community-driven project. Your contributions help keep
             these games playable for everyone.
           </p>
-          {canViewLeaderboard && (
-            <p className="mb-8 text-[rgb(var(--text-secondary))]">
-              <Link
-                href="/leaderboard"
-                className="text-[#107c10] hover:text-[#0e6b0e] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-[#107c10] focus:ring-offset-2 focus:ring-offset-[rgb(var(--bg-card))] rounded"
-              >
-                See top contributors on the leaderboard
-              </Link>
-            </p>
-          )}
+          <p className="mb-8 text-[rgb(var(--text-secondary))]">
+            <Link
+              href="/leaderboard"
+              className="text-[#107c10] hover:text-[#0e6b0e] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-[#107c10] focus:ring-offset-2 focus:ring-offset-[rgb(var(--bg-card))] rounded"
+            >
+              See top contributors on the leaderboard
+            </Link>
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <div className="bg-[rgb(var(--bg-card))] p-6 rounded-lg border border-[rgb(var(--border-color))]">
               <FaEdit className="text-[#107c10] text-3xl mb-3" aria-hidden />

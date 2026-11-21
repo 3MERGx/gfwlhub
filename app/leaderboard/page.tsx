@@ -9,12 +9,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import Image from "next/image";
-import DashboardLayout from "@/components/DashboardLayout";
 import DashboardPageHeader from "@/components/dashboard/DashboardPageHeader";
+import UserAvatar from "@/components/UserAvatar";
 import { safeLog } from "@/lib/security";
 import { useDebounce } from "@/hooks/useDebounce";
-import { getAvatarUrl } from "@/lib/image-utils";
 import type { LeaderboardUser, SortField, SortOrder } from "@/types/leaderboard";
 import {
   FaTrophy,
@@ -84,9 +82,6 @@ export default function LeaderboardPage() {
 
         setUsers(rankedData);
         setFilteredUsers(rankedData);
-      } else if (response.status === 403) {
-        safeLog.error("Access denied");
-        setError("You don’t have access to the leaderboard.");
       } else {
         setError("Failed to load leaderboard. Please try again.");
       }
@@ -130,8 +125,7 @@ export default function LeaderboardPage() {
     // Apply search filter (ranks stay the same) - using debounced value
     if (debouncedSearchQuery) {
       filtered = filtered.filter((user) =>
-        user.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-        user.email.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+        user.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
       );
     }
 
@@ -235,64 +229,39 @@ export default function LeaderboardPage() {
 
   if (error) {
     return (
-      <DashboardLayout requireRole="reviewer">
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
-            <p className="text-[rgb(var(--text-primary))] mb-4">{error}</p>
-            <button
-              type="button"
-              onClick={() => fetchLeaderboard()}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[#107c10] text-white rounded-lg hover:opacity-90 transition-opacity"
-              aria-label="Retry loading leaderboard"
-            >
-              <FaRedo size={16} />
-              Retry
-            </button>
-          </div>
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+          <p className="text-[rgb(var(--text-primary))] mb-4">{error}</p>
+          <button
+            type="button"
+            onClick={() => fetchLeaderboard()}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[#107c10] text-white rounded-lg hover:opacity-90 transition-opacity"
+            aria-label="Retry loading leaderboard"
+          >
+            <FaRedo size={16} />
+            Retry
+          </button>
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
   if (loading) {
     return (
-      <DashboardLayout requireRole="reviewer">
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex items-center justify-center min-h-[400px]">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#107c10] mx-auto mb-4"></div>
-              <p className="text-[rgb(var(--text-secondary))]">Loading leaderboard...</p>
-            </div>
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#107c10] mx-auto mb-4"></div>
+            <p className="text-[rgb(var(--text-secondary))]">Loading leaderboard...</p>
           </div>
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
   return (
-    <DashboardLayout requireRole="reviewer">
-      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8">
-        <div className="max-w-7xl mx-auto">
-          {/* Admin Testing Banner */}
-          <div className="mb-4 sm:mb-6 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-400 dark:border-yellow-500/30 rounded-lg p-3 sm:p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 mt-0.5">
-                <div className="w-6 h-6 rounded-full bg-yellow-500/20 flex items-center justify-center">
-                  <span className="text-yellow-600 dark:text-yellow-400 text-sm">⚠️</span>
-                </div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-yellow-800 dark:text-yellow-400 font-semibold text-sm sm:text-base mb-1">
-                  Testing Mode - Reviewers & Admins Only
-                </h3>
-                <p className="text-yellow-700 dark:text-yellow-200/80 text-xs sm:text-sm">
-                  This leaderboard is currently in testing and only visible to reviewers and administrators. 
-                  Regular users cannot access this page.
-                </p>
-              </div>
-            </div>
-          </div>
-
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8">
+      <div className="max-w-7xl mx-auto">
           <DashboardPageHeader
             title="Community Leaderboard"
             subtitle="Top contributors ranked by approval rate and submission count"
@@ -306,7 +275,7 @@ export default function LeaderboardPage() {
               <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[rgb(var(--text-muted))]" />
               <input
                 type="text"
-                placeholder="Search by name or email..."
+                placeholder="Search by name..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-10 py-2.5 sm:py-3 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[#107c10] focus:outline-none text-sm sm:text-base"
@@ -456,41 +425,13 @@ export default function LeaderboardPage() {
                       </div>
 
                       {/* User Info */}
-                      <div className="col-span-3 flex items-center gap-3">
-                        {user.avatar ? (
-                          <div className="relative w-10 h-10 flex-shrink-0">
-                            <Image
-                              src={getAvatarUrl(user.avatar) || user.avatar}
-                              alt={user.name}
-                              width={40}
-                              height={40}
-                              loading="lazy"
-                              className="w-10 h-10 rounded-full ring-2 ring-gray-700/50 group-hover:ring-[#107c10]/30 transition-all object-cover"
-                              unoptimized
-                              onError={(e) => {
-                                // Fallback to initials if image fails to load
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = "none";
-                                if (target.parentElement) {
-                                  const fallback = target.parentElement.querySelector(".avatar-fallback") as HTMLElement;
-                                  if (fallback) {
-                                    fallback.style.display = "flex";
-                                  }
-                                }
-                              }}
-                            />
-                            <div
-                              className="avatar-fallback w-10 h-10 rounded-full bg-gradient-to-br from-[#107c10] to-[#0d6b0d] flex items-center justify-center text-white font-bold text-sm ring-2 ring-gray-700/50 group-hover:ring-[#107c10]/30 transition-all"
-                              style={{ display: "none", position: "absolute", top: 0, left: 0 }}
-                            >
-                              {user.name.charAt(0).toUpperCase()}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#107c10] to-[#0d6b0d] flex items-center justify-center text-white font-bold text-sm ring-2 ring-gray-700/50 group-hover:ring-[#107c10]/30 transition-all flex-shrink-0">
-                            {user.name.charAt(0).toUpperCase()}
-                          </div>
-                        )}
+                      <div className="col-span-3 flex items-center gap-3 min-w-0">
+                        <UserAvatar
+                          name={user.name}
+                          src={user.avatar}
+                          size={40}
+                          className="ring-2 ring-[rgb(var(--border-color))] group-hover:ring-[#107c10]/30 transition-all"
+                        />
                         <div className="flex-1 min-w-0 flex items-center gap-2">
                           <Link
                             href={`/profile/${user.id}`}
@@ -571,50 +512,13 @@ export default function LeaderboardPage() {
                     key={user.id}
                     className="bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] p-4 space-y-3"
                   >
-                    {/* Header Row - Rank badge on the right */}
-                    <div className="flex items-center justify-end">
-                      <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md border font-bold text-sm ${getRankBadgeClass(user.rank)}`}>
-                        {getRankIcon(user.rank)}
-                        <span>#{user.rank}</span>
-                      </div>
-                    </div>
-
-                    {/* User Info */}
                     <div className="flex items-center gap-3">
-                      {user.avatar ? (
-                        <div className="relative w-12 h-12 flex-shrink-0">
-                          <Image
-                            src={getAvatarUrl(user.avatar) || user.avatar}
-                            alt={user.name}
-                            width={48}
-                            height={48}
-                            loading="lazy"
-                            className="w-12 h-12 rounded-full ring-2 ring-gray-700 object-cover"
-                            unoptimized
-                            onError={(e) => {
-                              // Fallback to initials if image fails to load
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = "none";
-                              if (target.parentElement) {
-                                const fallback = target.parentElement.querySelector(".avatar-fallback") as HTMLElement;
-                                if (fallback) {
-                                  fallback.style.display = "flex";
-                                }
-                              }
-                            }}
-                          />
-                          <div
-                            className="avatar-fallback w-12 h-12 rounded-full bg-gradient-to-br from-[#107c10] to-[#0d6b0d] flex items-center justify-center text-white font-bold text-lg ring-2 ring-gray-700"
-                            style={{ display: "none", position: "absolute", top: 0, left: 0 }}
-                          >
-                            {user.name.charAt(0).toUpperCase()}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#107c10] to-[#0d6b0d] flex items-center justify-center text-white font-bold text-lg ring-2 ring-gray-700 flex-shrink-0">
-                          {user.name.charAt(0).toUpperCase()}
-                        </div>
-                      )}
+                      <UserAvatar
+                        name={user.name}
+                        src={user.avatar}
+                        size={48}
+                        className="ring-2 ring-[rgb(var(--border-color))]"
+                      />
                       <div className="flex-1 min-w-0 flex items-center gap-2">
                         <Link
                           href={`/profile/${user.id}`}
@@ -623,6 +527,10 @@ export default function LeaderboardPage() {
                           {user.name}
                         </Link>
                         {getRoleIcon(user.role)}
+                      </div>
+                      <div className={`flex shrink-0 items-center gap-2 px-3 py-1.5 rounded-md border font-bold text-sm ${getRankBadgeClass(user.rank)}`}>
+                        {getRankIcon(user.rank)}
+                        <span>#{user.rank}</span>
                       </div>
                     </div>
 
@@ -735,7 +643,6 @@ export default function LeaderboardPage() {
           )}
         </div>
       </div>
-    </DashboardLayout>
   );
 }
 

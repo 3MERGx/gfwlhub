@@ -318,7 +318,7 @@ export default function AuditPage() {
           />
 
           {/* Search and Controls */}
-          <div className="bg-[rgb(var(--bg-card))] rounded-lg p-4 mb-6">
+          <div className="dashboard-surface p-3 sm:p-4 mb-5">
             {/* Search Bar and Clear Filters - Large Screens */}
             <div className="hidden lg:flex gap-3 mb-4">
               <div className="relative flex-1">

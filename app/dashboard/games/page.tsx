@@ -13,13 +13,17 @@ import {
   FaToggleOn,
   FaToggleOff,
   FaSearch,
-  FaFilter,
   FaChevronLeft,
   FaChevronRight,
 } from "react-icons/fa";
 import DashboardLayout from "@/components/DashboardLayout";
 import DashboardPageHeader from "@/components/dashboard/DashboardPageHeader";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import DashboardToolbar, {
+  FilterChip,
+} from "@/components/dashboard/DashboardToolbar";
+import QueueCounts from "@/components/dashboard/QueueCounts";
+import StatusPill from "@/components/dashboard/StatusPill";
 import DisabledGamePrompt from "@/app/games/[slug]/DisabledGamePrompt";
 import AddGameDetailsModal from "@/components/AddGameDetailsModal";
 import { ListSkeleton } from "@/components/ui/loading-skeleton";
@@ -201,100 +205,99 @@ function GamesManagementPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8">
       <div className="max-w-7xl mx-auto">
-        <div className="bg-[rgb(var(--bg-card))] rounded-lg shadow-xl p-6 md:p-8">
           <DashboardPageHeader
             title="Games Management"
             subtitle="Enable or disable games for public visibility"
           />
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-[rgb(var(--bg-card))] rounded-lg p-4 border border-[rgb(var(--border-color))]">
-              <div className="text-2xl font-bold text-[rgb(var(--text-primary))]">{stats.total}</div>
-              <div className="text-sm text-[rgb(var(--text-secondary))]">Total Games</div>
-            </div>
-            <div className="bg-[rgb(var(--bg-card))] rounded-lg p-4 border border-[rgb(var(--border-color))]">
-              <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                {stats.enabled}
-              </div>
-              <div className="text-sm text-[rgb(var(--text-secondary))]">Enabled</div>
-            </div>
-            <div className="bg-[rgb(var(--bg-card))] rounded-lg p-4 border border-[rgb(var(--border-color))]">
-              <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                {stats.disabled}
-              </div>
-              <div className="text-sm text-[rgb(var(--text-secondary))]">Disabled</div>
-            </div>
-            <div className="bg-[rgb(var(--bg-card))] rounded-lg p-4 border border-[rgb(var(--border-color))]">
-              <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-                {stats.withSubmissions}
-              </div>
-              <div className="text-sm text-[rgb(var(--text-secondary))]">With Submissions</div>
-            </div>
-          </div>
-
-          {/* Search and Filters */}
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
-            <div className="flex-1">
+          <DashboardToolbar
+            filtersOpen={showFilters}
+            onToggleFilters={() => setShowFilters(!showFilters)}
+            filtersActive={showEnabledOnly || showDisabledOnly}
+            search={
               <div className="relative">
-                <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[rgb(var(--text-secondary))]" />
+                <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-[rgb(var(--text-muted))]" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search games..."
-                  className="w-full bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg pl-12 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#107c10] border border-[rgb(var(--border-color))]"
+                  className="w-full pl-10 pr-4 py-2.5 bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] focus:border-[rgb(var(--color-primary))] focus:outline-none"
                 />
               </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowFilters((open) => !open)}
-              className={`md:hidden w-full flex items-center justify-center gap-2 py-2.5 min-h-[44px] rounded-lg border touch-manipulation ${
-                showEnabledOnly || showDisabledOnly
-                  ? "bg-[#107c10]/15 border-[#107c10]/40 text-[rgb(var(--text-primary))]"
-                  : "bg-[rgb(var(--bg-card-alt))] border-[rgb(var(--border-color))] text-[rgb(var(--text-primary))]"
-              }`}
-            >
-              <FaFilter size={14} />
-              <span>Filters</span>
-              {(showEnabledOnly || showDisabledOnly) && (
-                <span className="bg-[#107c10] text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">
-                  On
-                </span>
-              )}
-            </button>
-            <div className={`${showFilters ? "flex" : "hidden"} md:flex gap-2`}>
-              <button
-                onClick={() => {
-                  setShowEnabledOnly(!showEnabledOnly);
-                  setShowDisabledOnly(false);
-                }}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  showEnabledOnly
-                    ? "bg-green-600 text-white"
-                    : "bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--bg-card))]"
-                }`}
-              >
-                Enabled Only
-              </button>
-              <button
-                onClick={() => {
-                  setShowDisabledOnly(!showDisabledOnly);
-                  setShowEnabledOnly(false);
-                }}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  showDisabledOnly
-                    ? "bg-red-600 text-white"
-                    : "bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--bg-card))]"
-                }`}
-              >
-                Disabled Only
-              </button>
-            </div>
-          </div>
+            }
+            filters={
+              <>
+                <button
+                  onClick={() => {
+                    setShowEnabledOnly(!showEnabledOnly);
+                    setShowDisabledOnly(false);
+                  }}
+                  className={`px-4 py-2 rounded-lg border ${
+                    showEnabledOnly
+                      ? "bg-[rgba(var(--color-success),0.12)] border-[rgba(var(--color-success),0.4)] text-success"
+                      : "bg-[rgb(var(--bg-card-alt))] border-[rgb(var(--border-color))] text-[rgb(var(--text-secondary))]"
+                  }`}
+                >
+                  Enabled
+                </button>
+                <button
+                  onClick={() => {
+                    setShowDisabledOnly(!showDisabledOnly);
+                    setShowEnabledOnly(false);
+                  }}
+                  className={`px-4 py-2 rounded-lg border ${
+                    showDisabledOnly
+                      ? "bg-[rgba(var(--color-danger),0.12)] border-[rgba(var(--color-danger),0.4)] text-danger"
+                      : "bg-[rgb(var(--bg-card-alt))] border-[rgb(var(--border-color))] text-[rgb(var(--text-secondary))]"
+                  }`}
+                >
+                  Disabled
+                </button>
+              </>
+            }
+            chips={
+              searchQuery || showEnabledOnly || showDisabledOnly ? (
+                <>
+                  {searchQuery && (
+                    <FilterChip
+                      label={`Search: ${searchQuery}`}
+                      onClear={() => setSearchQuery("")}
+                    />
+                  )}
+                  {showEnabledOnly && (
+                    <FilterChip
+                      label="Enabled only"
+                      onClear={() => setShowEnabledOnly(false)}
+                    />
+                  )}
+                  {showDisabledOnly && (
+                    <FilterChip
+                      label="Disabled only"
+                      onClear={() => setShowDisabledOnly(false)}
+                    />
+                  )}
+                </>
+              ) : undefined
+            }
+          />
+
+          <QueueCounts
+            items={[
+              { label: "Total", value: stats.total },
+              { label: "Enabled", value: stats.enabled, tone: "success" },
+              { label: "Disabled", value: stats.disabled, tone: "danger" },
+              {
+                label: "With submissions",
+                value: stats.withSubmissions,
+                tone: "warning",
+                description:
+                  "Games that currently have pending community submissions waiting for review.",
+              },
+            ]}
+          />
 
           {/* Games List */}
           {filteredGames.length === 0 ? (
@@ -316,58 +319,58 @@ function GamesManagementPage() {
             />
           ) : (
             <>
-              <div className="space-y-3">
+              <div className="dashboard-inbox">
                 {currentGames.map((game) => (
                   <div
                     key={game.slug}
-                    className="bg-[rgb(var(--bg-card))] rounded-lg p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4 border border-[rgb(var(--border-color))]"
+                    className="dashboard-inbox-row flex flex-col md:flex-row md:items-center md:justify-between gap-3"
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 mb-2 flex-wrap">
+                      <div className="flex items-start gap-2 mb-1">
                         {game.featureEnabled ? (
                           <Link
                             href={`/games/${game.slug}`}
-                            className="text-lg font-bold text-[rgb(var(--text-primary))] hover:text-[#107c10] transition-colors break-words"
+                            className="min-w-0 flex-1 font-medium text-[rgb(var(--text-primary))] hover:text-[rgb(var(--color-primary))] break-words"
                           >
                             {game.title}
                           </Link>
                         ) : (
                           <button
                             onClick={() => setSelectedDisabledGame(game)}
-                            className="text-lg font-bold text-[rgb(var(--text-primary))] hover:text-[#107c10] transition-colors break-words text-left"
+                            className="min-w-0 flex-1 font-medium text-[rgb(var(--text-primary))] hover:text-[rgb(var(--color-primary))] break-words text-left"
                           >
                             {game.title}
                           </button>
                         )}
-                        <span
-                          className={`px-2 py-1 rounded text-xs font-medium flex-shrink-0 ${
-                            game.featureEnabled
-                              ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border border-green-300 dark:border-transparent"
-                              : "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400 border border-red-300 dark:border-transparent"
-                          }`}
-                        >
-                          {game.featureEnabled ? "Enabled" : "Disabled"}
-                        </span>
-                        {!hasMinimumFields(game) && !game.featureEnabled && (
-                          <span className="px-2 py-1 rounded text-xs font-medium bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] flex-shrink-0">
-                            Missing Info
-                          </span>
-                        )}
-                        {(game.submissionCount ?? 0) > 0 && (
-                          <Link
-                            href={`/dashboard/game-submissions?game=${game.slug}`}
-                            className="px-2 py-1 rounded text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400 border border-yellow-300 dark:border-transparent hover:bg-yellow-200 dark:hover:bg-yellow-800/40 transition-colors flex-shrink-0"
-                          >
-                            {game.submissionCount} Submission
-                            {game.submissionCount !== 1 ? "s" : ""}
-                          </Link>
-                        )}
+                        <div className="shrink-0 pt-0.5">
+                          <StatusPill
+                            status={game.featureEnabled ? "enabled" : "disabled"}
+                          />
+                        </div>
                       </div>
-                      <div className="text-xs sm:text-sm text-[rgb(var(--text-secondary))] space-x-2 sm:space-x-4 flex flex-wrap">
-                        <span>Slug: {game.slug}</span>
-                        <span>Type: {game.activationType}</span>
+                      {(!hasMinimumFields(game) && !game.featureEnabled) ||
+                      (game.submissionCount ?? 0) > 0 ? (
+                        <div className="flex flex-wrap gap-2 mb-1">
+                          {!hasMinimumFields(game) && !game.featureEnabled && (
+                            <span className="status-pill status-pill-neutral">
+                              Missing info
+                            </span>
+                          )}
+                          {(game.submissionCount ?? 0) > 0 && (
+                            <Link
+                              href={`/dashboard/game-submissions?game=${game.slug}`}
+                              className="status-pill status-pill-pending hover:border-[rgb(var(--color-primary))]"
+                            >
+                              {game.submissionCount} submission
+                              {game.submissionCount !== 1 ? "s" : ""}
+                            </Link>
+                          )}
+                        </div>
+                      ) : null}
+                      <div className="text-xs text-[rgb(var(--text-muted))] space-x-2 sm:space-x-3 flex flex-wrap">
+                        <span>{game.slug}</span>
+                        <span>{game.activationType}</span>
                         <span>
-                          Status:{" "}
                           {game.status.charAt(0).toUpperCase() +
                             game.status.slice(1)}
                         </span>
@@ -379,10 +382,10 @@ function GamesManagementPage() {
                           toggleFeatureEnabled(game.slug, game.featureEnabled)
                         }
                         disabled={updating === game.slug}
-                        className={`inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg transition-colors text-xs sm:text-sm font-medium ${
+                        className={`inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium ${
                           game.featureEnabled
-                            ? "bg-red-600 hover:bg-red-700 text-white"
-                            : "bg-green-600 hover:bg-green-700 text-white"
+                            ? "bg-[rgb(var(--color-danger))] hover:opacity-90 text-white"
+                            : "bg-[rgb(var(--color-success))] hover:opacity-90 text-white"
                         } disabled:opacity-50 disabled:cursor-not-allowed`}
                       >
                         {updating === game.slug ? (
@@ -469,17 +472,10 @@ function GamesManagementPage() {
             </>
           )}
 
-          {/* Info Box */}
-          <div className="mt-6 bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
-            <p className="text-blue-300 text-sm">
-              <strong>Enabled games</strong> are visible on the supported games
-              page and have full functionality.
-              <br />
-              <strong>Disabled games</strong> show a banner prompting users to
-              help add game details.
-            </p>
-          </div>
-        </div>
+          <p className="mt-6 text-sm text-[rgb(var(--text-muted))]">
+            Enabled games are listed publicly. Disabled games show a prompt for
+            community details instead.
+          </p>
       </div>
 
       {/* Disabled Game Prompt Modal */}

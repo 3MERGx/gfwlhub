@@ -3,9 +3,9 @@
 import { useSession } from "next-auth/react";
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { safeLog } from "@/lib/security";
-import { getAvatarUrl } from "@/lib/image-utils";
+import UserAvatar from "@/components/UserAvatar";
+import StatusPill from "@/components/dashboard/StatusPill";
 import {
   getFieldDisplayName,
   getCorrectionStatusLabel,
@@ -28,8 +28,6 @@ import {
   FaClock,
   FaGamepad,
   FaExternalLinkAlt,
-  FaChartLine,
-  FaHistory,
   FaEye,
   FaCog,
   FaFilter,
@@ -391,17 +389,6 @@ export default function ProfilePage({
     );
   }
 
-  // Get user initials for avatar fallback
-  const getInitials = () => {
-    const name = profileUser.name || profileUser.email || "U";
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
   const getRoleIcon = () => {
     const roleName =
       profileUser.role.charAt(0).toUpperCase() + profileUser.role.slice(1);
@@ -437,23 +424,6 @@ export default function ProfilePage({
       ? (((profileUser.approvedCount ?? 0) / reviewedCount) * 100).toFixed(1)
       : "0.0";
 
-  const getStatusBadgeColor = (status: string) => {
-    switch (status) {
-      case "approved":
-        return "bg-green-500/20 text-green-400 border-green-500/30";
-      case "rejected":
-        return "bg-red-500/20 text-red-400 border-red-500/30";
-      case "pending":
-        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
-      case "modified":
-        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
-      case "superseded":
-        return "bg-gray-500/20 text-gray-400 border-gray-500/30";
-      default:
-        return "bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-secondary))] border-[rgb(var(--border-color))]";
-    }
-  };
-
   const formatDate = (date: Date | string) => {
     return new Date(date).toLocaleDateString("en-US", {
       year: "numeric",
@@ -486,221 +456,131 @@ export default function ProfilePage({
   const paginatedSubmissions = filteredSubmissions.slice(startIndex, endIndex);
 
   return (
-    <div className="container mx-auto px-4 py-6 md:py-8">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8">
       <div className="max-w-5xl mx-auto">
-        {/* Header */}
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <Link
-              href="/"
-              className="text-[#107c10] hover:underline text-sm mb-2 inline-block"
-            >
-              ← Back to Home
-            </Link>
-            <h1 className="text-2xl md:text-3xl font-bold text-[rgb(var(--text-primary))] mb-2">
-              {isOwnProfile ? "My Profile" : "User Profile"}
-            </h1>
-            <p className="text-[rgb(var(--text-secondary))] text-sm md:text-base">
-              {isOwnProfile
-                ? "View and manage your account information"
-                : "View user profile and contributions"}
-            </p>
-          </div>
-          {isOwnProfile && session?.user?.id && (
-            <Link
-              href="/settings"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[rgb(var(--bg-card))] hover:bg-[rgb(var(--bg-card-alt))] text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:border-[#107c10]/50 transition-colors font-medium"
-            >
-              <FaCog size={16} />
-              Settings
-            </Link>
-          )}
+        <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+          <Link
+            href="/leaderboard"
+            className="text-[#107c10] hover:underline"
+          >
+            ← Leaderboard
+          </Link>
+          <span className="text-[rgb(var(--text-muted))]" aria-hidden>
+            ·
+          </span>
+          <Link href="/" className="text-[rgb(var(--text-secondary))] hover:underline">
+            Home
+          </Link>
         </div>
 
-        {/* Profile Card */}
-        <div className="bg-[rgb(var(--bg-card))] rounded-lg p-6 md:p-8 border border-[rgb(var(--border-color))] mb-6 shadow-lg">
-          {/* Avatar and Basic Info */}
-          <div className="flex flex-col md:flex-row items-center md:items-start gap-6 mb-8 pb-8 border-b border-[rgb(var(--border-color))]">
-            {profileUser.avatar ? (
-              <div className="relative">
-              <Image
-                  src={getAvatarUrl(profileUser.avatar) || profileUser.avatar}
-                alt={profileUser.name || "User"}
-                width={120}
-                height={120}
-                className="w-28 h-28 rounded-full border-4 border-[#107c10] object-cover shadow-lg"
-                unoptimized
-                  onError={(e) => {
-                    // Fallback to initials if image fails to load
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = "none";
-                    if (target.parentElement) {
-                      const fallback = target.parentElement.querySelector(".avatar-fallback") as HTMLElement;
-                      if (fallback) {
-                        fallback.style.display = "flex";
-                      }
-                    }
-                  }}
-                />
-                <div
-                  className="avatar-fallback w-28 h-28 rounded-full bg-gradient-to-br from-green-400 to-green-600 border-4 border-[#107c10] flex items-center justify-center text-white font-bold text-3xl shadow-lg"
-                  style={{ display: "none", position: "absolute", top: 0, left: 0 }}
-                >
-                  {getInitials()}
-                </div>
-              </div>
-            ) : (
-              <div className="w-28 h-28 rounded-full bg-gradient-to-br from-green-400 to-green-600 border-4 border-[#107c10] flex items-center justify-center text-white font-bold text-3xl shadow-lg">
-                {getInitials()}
-              </div>
-            )}
-
-            <div className="flex-1 text-center md:text-left">
-              <h2 className="text-2xl md:text-3xl font-bold text-[rgb(var(--text-primary))] mb-3 flex items-center gap-3 justify-center md:justify-start">
-                {profileUser.name}
+        <div className="bg-[rgb(var(--bg-card))] rounded-xl p-4 sm:p-6 border border-[rgb(var(--border-color))] mb-5">
+          <div className="flex items-center gap-4">
+            <UserAvatar
+              name={profileUser.name || profileUser.email || "User"}
+              src={profileUser.avatar}
+              size={72}
+              className="ring-2 ring-[rgb(var(--border-color))]"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-bold text-[rgb(var(--text-primary))] truncate">
+                  {profileUser.name}
+                </h1>
                 {getRoleIcon()}
-              </h2>
-
-              <div className="flex flex-wrap items-center gap-3 justify-center md:justify-start">
-                {profileUser.status === "active" ? (
-                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-500/20 border border-green-500/30 rounded-full">
-                    <FaCheckCircle className="text-green-400" size={12} />
-                    <span className="text-green-400 text-sm font-medium">
-                      Active
-                    </span>
-                  </div>
-                ) : profileUser.status === "suspended" ? (
-                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-500/20 border border-yellow-500/30 rounded-full">
-                    <FaTimesCircle className="text-yellow-400" size={12} />
-                    <span className="text-yellow-400 text-sm font-medium">
-                      Suspended
-                    </span>
-                  </div>
-                ) : (
-                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-500/20 border border-red-500/30 rounded-full">
-                    <FaTimesCircle className="text-red-400" size={12} />
-                    <span className="text-red-400 text-sm font-medium capitalize">
-                      {profileUser.status}
-                    </span>
-                  </div>
-                )}
+                <StatusPill status={profileUser.status} />
+                {isOwnProfile && session?.user?.id ? (
+                  <Link
+                    href="/settings"
+                    className="ml-auto inline-flex min-h-[40px] items-center gap-2 px-3 py-1.5 text-sm font-medium text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] rounded-lg border border-[rgb(var(--border-color))] hover:bg-[rgb(var(--bg-card-alt))] transition-colors"
+                  >
+                    <FaCog size={14} />
+                    Settings
+                  </Link>
+                ) : null}
               </div>
-            </div>
-          </div>
-
-          {/* Account Details Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {/* Member Since */}
-            <div className="space-y-2">
-              <label className="text-sm text-[rgb(var(--text-muted))] flex items-center gap-2">
-                <FaCalendar size={14} />
-                Member Since
-              </label>
-              <p className="text-[rgb(var(--text-primary))] font-medium">
-                {formatDate(profileUser.createdAt)}
+              <p className="mt-1 text-xs sm:text-sm text-[rgb(var(--text-secondary))] flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="inline-flex items-center gap-1.5">
+                  <FaCalendar size={12} />
+                  Member since {formatDate(profileUser.createdAt)}
+                </span>
+                {profileUser.lastLoginAt ? (
+                  <>
+                    <span aria-hidden>·</span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <FaClock size={12} />
+                      Last login {formatDate(profileUser.lastLoginAt)}
+                    </span>
+                  </>
+                ) : null}
               </p>
             </div>
-
-            {profileUser.lastLoginAt && (
-              <div className="space-y-2">
-                <label className="text-sm text-[rgb(var(--text-muted))] flex items-center gap-2">
-                  <FaHistory size={14} />
-                  Last Login
-                </label>
-                <p className="text-[rgb(var(--text-primary))] font-medium">
-                  {formatDate(profileUser.lastLoginAt)}
-                </p>
-              </div>
-            )}
           </div>
         </div>
 
         {typeof profileUser.submissionsCount === "number" && (
-        <div className="bg-[rgb(var(--bg-card))] rounded-lg p-6 md:p-8 border border-[rgb(var(--border-color))] mb-6 shadow-lg">
-          <h3 className="text-xl font-bold text-[rgb(var(--text-primary))] flex items-center gap-2 mb-6">
-            <FaChartLine className="text-[#107c10]" />
-            Contribution Statistics
-          </h3>
+        <div className="bg-[rgb(var(--bg-card))] rounded-xl p-4 sm:p-6 border border-[rgb(var(--border-color))] mb-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-[rgb(var(--text-muted))] mb-4">
+            Contributions
+          </h2>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-[rgb(var(--bg-card-alt))] p-4 rounded-lg border border-[rgb(var(--border-color))]">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+            <div className="bg-[rgb(var(--bg-card-alt))] p-3 rounded-lg">
               <p className="text-[rgb(var(--text-secondary))] text-xs mb-1">
                 Submissions
               </p>
-              <p className="text-2xl font-bold text-[rgb(var(--text-primary))]">
+              <p className="text-xl font-bold text-[rgb(var(--text-primary))]">
                 {profileUser.submissionsCount}
               </p>
             </div>
-
-            <div className="bg-green-50 dark:bg-green-500/10 p-4 rounded-lg border border-green-200 dark:border-green-500/20">
-              <div className="flex items-center gap-2 mb-1">
-                <FaCheckCircle
-                  className="text-green-600 dark:text-green-500"
-                  size={14}
-                />
-                <p className="text-green-700 dark:text-[rgb(var(--text-secondary))] text-xs">
-                  Approved
-                </p>
-              </div>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-500">
-                {profileUser.approvedCount}
+            <div className="bg-[rgb(var(--bg-card-alt))] p-3 rounded-lg">
+              <p className="text-[rgb(var(--text-secondary))] text-xs mb-1 inline-flex items-center gap-1.5">
+                <FaCheckCircle className="text-[rgb(var(--color-primary))]" size={12} />
+                Approved
+              </p>
+              <p className="text-xl font-bold text-[rgb(var(--color-primary))]">
+                {profileUser.approvedCount ?? 0}
               </p>
             </div>
-
-            <div className="bg-red-50 dark:bg-red-500/10 p-4 rounded-lg border border-red-200 dark:border-red-500/20">
-              <div className="flex items-center gap-2 mb-1">
-                <FaTimesCircle
-                  className="text-red-600 dark:text-red-500"
-                  size={14}
-                />
-                <p className="text-red-700 dark:text-[rgb(var(--text-secondary))] text-xs">
-                  Rejected
-                </p>
-              </div>
-              <p className="text-2xl font-bold text-red-600 dark:text-red-500">
-                {profileUser.rejectedCount}
+            <div className="bg-[rgb(var(--bg-card-alt))] p-3 rounded-lg">
+              <p className="text-[rgb(var(--text-secondary))] text-xs mb-1 inline-flex items-center gap-1.5">
+                <FaTimesCircle className="text-[rgb(var(--color-danger))]" size={12} />
+                Rejected
+              </p>
+              <p className="text-xl font-bold text-[rgb(var(--color-danger))]">
+                {profileUser.rejectedCount ?? 0}
               </p>
             </div>
-
-            <div className="bg-yellow-50 dark:bg-yellow-500/10 p-4 rounded-lg border border-yellow-200 dark:border-yellow-500/20">
-              <div className="flex items-center gap-2 mb-1">
-                <FaClock
-                  className="text-yellow-600 dark:text-yellow-500"
-                  size={14}
-                />
-                <p className="text-yellow-700 dark:text-[rgb(var(--text-secondary))] text-xs">
-                  Pending
-                </p>
-              </div>
-              <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-500">
+            <div className="bg-[rgb(var(--bg-card-alt))] p-3 rounded-lg">
+              <p className="text-[rgb(var(--text-secondary))] text-xs mb-1 inline-flex items-center gap-1.5">
+                <FaClock size={12} />
+                Pending
+              </p>
+              <p className="text-xl font-bold text-[rgb(var(--text-primary))]">
                 {pendingCount}
               </p>
             </div>
           </div>
 
-          {/* Approval Rate */}
           {reviewedCount > 0 && (
-            <div className="pt-6 border-t border-[rgb(var(--border-color))]">
+            <div className="pt-3 border-t border-[rgb(var(--border-color))]">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-[rgb(var(--text-secondary))] text-sm">
-                  Approval Rate
+                  Approval rate
                 </p>
-                <span className="text-[rgb(var(--text-primary))] font-bold text-lg">
+                <span className="text-[rgb(var(--text-primary))] font-bold">
                   {approvalRate}%
                 </span>
               </div>
-              <div className="flex-1 bg-[rgb(var(--bg-card-alt))] rounded-full h-4 overflow-hidden">
+              <div className="bg-[rgb(var(--bg-card-alt))] rounded-full h-2 overflow-hidden">
                 <div
-                  className={`h-full transition-all ${
+                  className={`h-full ${
                     parseFloat(approvalRate) >= 75
-                      ? "bg-green-500"
+                      ? "bg-[rgb(var(--color-primary))]"
                       : parseFloat(approvalRate) >= 50
-                      ? "bg-yellow-500"
-                      : "bg-red-500"
+                      ? "bg-[rgb(var(--color-warning))]"
+                      : "bg-[rgb(var(--color-danger))]"
                   }`}
-                  style={{
-                    width: `${approvalRate}%`,
-                  }}
+                  style={{ width: `${approvalRate}%` }}
                 />
               </div>
             </div>
@@ -720,11 +600,10 @@ export default function ProfilePage({
               isOwnProfile || isAdmin || showStatistics;
 
             return (
-              <div className="bg-[rgb(var(--bg-card))] rounded-lg p-6 md:p-8 border border-[rgb(var(--border-color))] shadow-lg">
-                <h3 className="text-xl font-bold text-[rgb(var(--text-primary))] flex items-center gap-2 mb-6">
-                  <FaHistory className="text-[#107c10]" />
-                  Recent Activity
-                </h3>
+              <div className="bg-[rgb(var(--bg-card))] rounded-xl p-4 sm:p-6 border border-[rgb(var(--border-color))]">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-[rgb(var(--text-muted))] mb-4">
+                  Recent activity
+                </h2>
 
                 {!shouldShowActivity ? (
                   <div className="text-center py-8">
@@ -883,31 +762,37 @@ export default function ProfilePage({
                           <Link
                             key={`${submission.type}-${submission.id}`}
                             href={`/games/${submission.gameSlug}`}
-                            className="block bg-[rgb(var(--bg-card-alt))] hover:bg-[rgb(var(--bg-card))] rounded-lg p-4 border border-[rgb(var(--border-color))] hover:border-[#107c10]/50 transition-all group"
+                            className="block rounded-lg p-3 sm:p-4 border border-[rgb(var(--border-color))] bg-[rgb(var(--bg-card-alt))] hover:border-[rgb(var(--color-primary))]/40 transition-colors group"
                           >
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-2">
+                                <div className="flex items-center gap-2 mb-1">
                                   <FaGamepad
-                                    className="text-[#107c10] flex-shrink-0"
+                                    className="text-[rgb(var(--color-primary))] flex-shrink-0"
                                     size={14}
                                   />
-                                  <h4 className="text-[rgb(var(--text-primary))] font-semibold truncate group-hover:text-[#107c10] transition-colors">
+                                  <h3 className="text-[rgb(var(--text-primary))] font-semibold truncate group-hover:text-[rgb(var(--color-primary))] transition-colors">
                                     {submission.gameTitle}
-                                  </h4>
+                                  </h3>
                                 </div>
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="text-[rgb(var(--text-muted))] text-xs px-2 py-0.5 bg-[rgb(var(--bg-card))] rounded">
-                                    {submission.type === "correction" ? "Correction" : "Game Submission"}
+                                <p className="text-xs text-[rgb(var(--text-muted))] flex flex-wrap items-center gap-1.5">
+                                  <span>
+                                    {submission.type === "correction"
+                                      ? "Correction"
+                                      : "Game submission"}
                                   </span>
-                                  {correction && (
-                                    <span className="text-[rgb(var(--text-secondary))] text-xs">
-                                      {getFieldDisplayName(correction.field)}
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-[rgb(var(--text-muted))] text-xs mt-1">
-                                  {formatDateTime(submission.submittedAt)}
+                                  {correction ? (
+                                    <>
+                                      <span aria-hidden>·</span>
+                                      <span>
+                                        {getFieldDisplayName(correction.field)}
+                                      </span>
+                                    </>
+                                  ) : null}
+                                  <span aria-hidden>·</span>
+                                  <span>
+                                    {formatDateTime(submission.submittedAt)}
+                                  </span>
                                 </p>
                                 {showReviewNotes && (
                                   <p className="text-[rgb(var(--text-secondary))] text-xs mt-2 p-2 bg-[rgb(var(--bg-card))] rounded border border-[rgb(var(--border-color))]">
@@ -924,16 +809,15 @@ export default function ProfilePage({
                                   </p>
                                 )}
                               </div>
-                              <div className="flex items-center gap-3">
-                                <span
-                                  className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadgeColor(
+                              <div className="flex items-center gap-3 shrink-0">
+                                <StatusPill
+                                  status={submission.status}
+                                  label={getCorrectionStatusLabel(
                                     submission.status
-                                  )}`}
-                                >
-                                  {getCorrectionStatusLabel(submission.status)}
-                                </span>
+                                  )}
+                                />
                                 <FaExternalLinkAlt
-                                  className="text-[rgb(var(--text-muted))] group-hover:text-[#107c10] transition-colors"
+                                  className="text-[rgb(var(--text-muted))] group-hover:text-[rgb(var(--color-primary))] transition-colors"
                                   size={12}
                                 />
                               </div>

@@ -346,7 +346,7 @@ export default function ModerationPage() {
           />
 
           {/* Filters Container */}
-          <div className="bg-[rgb(var(--bg-card))] rounded-lg border border-[rgb(var(--border-color))] p-4 mb-6">
+          <div className="dashboard-surface p-3 sm:p-4 mb-5">
             {/* Search Bar and Clear Filters - Large Screens */}
             <div className="hidden lg:flex gap-3 mb-4">
               <div className="relative flex-1">

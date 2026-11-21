@@ -18,6 +18,9 @@ import {
   ReviewerActionLog,
   ReviewerAction,
   OAuthProvider,
+  GAME_DOWNLOAD_LINK_FIELDS,
+  type CorrectionVirusTotalScan,
+  type GameDownloadLinkField,
 } from "@/types/crowdsource";
 import { REVIEWER_APPLICATION_CONFIG } from "./reviewer-application-config";
 import clientPromise from "./mongodb";
@@ -274,6 +277,74 @@ export async function saveCorrectionVirusTotalScan(
     return { ok: false, error: "Correction not found after update" };
   }
   return { ok: true, correction: toCorrection(updated) };
+}
+
+function isGameDownloadLinkField(field: string): field is GameDownloadLinkField {
+  return GAME_DOWNLOAD_LINK_FIELDS.includes(field as GameDownloadLinkField);
+}
+
+/**
+ * Persist a VirusTotal URL-scan summary on a game submission download link
+ * so other reviewers see prior results instead of an empty Scan button.
+ */
+export async function saveGameSubmissionVirusTotalScan(
+  submissionId: string,
+  field: string,
+  expectedUrl: string,
+  scan: CorrectionVirusTotalScan
+): Promise<
+  | { ok: true; scan: CorrectionVirusTotalScan }
+  | { ok: false; error: string }
+> {
+  const objectId = toObjectId(submissionId);
+  if (!objectId) {
+    return { ok: false, error: "Invalid submission id" };
+  }
+  if (!isGameDownloadLinkField(field)) {
+    return {
+      ok: false,
+      error: "VirusTotal scans only apply to download link fields",
+    };
+  }
+
+  const client = await clientPromise;
+  const db = client.db("GFWL");
+  const submission = await db.collection("gameSubmissions").findOne({
+    _id: objectId,
+  });
+  if (!submission) {
+    return { ok: false, error: "Game submission not found" };
+  }
+
+  const proposed =
+    submission.proposedData && typeof submission.proposedData === "object"
+      ? (submission.proposedData as Record<string, unknown>)
+      : {};
+  const storedUrl =
+    typeof proposed[field] === "string" ? proposed[field].trim() : "";
+  if (!storedUrl || storedUrl !== expectedUrl.trim()) {
+    return {
+      ok: false,
+      error: "Scan URL does not match this submission's download link",
+    };
+  }
+
+  const virusTotalScan: CorrectionVirusTotalScan = {
+    reportUrl: sanitizeString(scan.reportUrl, 500),
+    malicious: Math.max(0, Math.floor(Number(scan.malicious) || 0)),
+    suspicious: Math.max(0, Math.floor(Number(scan.suspicious) || 0)),
+    harmless: Math.max(0, Math.floor(Number(scan.harmless) || 0)),
+    total: Math.max(0, Math.floor(Number(scan.total) || 0)),
+    scannedAt: scan.scannedAt ? new Date(scan.scannedAt) : new Date(),
+    source: scan.source === "submit" ? "submit" : "review",
+  };
+
+  await db.collection("gameSubmissions").updateOne(
+    { _id: objectId },
+    { $set: { [`virusTotalScans.${field}`]: virusTotalScan } }
+  );
+
+  return { ok: true, scan: virusTotalScan };
 }
 
 export async function getCorrectionsByGame(

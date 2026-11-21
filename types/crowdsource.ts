@@ -70,6 +70,15 @@ export type CorrectionField = (typeof CORRECTION_FIELDS)[number];
 export const GAME_UPDATE_FIELDS = [...CORRECTION_FIELDS, "fileName"] as const;
 export type GameUpdateField = (typeof GAME_UPDATE_FIELDS)[number];
 
+export type GameDownloadLinkField =
+  | "downloadLink"
+  | "communityAlternativeDownloadLink";
+
+export const GAME_DOWNLOAD_LINK_FIELDS: readonly GameDownloadLinkField[] = [
+  "downloadLink",
+  "communityAlternativeDownloadLink",
+];
+
 /** Persisted VirusTotal URL-scan summary shared across reviewers. */
 export interface CorrectionVirusTotalScan {
   reportUrl: string;
@@ -274,6 +283,11 @@ export interface GameSubmission {
     remasteredName?: string;
     remasteredPlatform?: string;
   };
+
+  /** Reviewer VirusTotal scans keyed by download-link field. */
+  virusTotalScans?: Partial<
+    Record<GameDownloadLinkField, CorrectionVirusTotalScan>
+  >;
 
   // Notes from submitter
   submitterNotes?: string;
