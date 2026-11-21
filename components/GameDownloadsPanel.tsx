@@ -30,17 +30,19 @@ function DownloadRow({
   actions,
   virusTotalUrl,
 }: {
-  label: string;
+  label?: string;
   title?: string;
   actions?: ReactNode;
   virusTotalUrl?: string;
 }) {
   return (
     <div>
-      <div className="p-3">
-        <p className="text-xs uppercase tracking-wide text-[rgb(var(--text-muted))] mb-1">
-          {label}
-        </p>
+      <div>
+        {label ? (
+          <p className="text-xs uppercase tracking-wide text-[rgb(var(--text-muted))] mb-1">
+            {label}
+          </p>
+        ) : null}
         {title ? (
           <p
             className={`text-sm font-medium text-[rgb(var(--text-primary))] ${
@@ -55,7 +57,9 @@ function DownloadRow({
         ) : null}
       </div>
       {virusTotalUrl ? (
-        <VirusTotalWidget compact virusTotalUrl={virusTotalUrl} />
+        <div className="mt-2">
+          <VirusTotalWidget compact virusTotalUrl={virusTotalUrl} />
+        </div>
       ) : null}
     </div>
   );
@@ -124,7 +128,6 @@ export default function GameDownloadsPanel({
   const originalRow = hasOriginalRow ? (
     <DownloadRow
       key="original"
-      label={isLauncherDownload(game) ? "Original launcher" : "Original files"}
       virusTotalUrl={hasOriginalDownload ? game.virusTotalUrl : undefined}
       actions={
         <>
@@ -158,16 +161,9 @@ export default function GameDownloadsPanel({
     : [originalRow, communityRow || nameOnlyRow];
 
   return (
-    <div className="mb-5 overflow-hidden rounded-lg border border-[rgb(var(--border-color))]">
+    <div className="mb-5 space-y-3">
       {rows.filter(Boolean).map((row, index) => (
-        <div
-          key={index}
-          className={
-            index > 0 ? "border-t border-[rgb(var(--border-color))]" : undefined
-          }
-        >
-          {row}
-        </div>
+        <div key={index}>{row}</div>
       ))}
     </div>
   );

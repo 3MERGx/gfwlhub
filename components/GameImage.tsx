@@ -2,29 +2,21 @@
 
 import Image from "next/image";
 import { useState, useEffect, useMemo } from "react";
-
-/** Domains that block direct image requests (403) or rate-limit (429) and must be loaded via our proxy */
-const PROXY_DOMAINS = [
-  "thumbnails.pcgamingwiki.com",
-  "images.pcgamingwiki.com",
-  "www.pcgamingwiki.com",
-  "pcgamingwiki.com",
-  "upload.wikimedia.org",
-  "wikimedia.org",
-];
+import {
+  normalizeCoverImageUrl,
+  shouldProxyImageUrl,
+} from "@/lib/image-utils";
 
 function useImageSrc(rawSrc: string | undefined): string | undefined {
   return useMemo(() => {
-    if (!rawSrc || !rawSrc.startsWith("http")) return rawSrc;
-    try {
-      const host = new URL(rawSrc).hostname.toLowerCase();
-      if (PROXY_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`))) {
-        return `/api/image-proxy?url=${encodeURIComponent(rawSrc)}`;
-      }
-    } catch {
-      // ignore invalid URLs
+    const normalized = normalizeCoverImageUrl(rawSrc);
+    if (!normalized || !normalized.startsWith("http")) return normalized;
+
+    if (shouldProxyImageUrl(normalized)) {
+      return `/api/image-proxy?url=${encodeURIComponent(normalized)}`;
     }
-    return rawSrc;
+
+    return normalized;
   }, [rawSrc]);
 }
 
@@ -142,6 +134,7 @@ export default function GameImage({
           alt={alt}
           className={`absolute inset-0 h-full w-full object-cover ${className}`}
           loading={priority ? "eager" : "lazy"}
+          referrerPolicy="no-referrer"
           onError={handleError}
           onLoad={handleLoad}
         />
@@ -156,6 +149,7 @@ export default function GameImage({
         height={height}
         className={className}
         loading={priority ? "eager" : "lazy"}
+        referrerPolicy="no-referrer"
         onError={handleError}
         onLoad={handleLoad}
         style={{ width, height, objectFit: "cover" }}

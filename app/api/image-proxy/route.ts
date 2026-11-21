@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 import { isNsfwDomainBlocked } from "@/lib/nsfw-blacklist";
+import { expandImageUrlCandidates } from "@/lib/image-utils";
 
 const ALLOWED_IMAGE_CONTENT_TYPES: Record<string, string> = {
   "image/jpeg": "image/jpeg",
@@ -15,33 +16,6 @@ function parseAllowedImageContentType(header: string | null): string | null {
   if (!header) return null;
   const mediaType = sanitizeString(header, 100).split(";")[0].trim().toLowerCase();
   return ALLOWED_IMAGE_CONTENT_TYPES[mediaType] ?? null;
-}
-
-/**
- * Cloudflare often blocks Node fetches to thumbnails.pcgamingwiki.com (403),
- * while images.pcgamingwiki.com serves the same file. Expand candidates.
- */
-function expandImageUrlCandidates(rawUrl: string): string[] {
-  const candidates: string[] = [rawUrl];
-  try {
-    const parsed = new URL(rawUrl);
-    const host = parsed.hostname.toLowerCase();
-    if (host === "thumbnails.pcgamingwiki.com") {
-      const parts = parsed.pathname.split("/").filter(Boolean);
-      if (parts.length >= 3) {
-        const last = parts[parts.length - 1];
-        if (/^\d+px-/i.test(last)) {
-          const withoutSize = parts.slice(0, -1).join("/");
-          candidates.push(`https://images.pcgamingwiki.com/${withoutSize}`);
-        } else {
-          candidates.push(`https://images.pcgamingwiki.com${parsed.pathname}`);
-        }
-      }
-    }
-  } catch {
-    // ignore invalid URLs; caller validates
-  }
-  return [...new Set(candidates)];
 }
 
 function fetchHeadersForImageUrl(imageUrl: string): HeadersInit {
