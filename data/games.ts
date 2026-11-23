@@ -85,7 +85,7 @@ export const games: Game[] = [
     downloadType: "launcher",
     // Set downloadRequiresGfwl: false and update activationNotes when the 1.5 GFWL-stripped launcher is published.
     activationNotes:
-      "After installing the launcher, run the 5x5 activation bypass.",
+      "Shadowrun RE 1.5 has removed GFWL, uses Discord to sign in.",
     // purchaseLink: "https://www.gog.com/en/game/shadowrun_returns",
     virusTotalUrl:
       "https://www.virustotal.com/gui/url/5c3783fa496b5e468c580cf7cf30820a107451aea22ff7eaae68513a6ca00432/detection",

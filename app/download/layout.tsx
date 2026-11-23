@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Download GFWL Legacy Bypass - Games for Windows LIVE",
+  title: "Download GFWL Legacy Bypass",
   description:
     "Download the GFWL Legacy Bypass for legacy 5x5 GFWL titles. Fixes Games for Windows LIVE activation on Windows 10/11. For compatible titles only.",
   keywords: [
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     "XLLN alternative",
   ],
   openGraph: {
-    title: "Download GFWL Legacy Bypass - Games for Windows LIVE",
+    title: "Download GFWL Legacy Bypass | GFWL Hub",
     description:
       "Free tool for legacy 5x5 GFWL titles. Helps preserve access to compatible games on Windows 10/11.",
     type: "website",
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Download GFWL Legacy Bypass - Games for Windows LIVE",
+    title: "Download GFWL Legacy Bypass | GFWL Hub",
     description:
       "Free tool for legacy 5x5 GFWL titles. Helps preserve access to compatible games on Windows 10/11.",
   },

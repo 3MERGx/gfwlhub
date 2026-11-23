@@ -822,13 +822,12 @@ export default function CorrectionModal({
       onSubmit();
       setStep("success");
 
-      if (
-        pathname === "/dashboard/submissions" ||
-        pathname?.startsWith("/games/")
-      ) {
+      // Only refresh the submissions dashboard. Game pages do not change until
+      // a correction is approved, and refreshing here remounts this modal and
+      // wipes the success step (leaving the form open).
+      if (pathname === "/dashboard/submissions") {
         router.refresh();
       }
-      router.refresh();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to submit correction"

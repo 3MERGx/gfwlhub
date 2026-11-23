@@ -1,7 +1,7 @@
 import type { Metadata } from "next/types";
 
 export const metadata: Metadata = {
-  title: "Supported Games - GFWL Hub",
+  title: "Supported Games",
   description:
     "List of Games for Windows LIVE titles with their support status and activation types.",
 };

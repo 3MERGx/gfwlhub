@@ -67,6 +67,9 @@ export async function POST(request: NextRequest) {
       reviewedByName: string;
       reviewNotes?: string;
       finalValue?: unknown;
+      oldValue?: unknown;
+      newValue?: unknown;
+      reason?: string;
     }> = [];
 
     const db = await getGFWLDatabase();
@@ -358,6 +361,9 @@ export async function POST(request: NextRequest) {
           reviewedByName: updatedCorrection.reviewedByName || user.name,
           reviewNotes: updatedCorrection.reviewNotes,
           finalValue: updatedCorrection.finalValue,
+          oldValue: correction.oldValue,
+          newValue: correction.newValue,
+          reason: correction.reason,
         });
       }
     }

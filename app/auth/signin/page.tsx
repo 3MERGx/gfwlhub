@@ -411,10 +411,10 @@ function SignInContent() {
                 <FaShieldAlt className="text-white" size={32} />
               </div>
               <h2 className="text-3xl font-bold text-[rgb(var(--text-primary))] mb-2">
-                Welcome Back
+                Sign in to GFWL Hub
               </h2>
               <p className="text-[rgb(var(--text-secondary))]">
-                Sign in to continue to GFWL Hub
+                Use Google, Discord, or GitHub. No password needed.
               </p>
             </div>
 
@@ -487,11 +487,12 @@ function SignInContent() {
               </button>
             </div>
 
-            {/* Info Box */}
+            {/* First-time / account info */}
             <div className="mt-8 p-4 bg-gradient-to-br from-[#107c10]/10 to-[#0d6b0d]/10 border border-[#107c10]/30 rounded-xl">
               <p className="text-[rgb(var(--text-secondary))] text-sm text-center leading-relaxed">
-                Your data is secure. We only access your basic profile
-                information to create your account.
+                First sign-in creates an account from your provider&apos;s name,
+                avatar, and email. Your public profile shows name and avatar
+                only (not email).
               </p>
             </div>
 

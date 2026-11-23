@@ -9,19 +9,37 @@ const FOOTER_LINKS = [
   { href: "/download", label: "5x5 Activation Bypass" },
 ] as const;
 
+const linkClass =
+  "text-sm text-[rgb(var(--text-secondary))] hover:text-[#107c10] transition-colors";
+
+const sectionLabelClass =
+  "mb-3 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--text-muted))]";
+
 const Footer = () => {
   return (
     <footer className="bg-[rgb(var(--bg-card))] text-[rgb(var(--text-primary))] py-8 border-t border-[rgb(var(--border-color))]">
       <div className="container mx-auto px-4">
-        <div className="flex flex-col gap-6">
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-3 md:gap-6">
+          <div className="text-center md:text-left">
+            <Link
+              href="/"
+              className="text-lg font-bold text-[rgb(var(--text-primary))] hover:text-[#107c10] transition-colors"
+            >
+              GFWL Hub
+            </Link>
+            <p className="mt-2 text-sm text-[rgb(var(--text-secondary))] leading-relaxed">
+              Community resource for Games for Windows LIVE titles.
+            </p>
+          </div>
+
           <nav aria-label="Footer">
-            <ul className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm">
+            <p className={`${sectionLabelClass} text-center md:text-left`}>
+              Explore
+            </p>
+            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-1 text-center md:text-left">
               {FOOTER_LINKS.map((link) => (
                 <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    className="text-[rgb(var(--text-secondary))] hover:text-[#107c10] transition-colors"
-                  >
+                  <Link href={link.href} className={linkClass}>
                     {link.label}
                   </Link>
                 </li>
@@ -29,31 +47,39 @@ const Footer = () => {
             </ul>
           </nav>
 
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="text-center md:text-left text-sm text-[rgb(var(--text-secondary))]">
-              <p>© {new Date().getFullYear()} GFWL Hub. All rights reserved.</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <Link
-                href="https://discord.gg/PR75T8xMWS"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[rgb(var(--text-primary))] hover:text-[#5865F2] transition-colors"
-                aria-label="Discord"
-              >
-                <FaDiscord size={24} />
-              </Link>
-              <Link
-                href="https://www.reddit.com/r/GFWLive/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[rgb(var(--text-primary))] hover:text-[#FF4500] transition-colors"
-                aria-label="Reddit"
-              >
-                <FaReddit size={24} />
-              </Link>
-            </div>
+          <div>
+            <p className={`${sectionLabelClass} text-center md:text-left`}>
+              Community
+            </p>
+            <ul className="flex flex-col items-center gap-3 md:items-start">
+              <li>
+                <Link
+                  href="https://discord.gg/PR75T8xMWS"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`inline-flex items-center gap-2 ${linkClass} hover:text-[#5865F2]`}
+                >
+                  <FaDiscord size={18} aria-hidden />
+                  Discord
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="https://www.reddit.com/r/GFWLive/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`inline-flex items-center gap-2 ${linkClass} hover:text-[#FF4500]`}
+                >
+                  <FaReddit size={18} aria-hidden />
+                  Reddit
+                </Link>
+              </li>
+            </ul>
           </div>
+        </div>
+
+        <div className="mt-8 border-t border-[rgb(var(--border-color))] pt-6 text-center md:text-left text-sm text-[rgb(var(--text-secondary))]">
+          <p>© {new Date().getFullYear()} GFWL Hub. All rights reserved.</p>
         </div>
       </div>
     </footer>

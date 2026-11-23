@@ -177,12 +177,21 @@ export async function POST(request: NextRequest) {
     const result = await submissionsCollection.insertOne(newSubmission);
     const submissionId = result.insertedId.toString();
 
-    // Discord webhook (non-blocking; log errors only)
+    // Discord webhook (non-blocking; store message IDs for in-place review updates)
     notifyFaqSubmissionSubmitted({
       id: submissionId,
       question: sanitizedQuestion,
       submittedByName: newSubmission.submittedByName,
-    }).catch((err) => safeLog.error("FAQ submission Discord webhook failed:", err));
+    })
+      .then(async (messageIds) => {
+        if (messageIds && messageIds.length > 0) {
+          await submissionsCollection.updateOne(
+            { _id: result.insertedId },
+            { $set: { discordMessageIds: messageIds } }
+          );
+        }
+      })
+      .catch((err) => safeLog.error("FAQ submission Discord webhook failed:", err));
 
     triggerPusherEvent(PUSHER_EVENTS.FAQ_SUBMISSIONS_UPDATED);
 

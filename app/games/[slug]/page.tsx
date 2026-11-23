@@ -75,7 +75,7 @@ export async function generateMetadata({
 
   if (!game) {
     return {
-      title: "Game Not Found - GFWL Hub",
+      title: "Game Not Found",
       description: "The requested game could not be found.",
     };
   }
@@ -119,7 +119,8 @@ export async function generateMetadata({
   const descriptionWithBadge = `${game.description} • ${playabilityBadge}`;
 
   const metadata: Metadata = {
-    title: `${game.title} | GFWL Hub`,
+    // Root layout template appends "| GFWL Hub" — do not include it here
+    title: game.title,
     description: descriptionWithBadge,
     openGraph: {
       title: `${game.title} | GFWL Hub`,
@@ -522,7 +523,7 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                   href={game.discordLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                  className="inline-flex items-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] hover:underline text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
                 >
                   <FaDiscord size={18} />
                   {game.title} Discord
@@ -533,7 +534,7 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                   href={game.redditLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 bg-[#FF4500] hover:bg-[#E03D00] text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                  className="inline-flex items-center gap-2 bg-[#FF4500] hover:bg-[#E03D00] hover:underline text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
                 >
                   <FaReddit size={18} />
                   {game.title} Reddit
@@ -543,7 +544,7 @@ By proceeding, you acknowledge and accept that all downloads are done at your ow
                 href="https://discord.gg/PR75T8xMWS"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                className="inline-flex items-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] hover:underline text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
               >
                 <FaDiscord size={18} />
                 GFWL Hub Discord

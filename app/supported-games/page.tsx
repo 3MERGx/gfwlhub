@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense } from "react";
+import { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -84,6 +84,7 @@ function SupportedGamesContent() {
   const [showAddDetailsModal, setShowAddDetailsModal] = useState(false);
   const [refreshGamesTrigger, setRefreshGamesTrigger] = useState(0);
   const [initializedFromQuery, setInitializedFromQuery] = useState(false);
+  const skipScrollOnMount = useRef(true);
 
   useEffect(() => {
     if (initializedFromQuery) return;
@@ -215,6 +216,18 @@ function SupportedGamesContent() {
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(1);
   }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    if (skipScrollOnMount.current) {
+      skipScrollOnMount.current = false;
+      return;
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [currentPage]);
+
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.min(Math.max(1, page), totalPages));
+  };
 
   const hasActiveFilters =
     searchQuery.trim().length > 0 ||
@@ -435,7 +448,7 @@ function SupportedGamesContent() {
               <div className="flex items-center justify-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  onClick={() => goToPage(currentPage - 1)}
                   disabled={currentPage === 1}
                   className={`inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm ${
                     currentPage === 1
@@ -452,9 +465,7 @@ function SupportedGamesContent() {
                 </span>
                 <button
                   type="button"
-                  onClick={() =>
-                    setCurrentPage((p) => Math.min(totalPages, p + 1))
-                  }
+                  onClick={() => goToPage(currentPage + 1)}
                   disabled={currentPage === totalPages}
                   className={`inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm ${
                     currentPage === totalPages

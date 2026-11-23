@@ -8,7 +8,7 @@ import {
 import { requireReviewer } from "@/lib/api-auth";
 import { getGFWLDatabase } from "@/lib/mongodb";
 import { CorrectionStatus } from "@/types/crowdsource";
-import { isCorrectionField } from "@/lib/mongo-sanitize";
+import { isCorrectionField, toObjectId } from "@/lib/mongo-sanitize";
 import { notifyCorrectionReviewed } from "@/lib/discord-webhook";
 import { safeLog, sanitizeString, rateLimiters, getClientIdentifier } from "@/lib/security";
 import { revalidatePath } from "next/cache";
@@ -17,6 +17,24 @@ import { triggerPusherEvent, PUSHER_EVENTS } from "@/lib/pusher-server";
 import { validateCSRFToken } from "@/lib/csrf";
 import { prepareDownloadVirusTotalForCorrection } from "@/lib/apply-download-correction";
 import { sanitizeReviewFinalValue } from "@/lib/request-validation";
+
+function extractDiscordMessageIds(
+  doc: Record<string, unknown> | null | undefined
+): string | string[] | null {
+  if (!doc) return null;
+  const messageIds = doc.discordMessageIds;
+  if (Array.isArray(messageIds)) {
+    const ids = messageIds.filter(
+      (id): id is string => typeof id === "string" && id.length > 0
+    );
+    if (ids.length > 0) return ids;
+  }
+  const messageId = doc.discordMessageId;
+  if (typeof messageId === "string" && messageId.length > 0) {
+    return messageId;
+  }
+  return null;
+}
 
 // POST - Review a correction (approve, reject, or modify)
 export async function POST(request: NextRequest) {
@@ -263,20 +281,42 @@ export async function POST(request: NextRequest) {
 
     const updatedCorrection = await getCorrectionById(sanitizedCorrectionId);
     if (updatedCorrection) {
-      notifyCorrectionReviewed({
-        id: updatedCorrection.id,
-        gameTitle: updatedCorrection.gameTitle,
-        gameSlug: updatedCorrection.gameSlug,
-        field: updatedCorrection.field,
-        submittedByName: updatedCorrection.submittedByName,
-        status: updatedCorrection.status as
-          | "approved"
-          | "rejected"
-          | "modified",
-        reviewedByName: updatedCorrection.reviewedByName || user.name,
-        reviewNotes: updatedCorrection.reviewNotes,
-        finalValue: updatedCorrection.finalValue,
-      }).catch((error) => {
+      // Prefer stored webhook message IDs so review updates the original embed
+      let discordMessageIds = extractDiscordMessageIds(
+        correction as unknown as Record<string, unknown>
+      );
+      if (!discordMessageIds) {
+        const objectId = toObjectId(sanitizedCorrectionId);
+        if (objectId) {
+          const raw = await getGFWLDatabase().then((db) =>
+            db.collection("corrections").findOne({ _id: objectId })
+          );
+          discordMessageIds = extractDiscordMessageIds(
+            raw as Record<string, unknown> | null
+          );
+        }
+      }
+
+      notifyCorrectionReviewed(
+        {
+          id: updatedCorrection.id,
+          gameTitle: updatedCorrection.gameTitle,
+          gameSlug: updatedCorrection.gameSlug,
+          field: updatedCorrection.field,
+          submittedByName: updatedCorrection.submittedByName,
+          status: updatedCorrection.status as
+            | "approved"
+            | "rejected"
+            | "modified",
+          reviewedByName: updatedCorrection.reviewedByName || user.name,
+          reviewNotes: updatedCorrection.reviewNotes,
+          finalValue: updatedCorrection.finalValue,
+          oldValue: correction.oldValue,
+          newValue: correction.newValue,
+          reason: correction.reason,
+        },
+        discordMessageIds
+      ).catch((error) => {
         safeLog.error("Failed to send Discord notification:", error);
       });
     }

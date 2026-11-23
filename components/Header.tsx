@@ -44,8 +44,11 @@ const NAV_LINKS = [
 function NavLinkClass(active: boolean) {
   return active
     ? "text-white font-semibold underline underline-offset-4 decoration-2"
-    : "hover:text-gray-200 transition-colors";
+    : "text-white/90 hover:text-white hover:underline underline-offset-4 decoration-2 transition-colors";
 }
+
+const mobileNavItemClass =
+  "block rounded-md px-3 py-2 -mx-1 hover:bg-white/10 transition-colors";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -223,6 +226,15 @@ export default function Header() {
     setIsMenuOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMenuOpen]);
+
   const pendingBadge =
     totalPending > 0 ? (
       <span className="bg-orange-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
@@ -233,10 +245,10 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-50 bg-[#107c10] text-white shadow-md">
       <div className="container mx-auto px-4 min-w-0">
-        <div className="flex justify-between items-center h-16 gap-3 min-w-0">
+        <div className="relative flex justify-between items-center h-16 gap-3 min-w-0">
           <button
             type="button"
-            className="xl:hidden text-white rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#107c10] order-1"
+            className="relative z-10 xl:hidden text-white rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#107c10]"
             onClick={toggleMenu}
             aria-label={isMenuOpen ? "Close menu" : "Open menu"}
             aria-expanded={isMenuOpen}
@@ -246,7 +258,7 @@ export default function Header() {
 
           <Link
             href="/"
-            className="flex items-center order-2 xl:order-1 shrink-0"
+            className="flex items-center shrink-0 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 xl:static xl:translate-x-0 xl:translate-y-0 rounded-md hover:opacity-90 transition-opacity"
           >
             <Image
               src="/GFWL _logo.png"
@@ -259,7 +271,7 @@ export default function Header() {
             <span className="ml-2 text-xl font-bold">GFWL Hub</span>
           </Link>
 
-          <nav className="hidden xl:flex items-center justify-center flex-1 order-2 gap-6">
+          <nav className="hidden xl:flex items-center justify-center flex-1 gap-6">
             <ul className="flex items-center space-x-6">
               {NAV_LINKS.map((link) => (
                 <li key={link.href}>
@@ -295,7 +307,7 @@ export default function Header() {
             </ul>
           </nav>
 
-          <div className="hidden xl:flex items-center gap-3 order-3">
+          <div className="hidden xl:flex items-center gap-3">
             <GameSearch
               variant="header"
               id="header-game-search"
@@ -305,74 +317,90 @@ export default function Header() {
             <UserMenu />
           </div>
 
-          <div className="xl:hidden flex items-center gap-2 order-3">
-            <ThemeToggle />
+          <div className="relative z-10 xl:hidden flex items-center gap-2">
             <UserMenu />
           </div>
         </div>
       </div>
 
       {isMenuOpen && (
-        <div className="xl:hidden bg-[#0e6b0e] py-4 overflow-x-hidden">
-          <nav className="container mx-auto px-4 min-w-0">
-            <div className="mb-4 min-w-0">
-              <GameSearch
-                variant="header"
-                id="mobile-game-search"
-                className="w-full"
-                fullWidth
-                onNavigate={() => setIsMenuOpen(false)}
-              />
-            </div>
-            <ul className="space-y-4">
-              {NAV_LINKS.map((link) => (
-                <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    className={`block ${NavLinkClass(isActive(link.href))}`}
-                    onClick={() => setIsMenuOpen(false)}
-                    title={link.title}
-                    aria-current={isActive(link.href) ? "page" : undefined}
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-              <li>
-                <Link
-                  href={DISCORD_INVITE}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block hover:text-gray-200 transition-colors"
-                  onClick={() => setIsMenuOpen(false)}
-                  title="Join the GFWL Hub Discord"
-                >
-                  Join Discord
-                </Link>
-              </li>
-              {isStaff && (
-                <>
-                  <li className="pt-2 border-t border-white/20" />
-                  <li>
+        <div className="xl:hidden fixed inset-0 top-16 z-40">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            aria-label="Close menu"
+            onClick={() => setIsMenuOpen(false)}
+          />
+          <div className="relative max-h-[calc(100dvh-4rem)] overflow-x-hidden overflow-y-auto bg-[#0e6b0e] py-4 shadow-lg">
+            <nav className="container mx-auto px-4 min-w-0">
+              <div className="mb-4 min-w-0">
+                <GameSearch
+                  variant="header"
+                  id="mobile-game-search"
+                  className="w-full"
+                  fullWidth
+                  onNavigate={() => setIsMenuOpen(false)}
+                />
+              </div>
+              <ul className="space-y-1">
+                {NAV_LINKS.map((link) => (
+                  <li key={link.href}>
                     <Link
-                      href="/dashboard"
-                      className={`flex items-center gap-2 ${NavLinkClass(
-                        isActive("/dashboard")
+                      href={link.href}
+                      className={`${mobileNavItemClass} ${NavLinkClass(
+                        isActive(link.href)
                       )}`}
                       onClick={() => setIsMenuOpen(false)}
-                      title="Reviewer and admin dashboard"
-                      aria-current={
-                        isActive("/dashboard") ? "page" : undefined
-                      }
+                      title={link.title}
+                      aria-current={isActive(link.href) ? "page" : undefined}
                     >
-                      <span>Dashboard</span>
-                      {pendingBadge}
+                      {link.label}
                     </Link>
                   </li>
-                </>
-              )}
-            </ul>
-          </nav>
+                ))}
+                <li>
+                  <Link
+                    href={DISCORD_INVITE}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`${mobileNavItemClass} text-white/90 hover:text-white`}
+                    onClick={() => setIsMenuOpen(false)}
+                    title="Join the GFWL Hub Discord"
+                  >
+                    Join Discord
+                  </Link>
+                </li>
+                {isStaff && (
+                  <>
+                    <li className="my-2 border-t border-white/20" />
+                    <li>
+                      <Link
+                        href="/dashboard"
+                        className={`${mobileNavItemClass} flex items-center gap-2 ${NavLinkClass(
+                          isActive("/dashboard")
+                        )}`}
+                        onClick={() => setIsMenuOpen(false)}
+                        title="Reviewer and admin dashboard"
+                        aria-current={
+                          isActive("/dashboard") ? "page" : undefined
+                        }
+                      >
+                        <span>Dashboard</span>
+                        {pendingBadge}
+                      </Link>
+                    </li>
+                  </>
+                )}
+                <li className="my-2 border-t border-white/20" />
+                <li>
+                  <ThemeToggle
+                    label="Theme"
+                    className="-mx-1 px-3 py-2"
+                  />
+                </li>
+              </ul>
+            </nav>
+          </div>
         </div>
       )}
     </header>

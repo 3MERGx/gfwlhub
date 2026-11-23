@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   description:
     "Frequently asked questions about Games for Windows LIVE issues and fixes.",
   openGraph: {
-    title: "",
+    title: "FAQ | GFWL Hub",
     description:
       "Frequently asked questions about Games for Windows LIVE issues and fixes.",
     type: "website",
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "FAQ - GFWL Hub",
+    title: "FAQ | GFWL Hub",
     description:
       "Frequently asked questions about Games for Windows LIVE issues and fixes.",
   },

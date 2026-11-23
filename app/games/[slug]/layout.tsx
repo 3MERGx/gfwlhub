@@ -19,7 +19,8 @@ export async function generateMetadata({
   // Default metadata if game not found
   if (!game) {
     return {
-      title: "Game Not Found | GFWL Hub - Games for Windows LIVE Community",
+      // Root layout template appends "| GFWL Hub"
+      title: "Game Not Found",
       description: "The requested game could not be found on GFWL Hub.",
       openGraph: {
         title: "Game Not Found | GFWL Hub",
@@ -47,7 +48,8 @@ export async function generateMetadata({
 
   // Game-specific metadata
   return {
-    title: `${game.title} | GFWL Hub - Games for Windows LIVE Community`,
+    // Root layout template appends "| GFWL Hub"
+    title: game.title,
     description:
       game.description ||
       `Information, fixes, and support for ${game.title} on Games for Windows LIVE.`,

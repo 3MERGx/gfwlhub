@@ -127,15 +127,29 @@ export async function POST(
 
     triggerPusherEvent(PUSHER_EVENTS.FAQ_SUBMISSIONS_UPDATED);
 
-    // Discord webhook (non-blocking)
-    notifyFaqSubmissionReviewed({
-      id: sanitizedId,
-      question: submission.question,
-      submittedByName: submission.submittedByName || "Unknown",
-      status: "rejected",
-      reviewedByName: session.user.name || "Unknown",
-      reviewNotes: adminNotes,
-    }).catch((err) => safeLog.error("FAQ rejection Discord webhook failed:", err));
+    // Discord webhook (non-blocking) — update original embed when message IDs exist
+    const faqDiscordIds = Array.isArray(submission.discordMessageIds)
+      ? (submission.discordMessageIds as unknown[]).filter(
+          (id): id is string => typeof id === "string" && id.length > 0
+        )
+      : typeof submission.discordMessageId === "string" &&
+          submission.discordMessageId.length > 0
+        ? submission.discordMessageId
+        : null;
+
+    notifyFaqSubmissionReviewed(
+      {
+        id: sanitizedId,
+        question: submission.question,
+        submittedByName: submission.submittedByName || "Unknown",
+        status: "rejected",
+        reviewedByName: session.user.name || "Unknown",
+        reviewNotes: adminNotes,
+      },
+      faqDiscordIds && (Array.isArray(faqDiscordIds) ? faqDiscordIds.length > 0 : true)
+        ? faqDiscordIds
+        : null
+    ).catch((err) => safeLog.error("FAQ rejection Discord webhook failed:", err));
 
     return NextResponse.json({ success: true });
   } catch (error) {

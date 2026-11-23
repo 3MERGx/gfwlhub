@@ -48,6 +48,70 @@ function getWebhookUrls(envVar: string): string[] {
 }
 
 /**
+ * Ensures Discord returns the created message body (including id).
+ * Without wait=true, Discord responds 204 No Content and message IDs cannot be stored.
+ */
+function withWaitParam(webhookUrl: string): string {
+  try {
+    const url = new URL(webhookUrl);
+    url.searchParams.set("wait", "true");
+    return url.toString();
+  } catch {
+    const separator = webhookUrl.includes("?") ? "&" : "?";
+    return `${webhookUrl}${separator}wait=true`;
+  }
+}
+
+function formatEmbedValue(value: unknown, maxLength = 200): string {
+  if (value === null || value === undefined) return "*empty*";
+  if (Array.isArray(value)) return value.join(", ") || "*empty*";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  const str = String(value);
+  return str.length > maxLength ? str.substring(0, maxLength) + "..." : str;
+}
+
+/**
+ * Prefer updating existing webhook messages; fall back to sending new ones.
+ */
+async function updateOrSendWebhookMessages(
+  webhookUrls: string[],
+  existingMessageId: string | (string | null)[] | null | undefined,
+  payload: DiscordWebhookPayload
+): Promise<(string | null)[] | null> {
+  if (webhookUrls.length === 0) {
+    return null;
+  }
+
+  if (existingMessageId) {
+    if (typeof existingMessageId === "string") {
+      await updateDiscordWebhook(webhookUrls[0], existingMessageId, payload);
+      if (webhookUrls.length > 1) {
+        const messageIds = await sendDiscordWebhooks(webhookUrls.slice(1), payload);
+        return [existingMessageId, ...messageIds];
+      }
+      return [existingMessageId];
+    }
+
+    if (Array.isArray(existingMessageId) && existingMessageId.length > 0) {
+      const validMessageIds = existingMessageId.filter(
+        (id): id is string => typeof id === "string" && id.length > 0
+      );
+
+      if (validMessageIds.length > 0) {
+        const paddedMessageIds: (string | null)[] = [];
+        for (let i = 0; i < webhookUrls.length; i++) {
+          paddedMessageIds[i] = validMessageIds[i] || null;
+        }
+        await updateDiscordWebhooks(webhookUrls, paddedMessageIds, payload);
+        return paddedMessageIds;
+      }
+    }
+  }
+
+  return sendDiscordWebhooks(webhookUrls, payload);
+}
+
+/**
  * Sends a Discord webhook message to a single webhook
  * @param webhookUrl - The Discord webhook URL
  * @param payload - The webhook payload (content, embeds, etc.)
@@ -58,7 +122,7 @@ export async function sendDiscordWebhook(
   payload: DiscordWebhookPayload
 ): Promise<string | null> {
   try {
-    const response = await fetch(webhookUrl, {
+    const response = await fetch(withWaitParam(webhookUrl), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -75,7 +139,7 @@ export async function sendDiscordWebhook(
       return null;
     }
 
-    // Discord returns the message object with an id field
+    // Discord returns the message object with an id field when wait=true
     const data = await response.json().catch(() => null);
     return data?.id || null;
   } catch (error) {
@@ -217,15 +281,6 @@ export async function notifyCorrectionSubmitted(
   const firstCorrection = corrections[0];
   const gameUrl = `${baseUrl}/games/${firstCorrection.gameSlug}`;
   const dashboardUrl = `${baseUrl}/dashboard/submissions`;
-  
-  // Format field value for display
-  const formatValue = (value: unknown): string => {
-    if (value === null || value === undefined) return "*empty*";
-    if (Array.isArray(value)) return value.join(", ") || "*empty*";
-    if (typeof value === "boolean") return value ? "Yes" : "No";
-    const str = String(value);
-    return str.length > 200 ? str.substring(0, 200) + "..." : str;
-  };
 
   // Build fields array - show all corrections if multiple
   const embedFields: Array<{ name: string; value: string; inline: boolean }> = [
@@ -251,12 +306,12 @@ export async function notifyCorrectionSubmitted(
       },
       {
         name: "Old Value",
-        value: formatValue(firstCorrection.oldValue),
+        value: formatEmbedValue(firstCorrection.oldValue),
         inline: false,
       },
       {
         name: "New Value",
-        value: formatValue(firstCorrection.newValue),
+        value: formatEmbedValue(firstCorrection.newValue),
         inline: false,
       },
       {
@@ -277,7 +332,7 @@ export async function notifyCorrectionSubmitted(
     corrections.forEach((corr, index) => {
       embedFields.push({
         name: `${corr.field} (${index + 1}/${corrections.length})`,
-        value: `**Old:** ${formatValue(corr.oldValue)}\n**New:** ${formatValue(corr.newValue)}\n**Reason:** ${corr.reason || "*No reason*"}`,
+        value: `**Old:** ${formatEmbedValue(corr.oldValue)}\n**New:** ${formatEmbedValue(corr.newValue)}\n**Reason:** ${corr.reason || "*No reason*"}`,
         inline: false,
       });
     });
@@ -299,49 +354,14 @@ export async function notifyCorrectionSubmitted(
     timestamp: new Date().toISOString(),
   };
 
-  // Update existing messages if message IDs are provided, otherwise send to all
-  if (existingMessageId && webhookUrls.length > 0) {
-    if (typeof existingMessageId === 'string') {
-      // Legacy: single message ID - update first webhook, send new to others
-      await updateDiscordWebhook(webhookUrls[0], existingMessageId, {
-        embeds: [embed],
-      });
-      if (webhookUrls.length > 1) {
-        const messageIds = await sendDiscordWebhooks(webhookUrls.slice(1), {
-          embeds: [embed],
-        });
-        return [existingMessageId, ...messageIds];
-      }
-      return [existingMessageId];
-    } else if (Array.isArray(existingMessageId) && existingMessageId.length > 0) {
-      // New format: array of message IDs - update all matching webhooks
-      const validMessageIds = existingMessageId.filter(
-        (id): id is string => typeof id === "string" && id.length > 0
-      );
-      
-      if (validMessageIds.length > 0) {
-        const paddedMessageIds: (string | null)[] = [];
-        for (let i = 0; i < webhookUrls.length; i++) {
-          paddedMessageIds[i] = validMessageIds[i] || null;
-        }
-        
-        await updateDiscordWebhooks(webhookUrls, paddedMessageIds, {
-          embeds: [embed],
-        });
-        return paddedMessageIds;
-      }
-    }
-  }
-
-  // Send to all webhooks and return message IDs
-  const messageIds = await sendDiscordWebhooks(webhookUrls, {
+  return updateOrSendWebhookMessages(webhookUrls, existingMessageId, {
     embeds: [embed],
   });
-  return messageIds;
 }
 
 /**
- * Sends a notification about a correction being reviewed
+ * Sends or updates a notification about a correction being reviewed.
+ * When existingMessageId is provided, PATCHes the original submission embed.
  */
 export async function notifyCorrectionReviewed(
   correction: {
@@ -354,7 +374,11 @@ export async function notifyCorrectionReviewed(
     reviewedByName: string;
     reviewNotes?: string;
     finalValue?: unknown;
-  }
+    oldValue?: unknown;
+    newValue?: unknown;
+    reason?: string;
+  },
+  existingMessageId?: string | string[] | null
 ): Promise<void> {
   const webhookUrls = getWebhookUrls("DISCORD_WEBHOOK_URL");
   if (webhookUrls.length === 0) {
@@ -374,14 +398,6 @@ export async function notifyCorrectionReviewed(
 
   const config = statusConfig[correction.status];
 
-  // Format field value for display
-  const formatValue = (value: unknown): string => {
-    if (value === null || value === undefined) return "*empty*";
-    if (Array.isArray(value)) return value.join(", ") || "*empty*";
-    if (typeof value === "boolean") return value ? "Yes" : "No";
-    return String(value);
-  };
-
   const embed: DiscordEmbed = {
     title: `${config.emoji} Correction ${correction.status.charAt(0).toUpperCase() + correction.status.slice(1)}`,
     description: `**${correction.reviewedByName}** ${correction.status} a correction for **${correction.gameTitle}**`,
@@ -389,18 +405,38 @@ export async function notifyCorrectionReviewed(
     url: dashboardUrl, // Make title clickable
     fields: [
       {
-        name: "Field",
-        value: correction.field,
-        inline: true,
-      },
-      {
         name: "Game",
         value: `[${correction.gameTitle}](${gameUrl})`,
         inline: true,
       },
       {
+        name: "Field",
+        value: correction.field,
+        inline: true,
+      },
+      {
         name: "Submitted By",
         value: correction.submittedByName,
+        inline: true,
+      },
+      {
+        name: "Old Value",
+        value: formatEmbedValue(correction.oldValue),
+        inline: false,
+      },
+      {
+        name: "New Value",
+        value: formatEmbedValue(correction.newValue),
+        inline: false,
+      },
+      {
+        name: "Reason",
+        value: correction.reason || "*No reason provided*",
+        inline: false,
+      },
+      {
+        name: "Reviewed By",
+        value: correction.reviewedByName,
         inline: true,
       },
     ],
@@ -414,7 +450,7 @@ export async function notifyCorrectionReviewed(
   if (correction.status === "modified" && correction.finalValue !== undefined) {
     embed.fields?.push({
       name: "Final Value",
-      value: formatValue(correction.finalValue),
+      value: formatEmbedValue(correction.finalValue),
       inline: false,
     });
   }
@@ -423,13 +459,12 @@ export async function notifyCorrectionReviewed(
   if (correction.reviewNotes) {
     embed.fields?.push({
       name: "Review Notes",
-      value: correction.reviewNotes,
+      value: formatEmbedValue(correction.reviewNotes, 500),
       inline: false,
     });
   }
 
-  // Send to all webhooks (non-blocking, errors are handled internally)
-  await sendDiscordWebhooks(webhookUrls, {
+  await updateOrSendWebhookMessages(webhookUrls, existingMessageId, {
     embeds: [embed],
   });
 }
@@ -449,6 +484,9 @@ export async function notifyCorrectionsReviewedBatch(
     reviewedByName: string;
     reviewNotes?: string;
     finalValue?: unknown;
+    oldValue?: unknown;
+    newValue?: unknown;
+    reason?: string;
   }>,
   existingMessageIds?: (string | null)[] | null
 ): Promise<void> {
@@ -478,14 +516,6 @@ export async function notifyCorrectionsReviewedBatch(
     ? statusConfig[corrections[0].status]
     : { color: 0x3498db, emoji: "📝" }; // Blue for mixed status
 
-  // Format field value for display
-  const formatValue = (value: unknown): string => {
-    if (value === null || value === undefined) return "*empty*";
-    if (Array.isArray(value)) return value.join(", ") || "*empty*";
-    if (typeof value === "boolean") return value ? "Yes" : "No";
-    return String(value);
-  };
-
   const statusText = allSameStatus
     ? corrections[0].status.charAt(0).toUpperCase() + corrections[0].status.slice(1)
     : "Reviewed";
@@ -507,8 +537,8 @@ export async function notifyCorrectionsReviewedBatch(
         inline: true,
       },
       {
-        name: "Count",
-        value: `${corrections.length} correction${corrections.length > 1 ? "s" : ""}`,
+        name: "Reviewed By",
+        value: corrections[0].reviewedByName,
         inline: true,
       },
     ],
@@ -518,46 +548,33 @@ export async function notifyCorrectionsReviewedBatch(
     timestamp: new Date().toISOString(),
   };
 
-  // Add fields for each correction
+  // Add fields for each correction with original submission context
   corrections.forEach((correction, index) => {
     const correctionStatusConfig = statusConfig[correction.status];
-    embed.fields?.push(
-      {
-        name: `\u200b`, // Zero-width space for spacing
-        value: `**Correction ${index + 1}:** ${correctionStatusConfig.emoji} ${correction.field}`,
-        inline: false,
-      }
-    );
+    const detailLines = [
+      `${correctionStatusConfig.emoji} **${correction.status}**`,
+      `**Old:** ${formatEmbedValue(correction.oldValue)}`,
+      `**New:** ${formatEmbedValue(correction.newValue)}`,
+      `**Reason:** ${correction.reason || "*No reason*"}`,
+    ];
 
-    // Add final value if modified
     if (correction.status === "modified" && correction.finalValue !== undefined) {
-      embed.fields?.push({
-        name: `Correction ${index + 1}: Final Value`,
-        value: formatValue(correction.finalValue),
-        inline: false,
-      });
+      detailLines.push(`**Final:** ${formatEmbedValue(correction.finalValue)}`);
+    }
+    if (correction.reviewNotes) {
+      detailLines.push(`**Notes:** ${formatEmbedValue(correction.reviewNotes, 300)}`);
     }
 
-    // Add review notes if provided
-    if (correction.reviewNotes) {
-      embed.fields?.push({
-        name: `Correction ${index + 1}: Review Notes`,
-        value: correction.reviewNotes,
-        inline: false,
-      });
-    }
+    embed.fields?.push({
+      name: `${correction.field} (${index + 1}/${corrections.length})`,
+      value: detailLines.join("\n"),
+      inline: false,
+    });
   });
 
-  // Update existing messages if message IDs are provided, otherwise send new
-  if (existingMessageIds && webhookUrls.length > 0) {
-    await updateDiscordWebhooks(webhookUrls, existingMessageIds, {
-      embeds: [embed],
-    });
-  } else {
-    await sendDiscordWebhooks(webhookUrls, {
-      embeds: [embed],
-    });
-  }
+  await updateOrSendWebhookMessages(webhookUrls, existingMessageIds, {
+    embeds: [embed],
+  });
 }
 
 /**
@@ -758,24 +775,20 @@ export async function notifyGameSubmissionReviewed(
 
 /**
  * Sends a notification about a new FAQ submission
+ * @returns Array of Discord message IDs (one per webhook), or null if webhooks disabled
  */
 export async function notifyFaqSubmissionSubmitted(submission: {
   id: string;
   question: string;
   submittedByName: string;
-}): Promise<void> {
+}): Promise<(string | null)[] | null> {
   const webhookUrls = getWebhookUrls("DISCORD_WEBHOOK_URL");
   if (webhookUrls.length === 0) {
-    return;
+    return null;
   }
 
   const baseUrl = process.env.NEXTAUTH_URL || "https://gfwlhub.com";
   const dashboardUrl = `${baseUrl}/dashboard/faq-submissions`;
-
-  const questionPreview =
-    submission.question.length > 200
-      ? submission.question.substring(0, 200) + "..."
-      : submission.question;
 
   const embed: DiscordEmbed = {
     title: "❓ New FAQ Submission",
@@ -785,7 +798,7 @@ export async function notifyFaqSubmissionSubmitted(submission: {
     fields: [
       {
         name: "Question",
-        value: questionPreview,
+        value: formatEmbedValue(submission.question),
         inline: false,
       },
       {
@@ -800,22 +813,26 @@ export async function notifyFaqSubmissionSubmitted(submission: {
     timestamp: new Date().toISOString(),
   };
 
-  await sendDiscordWebhooks(webhookUrls, {
+  return sendDiscordWebhooks(webhookUrls, {
     embeds: [embed],
   });
 }
 
 /**
- * Sends a notification about an FAQ submission being approved or rejected
+ * Sends or updates a notification about an FAQ submission being approved or rejected.
+ * When existingMessageId is provided, PATCHes the original submission embed.
  */
-export async function notifyFaqSubmissionReviewed(submission: {
-  id: string;
-  question: string;
-  submittedByName: string;
-  status: "approved" | "rejected";
-  reviewedByName: string;
-  reviewNotes?: string;
-}): Promise<void> {
+export async function notifyFaqSubmissionReviewed(
+  submission: {
+    id: string;
+    question: string;
+    submittedByName: string;
+    status: "approved" | "rejected";
+    reviewedByName: string;
+    reviewNotes?: string;
+  },
+  existingMessageId?: string | string[] | null
+): Promise<void> {
   const webhookUrls = getWebhookUrls("DISCORD_WEBHOOK_URL");
   if (webhookUrls.length === 0) {
     return;
@@ -830,11 +847,6 @@ export async function notifyFaqSubmissionReviewed(submission: {
   };
   const config = statusConfig[submission.status];
 
-  const questionPreview =
-    submission.question.length > 200
-      ? submission.question.substring(0, 200) + "..."
-      : submission.question;
-
   const embed: DiscordEmbed = {
     title: `${config.emoji} FAQ Submission ${submission.status.charAt(0).toUpperCase() + submission.status.slice(1)}`,
     description: `**${submission.reviewedByName}** ${submission.status} an FAQ submission by **${submission.submittedByName}**`,
@@ -843,12 +855,17 @@ export async function notifyFaqSubmissionReviewed(submission: {
     fields: [
       {
         name: "Question",
-        value: questionPreview,
+        value: formatEmbedValue(submission.question),
         inline: false,
       },
       {
         name: "Submitted By",
         value: submission.submittedByName,
+        inline: true,
+      },
+      {
+        name: "Reviewed By",
+        value: submission.reviewedByName,
         inline: true,
       },
     ],
@@ -861,15 +878,12 @@ export async function notifyFaqSubmissionReviewed(submission: {
   if (submission.reviewNotes) {
     embed.fields?.push({
       name: "Review Notes",
-      value:
-        submission.reviewNotes.length > 500
-          ? submission.reviewNotes.substring(0, 500) + "..."
-          : submission.reviewNotes,
+      value: formatEmbedValue(submission.reviewNotes, 500),
       inline: false,
     });
   }
 
-  await sendDiscordWebhooks(webhookUrls, {
+  await updateOrSendWebhookMessages(webhookUrls, existingMessageId, {
     embeds: [embed],
   });
 }

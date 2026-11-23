@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
-  title: "Games - GFWL Hub",
+  title: "Games",
   description:
     "Browse all Games for Windows LIVE titles with support information.",
 };
